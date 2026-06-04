@@ -56,8 +56,8 @@ else:
         print("警告: pyncm 模块不可用")
 
 # ========== 版本信息 ==========
-APP_VERSION = "1.0.3"
-APP_VERSION_CODE = 3
+APP_VERSION = "1.0.4"
+APP_VERSION_CODE = 4
 # =============================
 
 
@@ -5318,6 +5318,12 @@ def main(page: ft.Page):
         width=52,
         height=52,
         bgcolor=ft.Colors.GREY_100,
+        border=ft.border.Border(
+            left=ft.border.BorderSide(1, ft.Colors.GREY),
+            top=ft.border.BorderSide(1, ft.Colors.GREY),
+            right=ft.border.BorderSide(1, ft.Colors.GREY),
+            bottom=ft.border.BorderSide(1, ft.Colors.GREY),
+        ),
         border_radius=26,
         #alignment="center",
         ink=True,
@@ -6274,7 +6280,7 @@ def main(page: ft.Page):
     # 修改 main_content 的顶部部分
     main_content = ft.Column([
         # ========== 固定标题区域 ==========
-        ft.Container(height=10),  # 顶部留白
+        ft.Container(height=15),  # 顶部留白
         
         # 标题
         ft.Container(
