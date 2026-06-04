@@ -56,8 +56,8 @@ else:
         print("警告: pyncm 模块不可用")
 
 # ========== 版本信息 ==========
-APP_VERSION = "1.0.2"
-APP_VERSION_CODE = 2
+APP_VERSION = "1.0.3"
+APP_VERSION_CODE = 3
 # =============================
 
 
@@ -1152,6 +1152,7 @@ def main(page: ft.Page):
     global scroll_timer,scroll_position,scroll_text_length, original_music_text  # 添加 original_music_text
     global last_check_date,reminder_flags,music_title_container, main_content, marquee_text # 添加这两个变量
     global selected_date,three_days_events, date_text,current_view   # 添加 date_text
+    global month_text, current_year, current_month, today_circle_button  # 添加 today_circle_button
 
     page.window_icon = "icon.png"
     page.title = "事件提醒助手"
@@ -2535,7 +2536,7 @@ def main(page: ft.Page):
                         ft.Container(height=10),
                         ft.ElevatedButton(
                             "返回全部事件", 
-                            on_click=lambda e: refresh_events_list(),
+                            on_click=lambda e: reset_to_all_events(),
                             style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE),
                         ),
                     ], spacing=8, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
@@ -2553,7 +2554,7 @@ def main(page: ft.Page):
             ft.Row([
                 ft.Text(f"⏰ 预警事件 ({len(three_days_events_list)}个)", 
                     size=18, weight=ft.FontWeight.BOLD),
-                ft.TextButton("返回全部", on_click=lambda e: refresh_events_list()),
+                ft.TextButton("返回全部", on_click=lambda e: reset_to_all_events()),
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
         )
         events_list.controls.append(ft.Divider(height=10))
@@ -2930,6 +2931,13 @@ def main(page: ft.Page):
         #print(f"[日期显示] 更新完成 - 今日事件:{today_events_count}, 3日内事件:{three_days_count}")
         date_text.update()
     
+    def reset_to_all_events():
+        """重置到全部事件视图"""
+        global current_view
+        current_view = "all"
+        refresh_events_list()
+        show_bottom_message("📋 已切换到全部事件视图")
+        
     def refresh_events_list(filter_date=None):
         #刷新事件列表，支持按日期筛选
 
@@ -5281,6 +5289,47 @@ def main(page: ft.Page):
         if (month, day) in solar_terms:
             return solar_terms[(month, day)]
         return None
+    
+
+    # 创建月份文本控件
+    month_text = ft.Text(
+        f"{current_year}年{current_month}月",
+        size=20,
+        color=ft.Colors.BLACK,
+    )
+
+    # 创建回到今天的圆形按钮（初始隐藏）
+    # ========== 创建圆形返回按钮（与添加按钮样式一致） ==========
+    today_circle_button = ft.Container(
+        content=ft.Column(
+            [
+                ft.Text(
+                    str(datetime.now().day),
+                    size=20,
+                    weight=ft.FontWeight.BOLD,
+                    color=ft.Colors.BLUE_700,
+                    text_align=ft.TextAlign.CENTER,
+                ),
+            ],
+            spacing=0,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            alignment=ft.MainAxisAlignment.CENTER,
+        ),
+        width=52,
+        height=52,
+        bgcolor=ft.Colors.GREY_100,
+        border_radius=26,
+        #alignment="center",
+        ink=True,
+        on_click=lambda e: go_to_today(),
+        tooltip=f"回到今天 ({datetime.now().month}月{datetime.now().day}日)",
+        visible=False,
+        shadow=ft.BoxShadow(
+            spread_radius=1,
+            blur_radius=5,
+            color=ft.Colors.WHITE,
+        ),
+    )
 
     # 标题行
     title_row = ft.Row(
@@ -5293,7 +5342,6 @@ def main(page: ft.Page):
                 ),
                 width=40,
                 height=40,
-                #bgcolor=ft.Colors.BLUE_50,
                 border=ft.border.Border(
                     left=ft.border.BorderSide(1, ft.Colors.BLACK_26),
                     top=ft.border.BorderSide(1, ft.Colors.BLACK_26),
@@ -5302,37 +5350,49 @@ def main(page: ft.Page):
                 ),
                 border_radius=20,
                 #alignment=ft.alignment.center,
+                ink=True,
                 on_click=lambda e: change_month(-1),
             ),
             ft.Container(
-                content=ft.Text(
-                    f"{current_year}年{current_month}月",
-                    size=20,
-                    #weight=ft.FontWeight.BOLD,
-                    color=ft.Colors.BLACK,
-                ),
+                content=month_text,
                 padding=10,
-                #bgcolor=ft.Colors.BLUE_50,
                 border_radius=30,
             ),
-            ft.Container(
-                content=ft.Icon(
-                    ft.Icons.KEYBOARD_ARROW_RIGHT,
-                    size=24,
-                    color=ft.Colors.BLACK_87,
-                ),
-                width=40,
-                height=40,
-                #bgcolor=ft.Colors.BLUE_50,
-                border=ft.border.Border(
-                    left=ft.border.BorderSide(1, ft.Colors.BLACK_26),
-                    top=ft.border.BorderSide(1, ft.Colors.BLACK_26),
-                    right=ft.border.BorderSide(1, ft.Colors.BLACK_26),
-                    bottom=ft.border.BorderSide(1, ft.Colors.BLACK_26),
-                ),
-                border_radius=20,
-                #alignment=ft.alignment.center,
-                on_click=lambda e: change_month(1),
+            ft.Row(
+                [
+                    ft.Container(
+                        content=ft.Icon(
+                            ft.Icons.KEYBOARD_ARROW_RIGHT,
+                            size=24,
+                            color=ft.Colors.BLACK_87,
+                        ),
+                        width=40,
+                        height=40,
+                        border=ft.border.Border(
+                            left=ft.border.BorderSide(1, ft.Colors.BLACK_26),
+                            top=ft.border.BorderSide(1, ft.Colors.BLACK_26),
+                            right=ft.border.BorderSide(1, ft.Colors.BLACK_26),
+                            bottom=ft.border.BorderSide(1, ft.Colors.BLACK_26),
+                        ),
+                        border_radius=20,
+                        #alignment=ft.alignment.center,
+                        ink=True,
+                        on_click=lambda e: change_month(1),
+                    ),
+                    ft.IconButton(
+                        ft.Icons.TODAY,
+                        icon_size=22,
+                        icon_color=ft.Colors.BLUE_700,
+                        tooltip="回到今天",
+                        on_click=lambda e: go_to_today(),
+                        visible=False,
+                        style=ft.ButtonStyle(
+                            shape=ft.CircleBorder(),
+                            bgcolor=ft.Colors.BLUE_50,
+                        ),
+                    ),
+                ],
+                spacing=5,
             ),
         ],
         alignment=ft.MainAxisAlignment.CENTER,
@@ -5354,9 +5414,44 @@ def main(page: ft.Page):
         divider_thickness=0,
         column_spacing=8,  # 缩小列间距
     )
+    
+    def go_to_today():
+        """回到当前日期"""
+        global current_year, current_month, selected_date, current_date, current_view
+        
+        print(f"[go_to_today] 执行前 - current_year: {current_year}, current_month: {current_month}")
+        
+        # 获取当前日期
+        today = datetime.now()
+        current_year = today.year
+        current_month = today.month
+        
+        print(f"[go_to_today] 设置后 - current_year: {current_year}, current_month: {current_month}")
+        
+        # 更新月份文本显示
+        month_text.value = f"{current_year}年{current_month}月"
+        
+        # 关键修复：设置 selected_date 为今天的日期，而不是 None
+        selected_date = today.date()
+        current_date = today.date()
+        
+        # 更新日历显示（重新生成日历表格，会高亮 selected_date）
+        update_calendar()
+        
+        # 刷新事件列表（显示全部事件）
+        current_view = "all"
+        refresh_events_list()
+        
+        # 更新日期显示
+        date_display.value = today.strftime("%Y年%m月%d日")
+        
+        # 强制刷新页面
+        page.update()
+        
+        show_bottom_message(f"已回到今天 {today.strftime('%Y年%m月%d日')}")
 
     def change_month(delta):
-        nonlocal current_year, current_month
+        global current_year, current_month
         current_month += delta
         if current_month > 12:
             current_month = 1
@@ -5368,7 +5463,26 @@ def main(page: ft.Page):
 
     def update_calendar():
         global selected_date  # 声明使用全局变量
-        title_row.controls[1].value = f"{current_year}年{current_month}月"
+
+        # 更新月份文本显示
+        month_text.value = f"{current_year}年{current_month}月"
+        
+        # ========== 检查当前月份是否是今天所在的月份 ==========
+        today = datetime.now()
+        is_current_month = (current_year == today.year and current_month == today.month)
+        
+        # 根据是否是当前月份显示/隐藏圆形按钮
+        today_circle_button.visible = not is_current_month
+        
+        # 更新按钮上的日期数字（保持最新）
+        #today_circle_button.content.controls[0].value = str(today.day)
+        #today_circle_button.tooltip = f"回到今天 ({today.month}月{today.day}日)"
+        # 更新按钮上的日期数字（直接修改 content 的值）
+        today_circle_button.content.value = str(today.day)  # 因为 content 现在是 Text
+        today_circle_button.tooltip = f"回到今天 ({today.month}月{today.day}日)"
+        #today_circle_button.update()
+        
+        # 清空表格并重新生成
         data_table.rows.clear()
         today_date = datetime.now().date()
         
@@ -5517,11 +5631,11 @@ def main(page: ft.Page):
     calendar_widget = ft.Container(
         content=ft.Column([
             title_row,
-            ft.Divider(height=10),
+            ft.Divider(height=5),
             data_table,
         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),  # 添加这一行
         bgcolor=None,
-        padding=5,
+        padding=0,
         border_radius=10,
     )
 
@@ -6168,7 +6282,7 @@ def main(page: ft.Page):
                 ft.Text("📅 事件提醒助手", size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
                 ft.Text("支持四类事件提醒：生日、纪念日、每月事件及一次性事件", size=12, color=ft.Colors.GREY_600),
             ], horizontal_alignment=ft.CrossAxisAlignment.START),
-            padding=10,
+            padding=13,
         ),
 
         ft.Divider(),
@@ -6179,10 +6293,10 @@ def main(page: ft.Page):
                 # 顶部留白
                 #ft.Container(height=5),
                 
-                # 日历和日期组合
+                # 日历和事件提醒组合
                 ft.Column([
                     calendar_widget,
-                    ft.Container(height=5),
+                    #ft.Container(height=5),
                     date_text,
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                 
@@ -6249,33 +6363,44 @@ def main(page: ft.Page):
     
     # 在变量声明部分添加
     bottom_info_text = ft.Text(value="✅ 准备就绪", size=12, color=ft.Colors.GREY_600, expand=True)
+    
 
+    
     # ========== 设置底部按钮 ==========
     page.bottom_appbar = ft.BottomAppBar(
-        content=ft.Row([
-            # 左侧信息显示区域
+        content=ft.Column([
+            # 第一行：圆形返回按钮（靠右对齐，与添加按钮对齐）
             ft.Container(
-                content=bottom_info_text,
-                expand=True,
-                padding=5,
+                content=ft.Row([
+                    ft.Container(expand=True),  # 左侧空白，让按钮靠右
+                    today_circle_button,
+                ]),
+                height=70,  # 固定高度，即使按钮隐藏也保留空间
             ),
-            # 右侧添加按钮 - 圆形悬浮效果
-            ft.Container(
-                content=ft.Icon(ft.Icons.ADD, size=28, color=ft.Colors.WHITE),
-                bgcolor=ft.Colors.BLUE_700,
-                border_radius=30,
-                padding=12,
-                ink=True,
-                on_click=lambda e: open_add_dialog(is_edit=False),
-                shadow=ft.BoxShadow(
-                    spread_radius=1,
-                    blur_radius=5,
-                    color=ft.Colors.BLUE_300,
+            # 第二行：信息文字和添加按钮
+            ft.Row([
+                ft.Container(
+                    content=bottom_info_text,
+                    expand=True,
+                    padding=5,
                 ),
-            ),
-        ], spacing=0, alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                ft.Container(
+                    content=ft.Icon(ft.Icons.ADD, size=28, color=ft.Colors.WHITE),
+                    bgcolor=ft.Colors.BLUE_700,
+                    border_radius=30,
+                    padding=12,
+                    ink=True,
+                    on_click=lambda e: open_add_dialog(is_edit=False),
+                    shadow=ft.BoxShadow(
+                        spread_radius=1,
+                        blur_radius=5,
+                        color=ft.Colors.BLUE_300,
+                    ),
+                ),
+            ], spacing=0, alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+        ], spacing=0),
         bgcolor=ft.Colors.WHITE,
-        #height=65,
+        height=140,  # 固定高度
     )
     
 
@@ -6341,7 +6466,8 @@ def main(page: ft.Page):
             refresh_events_list()
 
     # 执行启动视图选择
-    determine_startup_view()
+    #determine_startup_view()
+    threading.Timer(0.5, determine_startup_view).start()
 
     # ========== 设置页面关闭回调 ==========
     def on_page_close():
