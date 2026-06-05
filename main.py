@@ -57,8 +57,8 @@ else:
         print("警告: pyncm 模块不可用")
 
 # ========== 版本信息 ==========
-APP_VERSION = "1.0.7"
-APP_VERSION_CODE = 7
+APP_VERSION = "1.0.8"
+APP_VERSION_CODE = 8
 # =============================
 
 
@@ -5205,15 +5205,17 @@ def main(page: ft.Page):
         )
 
         # ========== 每周提醒专用的星期选择行 ==========
+        # 获取当前星期几（1-7，周一为1，周日为7）
+        current_weekday = datetime.now().isoweekday()  # 返回 1-7，1=周一，7=周日
+
         # 每周提醒的星期选择
         if selected_event and selected_event.event_type == "weekly":
-            weekday_value = selected_event.birth_date if selected_event.birth_date else "1"
+            weekday_value = selected_event.birth_date if selected_event.birth_date else str(current_weekday)
         else:
-            weekday_value = "1"
+            weekday_value = str(current_weekday)
             
         weekday_field = ft.Dropdown(
             label="星期",
-            width=150,
             options=[
                 ft.dropdown.Option("1", "周一"),
                 ft.dropdown.Option("2", "周二"),
@@ -5224,12 +5226,12 @@ def main(page: ft.Page):
                 ft.dropdown.Option("7", "周日"),
             ],
             value=weekday_value,
+            expand=True,  # 让 Dropdown 自适应宽度
         )
 
         weekday_row = ft.Row(
             [
-                ft.Container(weekday_field, width=120),
-                ft.Text("", size=14),
+                weekday_field,  # 直接使用 Dropdown，不包裹 Container
             ],
             alignment=ft.MainAxisAlignment.CENTER,
             visible=False,  # 默认隐藏
@@ -7742,10 +7744,20 @@ def main(page: ft.Page):
         has_today_event = False
         has_warning_event = False
         
-        # 检查是否有今日事件
+        # 检查是否有今日事件（不包括每日和每周事件）
         for event in events.values():
+            if event.event_type == "daily" or event.event_type == "weekly":
+                continue
+
             month, day, year, base_year, days_until = event.get_next_date_info()
-            if month == today.month and day == today.day:
+
+            if event.event_type == "monthly":
+                target_day = int(event.birth_date) if event.birth_date else 1
+                if today.day == target_day:
+                    has_today_event = True
+                    break
+
+            elif month == today.month and day == today.day:
                 if event.repeat_type == "once":
                     if not event.completed and days_until >= 0:
                         has_today_event = True
@@ -7768,14 +7780,16 @@ def main(page: ft.Page):
         
         # 根据检查结果设置初始视图
         if has_today_event:
-            current_view = "today"
-            show_bottom_message("📅 今日有事件，自动切换到今日事件视图")
-            refresh_events_list()
+            if current_view != "today":
+                current_view = "today"
+                show_bottom_message("📅 今日有事件，自动切换到今日事件视图")
+                refresh_events_list()
         elif has_warning_event:
-            current_view = "all"  # 保持 current_view 为 all
-            # 延迟调用，确保页面已加载
-            threading.Timer(0.5, lambda: show_three_days_events()).start()
-            show_bottom_message("⏰ 未来3天有事件，自动切换到预警事件视图")
+            if current_view != "three_days":
+                current_view = "three_days"
+                # 延迟调用，确保页面已加载
+                threading.Timer(0.5, lambda: show_three_days_events()).start()
+                show_bottom_message("⏰ 未来3天有事件，自动切换到预警事件视图")
         else:
             current_view = "all"
             show_bottom_message("📋 切换到全部事件视图")
@@ -7866,9 +7880,11 @@ def main(page: ft.Page):
 
                     # ========== 5. 根据当前视图决定是否需要切换 ==========
                     # 如果当前是今日事件视图，跨天后切换到全部事件（因为今天是新的一天）
-                    if current_view == "today":
-                        current_view = "all"
-                        print(f"[跨天检测] 今日事件视图已过期，切换到全部事件视图")
+                    #if current_view == "today":
+                        #current_view = "all"
+                        #print(f"[跨天检测] 今日事件视图已过期，切换到全部事件视图")
+
+                    determine_startup_view()
                     
                     # ========== 6. 刷新事件列表（根据当前视图） ==========
                     refresh_current_view_by_state()
