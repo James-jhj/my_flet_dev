@@ -57,8 +57,8 @@ else:
         print("警告: pyncm 模块不可用")
 
 # ========== 版本信息 ==========
-APP_VERSION = "1.0.9"
-APP_VERSION_CODE = 9
+APP_VERSION = "1.0.10"
+APP_VERSION_CODE = 10
 # =============================
 
 
