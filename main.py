@@ -57,8 +57,8 @@ else:
         print("警告: pyncm 模块不可用")
 
 # ========== 版本信息 ==========
-APP_VERSION = "1.0.8"
-APP_VERSION_CODE = 8
+APP_VERSION = "1.0.9"
+APP_VERSION_CODE = 9
 # =============================
 
 
@@ -1198,7 +1198,7 @@ def main(page: ft.Page):
     global last_check_date,reminder_flags,music_title_container, main_content, marquee_text # 添加这两个变量
     global selected_date,three_days_events, date_text,current_view   # 添加 date_text
     global month_text, current_year, current_month, today_circle_button  # 添加 today_circle_button
-    global music_control_container, playback_buttons, music_section_container  # 修改这里
+    global music_control_container, playback_buttons, music_section_container,sent_notifications  # 修改这里
 
     page.window_icon = "icon.png"
     page.title = "事件提醒助手"
@@ -1232,6 +1232,8 @@ def main(page: ft.Page):
                 print(f"权限请求失败: {e}")
     
     page.on_ready = request_permissions
+
+    sent_notifications = set()  # 记录已发送的通知，格式: "事件ID_提醒时间_日期"
 
     reminder_flags = {}  # 存储提醒标记
 
@@ -1480,7 +1482,9 @@ def main(page: ft.Page):
             try:
                 del events[event_id]
                 save_events()
-                refresh_events_list()
+                #refresh_events_list()
+                # ========== 根据当前视图刷新对应的视图 ==========
+                refresh_current_view_by_state()
                 show_bottom_message(f"已删除「{name}」")
             except Exception as ex:
                 show_bottom_message(f"删除失败: {str(ex)}")
@@ -6179,12 +6183,13 @@ def main(page: ft.Page):
     
     def check_time_reminders():
         """检查时间提醒"""
+        global sent_notifications
         now = datetime.now()
         current_time = now.strftime("%H:%M")
         current_weekday = now.weekday() + 1  # 1=周一
         
-        print(f"[时间提醒] ========== 开始检查 ==========")
-        print(f"[时间提醒] 当前时间: {current_time}, 当前星期: {current_weekday}")
+        #print(f"[时间提醒] ========== 开始检查 ==========")
+        #print(f"[时间提醒] 当前时间: {current_time}, 当前星期: {current_weekday}")
         
         for event in events.values():
             # 检查提醒列表
@@ -6202,7 +6207,7 @@ def main(page: ft.Page):
                     continue  # 时间不匹配，跳过，不继续判断
                 
                 # 第二步：时间匹配了，才进入这里
-                print(f"[时间提醒] 匹配到事件: {event.name}, 时间: {reminder_time}")
+                #print(f"[时间提醒] 匹配到事件: {event.name}, 时间: {reminder_time}")
                 
                 # 第三步：再根据事件类型判断是否需要提醒
                 should_remind = False
@@ -6210,7 +6215,7 @@ def main(page: ft.Page):
                 if event.event_type == "daily":
                     # 每天事件：每天都提醒
                     should_remind = True
-                    print(f"[时间提醒] 每天事件，触发提醒")
+                    #print(f"[时间提醒] 每天事件，触发提醒")
                     
                 elif event.event_type == "weekly":
                     # 每周事件：检查今天是否是提醒日
@@ -6242,9 +6247,20 @@ def main(page: ft.Page):
                 
                 # 触发提醒
                 if should_remind:
+                    # ========== 生成唯一标识，用于去重 ==========
+                    notification_key = f"{event.id}_{reminder_time}_{current_date}"
+                    
+                    # 检查是否已经发送过
+                    if notification_key in sent_notifications:
+                        #print(f"[时间提醒] 跳过重复提醒: {event.name} - {reminder_time} (已发送过)")
+                        continue
+                    
+                    # 标记为已发送
+                    sent_notifications.add(notification_key)
+                    print(f"[时间提醒] 发送通知: {event.name} - {reminder_time}")
                     show_notification(f"🔔 事件提醒", f"{event.name} - {reminder_time} 提醒")
 
-                    # ========== 关键修复：在循环内直接播放，使用当前 event 对象 ==========
+                    # ========== 播放音乐（只播放第一个匹配的事件） ==========
                     if event.sound_file and os.path.exists(event.sound_file):
                         # 保存当前事件的信息到局部变量，避免闭包捕获问题
                         current_event_name = event.name
@@ -6268,7 +6284,12 @@ def main(page: ft.Page):
                         page.run_task(do_play)
                         break  # 找到第一个匹配的事件就退出，避免播放多个
 
-        print(f"[时间提醒] ========== 检查完成 ==========")
+        # 每天凌晨清理一次通知记录（避免内存无限增长）
+        if current_time == "00:00":
+            sent_notifications.clear()
+            print(f"[时间提醒] 已清空通知记录")
+
+        #print(f"[时间提醒] ========== 检查完成 ==========")
 
     # 修改 check_events 函数，添加详细日志
     def check_events():
@@ -6448,8 +6469,8 @@ def main(page: ft.Page):
             """时间提醒循环 - 每半分钟检查"""
             while True:
                 try:
-                    check_time_reminders()
-                    time.sleep(30)  # 每半分钟检查一次
+                    #check_time_reminders()  # 暂时不需要了，改为实时提醒
+                    time.sleep(30)           # 每半分钟检查一次
                 except Exception as e:
                     print(f"时间提醒循环出错: {e}")
                     time.sleep(30)
@@ -7232,7 +7253,9 @@ def main(page: ft.Page):
                 events.clear()
                 events.update(new_events)
                 save_events()
-                refresh_events_list()
+                #refresh_events_list()
+                # ========== 根据当前视图刷新对应的视图 ==========
+                refresh_current_view_by_state()
                 update_calendar()
                 show_bottom_message(f"成功导入 {imported_count} 条事件")
                 page.update()
@@ -7930,6 +7953,9 @@ def main(page: ft.Page):
                 # 同时更新两个控件
                 current_datetime_text.update()
                 run_time_text.update()
+                
+                # 实时检查是否到时间触发事件提醒
+                check_time_reminders()
                 
                 await asyncio.sleep(1)
             except Exception as e:
