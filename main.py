@@ -25,6 +25,7 @@ from typing import Optional
 from zhdate import ZhDate
 import openpyxl
 from openpyxl import Workbook, load_workbook
+from datetime import timezone, timedelta
 
 
 # ========== 平台检测（放在这里） ==========
@@ -56,8 +57,8 @@ else:
         print("警告: pyncm 模块不可用")
 
 # ========== 版本信息 ==========
-APP_VERSION = "1.0.5"
-APP_VERSION_CODE = 5
+APP_VERSION = "1.0.6"
+APP_VERSION_CODE = 6
 # =============================
 
 
@@ -387,7 +388,8 @@ class SmoothMarqueeText(ft.Stack):
             # 检测是否完成了一个完整周期
             # 如果 offset 回绕了（从接近 unit_width 变成接近 0）
             if last_offset > unit_width * 0.8 and self._offset < unit_width * 0.2:
-                print(f"[滚动] 完成一个周期，准备无缝衔接")
+                #print(f"[滚动] 完成一个周期，准备无缝衔接")
+                pass
                 #if self.show_message:
                     #self.show_message(f"[滚动] 完成一个周期，准备无缝衔接")
             
@@ -1430,6 +1432,9 @@ def main(page: ft.Page):
                 # 不要在这里调用 check_events()，避免递归
             else:
                 print("⚠️ 保存的文件可能为空")
+            
+            # ========== 根据当前视图刷新对应的视图 ==========
+            #refresh_current_view_by_state()
                     
         except Exception as e:
             print(f"保存失败: {e}")
@@ -3417,7 +3422,7 @@ def main(page: ft.Page):
         
         # 更新文本内容
         if text_parts:
-            display_text = f"📌 {' '.join(text_parts)}"
+            display_text = f"📌 {' ,'.join(text_parts)}"
             date_text.content.value = display_text
             date_text.content.color = ft.Colors.BLUE_700
             date_text.content.weight = ft.FontWeight.BOLD
@@ -3649,12 +3654,12 @@ def main(page: ft.Page):
         
         for event in events.values():
             # ========== 跳过每天事件和每周事件（它们有自己的视图） ==========
-            if event.event_type == "daily":
+            #if event.event_type == "daily":
                 # 每天事件不显示在今日事件中
-                continue
-            if event.event_type == "weekly":
+                #continue
+            #if event.event_type == "weekly":
                 # 每周事件不显示在今日事件中
-                continue
+                #continue
 
             month, day, year, base_year, days_until = event.get_next_date_info()
             
@@ -3667,6 +3672,10 @@ def main(page: ft.Page):
                     age_text = "🎂 生日"
             elif event.event_type == "monthly":
                 age_text = "📆 每月提醒"
+            elif event.event_type == "daily":
+                age_text = "📆 每天提醒"
+            elif event.event_type == "weekly":
+                age_text = "📅 每周提醒"
             elif event.repeat_type == "once":
                 age_text = ""
             else:  # event
@@ -3678,7 +3687,11 @@ def main(page: ft.Page):
                 else:
                     age_text = "📅 纪念日"
             
-            is_today = (month == today.month and day == today.day)
+            # ========== 判断是否是今日事件（每日和每周事件不纳入今日事件） ==========
+            is_today = False
+            # 只有非每日/非每周的事件才判断是否是今天
+            if event.event_type != "daily" and event.event_type != "weekly":
+                is_today = (month == today.month and day == today.day)
             
             event_info = {
                 "event": event, 
@@ -3720,8 +3733,18 @@ def main(page: ft.Page):
             days_until = info["days_until"]
             base_year = info.get("base_year", 0)
             
+            # ========== 状态文本和背景色设置 ==========
+            # 每日和每周事件特殊处理
+            if event.event_type == "daily":
+                status_text = "每天"
+                status_color = ft.Colors.PURPLE_700
+                bg_color = ft.Colors.PURPLE_50
+            elif event.event_type == "weekly":
+                status_text = "每周"
+                status_color = ft.Colors.TEAL_700
+                bg_color = ft.Colors.TEAL_50
             # 一次性事件特殊处理
-            if event.repeat_type == "once":
+            elif event.repeat_type == "once":
                 if event.completed:
                     status_text = "已完成"
                     status_color = ft.Colors.GREY_500
@@ -3774,7 +3797,13 @@ def main(page: ft.Page):
                 type_name = "每周"
                 weekday_names = ["", "周一", "周二", "周三", "周四", "周五", "周六", "周日"]
                 weekday_num = int(event.birth_date) if event.birth_date else 1
-                display_date = f"每周 {weekday_names[weekday_num]}"
+                # 获取提醒时间
+                if event.reminders:
+                    time_list = [r.get("time", "") for r in event.reminders if r.get("enabled")]
+                    time_str = " ".join(time_list)
+                    display_date = f"每周 {weekday_names[weekday_num]} {time_str}"
+                else:
+                    display_date = f"每周 {weekday_names[weekday_num]}"
                 
             elif event.event_type == "birthday":
                 age_text = info["age_text"]
@@ -4122,17 +4151,44 @@ def main(page: ft.Page):
         # ========== 在这里添加新控件 ==========
     
         # 日期选择器
+        # 先计算初始日期（如果是编辑模式）
+        #if is_edit and selected_event and selected_event.repeat_type == "once":
+        initial_date = None
+        if is_edit and selected_event:
+            if selected_event.event_type == "monthly":
+                # 每月事件：使用当前月份 + 事件保存的日
+                day_num = int(selected_event.birth_date) if selected_event.birth_date else 1
+                now = datetime.now()
+                try:
+                    # 构造当前年月 + 保存的日
+                    initial_date = datetime(now.year, now.month, day_num)
+                except ValueError:
+                    # 处理无效日期（如2月30日）
+                    # 使用该月的最后一天
+                    if day_num > 28:
+                        # 计算该月的最后一天
+                        if now.month == 2:
+                            # 2月：判断闰年
+                            import calendar
+                            last_day = 29 if calendar.isleap(now.year) else 28
+                            day_num = min(day_num, last_day)
+                        elif now.month in [4, 6, 9, 11]:
+                            day_num = min(day_num, 30)
+                        initial_date = datetime(now.year, now.month, day_num)
+            elif selected_event.repeat_type == "once" or selected_event.event_type in ["birthday", "event"]:
+                # 一次性事件和生日/纪念日：使用事件保存的完整日期
+                try:
+                    date_parts = selected_event.birth_date.split("-")
+                    if len(date_parts) == 3:
+                        initial_date = datetime(int(date_parts[0]), int(date_parts[1]), int(date_parts[2]))
+                except:
+                    pass
+
         date_picker = ft.DatePicker(
             first_date=datetime(1900, 1, 1),
             last_date=datetime(2100, 12, 31),
+            value=initial_date,  # 设置初始值
             on_change=lambda e: on_date_selected(e),
-        )
-
-        # 时间选择器
-        time_picker = ft.TimePicker(
-            confirm_text="确认",
-            cancel_text="取消",
-            on_change=lambda e: on_time_selected(e),
         )
 
         # 日期显示字段
@@ -4144,14 +4200,7 @@ def main(page: ft.Page):
             on_click=lambda e: page.show_dialog(date_picker),  # 使用 show_dialog
         )
 
-        # 时间显示字段
-        time_display_field = ft.TextField(
-            label="提醒时间",
-            hint_text="点击选择时间（可选）",
-            read_only=True,
-            width=120,
-            on_click=lambda e: page.show_dialog(time_picker),  # 使用 show_dialog
-        )
+        
         
         # 添加多个时间提醒的按钮和列表
         reminders_list = ft.Column(spacing=5)
@@ -4164,14 +4213,74 @@ def main(page: ft.Page):
             """添加提醒时间"""
             print(f"[添加提醒时间] time_str={time_str}")  # 调试输出
 
-            # 先创建时间字段和复选框
-            time_field = ft.TextField(
-                value=time_str if time_str else "09:00",
+            # 解析初始时间（如果有）
+            initial_hour = 9
+            initial_minute = 0
+            if time_str:
+                try:
+                    parts = time_str.split(":")
+                    if len(parts) == 2:
+                        initial_hour = int(parts[0])
+                        initial_minute = int(parts[1])
+                except:
+                    pass
+
+            # 创建时间选择器
+            time_picker = ft.TimePicker()
+
+            # 时间显示字段
+            time_display_field = ft.TextField(
                 label="提醒时间",
-                width=100,
-                text_align=ft.TextAlign.CENTER,
+                hint_text="点击选择时间（可选）",
+                read_only=True,
+                width=120,
+                value=time_str if time_str else "",  # 直接设置显示值
             )
+
+            # 如果传入了时间参数，设置显示值
+            if time_str:
+                time_display_field.value = time_str
+                print(f"[添加提醒时间] 设置初始时间: {time_str}")
+
+            def open_time_picker(e):
+                """打开时间选择器，并用当前显示的时间初始化"""
+                try:
+                    # 从显示字段读取当前时间
+                    current_time = time_display_field.value
+                    if current_time:
+                        # 如果已有时间，用该时间初始化选择器
+                        h, m = map(int, current_time.split(":"))
+                        from datetime import time
+                        time_picker.value = time(h, m)
+                    else:
+                        # 如果没有时间，使用默认时间
+                        from datetime import time
+                        time_picker.value = time(initial_hour, initial_minute)
+                    
+                    # 显示时间选择器
+                    page.show_dialog(time_picker)
+                except (ValueError, TypeError, AttributeError):
+                    # 如果解析失败，使用默认时间
+                    from datetime import time
+                    time_picker.value = time(initial_hour, initial_minute)
+                    page.show_dialog(time_picker)
+
+            def on_time_selected(e):
+                """时间选择后的回调"""
+                if time_picker.value:
+                    time_str = time_picker.value.strftime("%H:%M")
+                    time_display_field.value = time_str
+                    time_display_field.update()
+                    page.update()
+
+            # 绑定事件
+            time_picker.on_change = on_time_selected
+
+            # 设置点击字段时打开选择器
+            time_display_field.on_click = open_time_picker
+
             checkbox = ft.Checkbox(value=True, label="启用")
+
             delete_button = ft.IconButton(
                 ft.Icons.DELETE_OUTLINE,
                 icon_size=20,
@@ -4180,7 +4289,7 @@ def main(page: ft.Page):
 
             # 创建行
             row = ft.Row([
-                time_field,
+                time_display_field,
                 checkbox,
                 delete_button,
             ], spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER)
@@ -4202,29 +4311,53 @@ def main(page: ft.Page):
 
         # 定义回调函数
         def on_date_selected(e):
-            """日期选择后的回调"""
             if date_picker.value:
-                # 更新显示字段
-                date_display_field.value = date_picker.value.strftime("%Y-%m-%d")
-                # 同时更新原有的年月日字段
-                year_field.value = str(date_picker.value.year)
-                month_field.value = f"{date_picker.value.month:02d}"
-                day_field.value = f"{date_picker.value.day:02d}"
+                # 时区转换
+                local_date = date_picker.value + timedelta(hours=8)
                 
-                # 更新所有字段
+                year = local_date.year
+                month = local_date.month
+                day = local_date.day
+                
+                # 创建新的 day_field
+                new_day_field = ft.TextField(
+                    label="日", 
+                    value=f"{day:02d}", 
+                    expand=True,
+                    text_align=ft.TextAlign.CENTER,
+                )
+                
+                # 替换旧的（这一步已经将新控件添加到页面了）
+                date_row.controls[4].content = new_day_field
+                monthly_day_row.controls[0].content = new_day_field
+                
+                # 更新全局变量
+                global day_field
+                day_field = new_day_field
+                
+                # 更新其他字段
+                # 增加判断，如果是每月事件，只需要显示一个日
+                print(f'打印事件类型测试：{event_type.value}')
+                if event_type.value == "monthly":
+                    date_display_field.value = f"{day:02d}"
+                else:
+                    date_display_field.value = f"{year:04d}-{month:02d}-{day:02d}"
+
+                #date_display_field.value = f"{year:04d}-{month:02d}-{day:02d}"
+                year_field.value = str(year)
+                month_field.value = f"{month:02d}"
+                
+                # 更新控件（注意：不要调用 day_field.update()，因为它刚被添加）
                 date_display_field.update()
                 year_field.update()
                 month_field.update()
-                day_field.update()
+                # day_field.update()  # 移除这行！控件刚被添加到页面，不需要单独更新
+                
+                # 直接更新整个页面
                 page.update()
         
-        def on_time_selected(e):
-            """时间选择后的回调"""
-            if time_picker.value:
-                time_str = time_picker.value.strftime("%H:%M")
-                time_display_field.value = time_str
-                time_display_field.update()
-                page.update()
+        
+
 
         # ========== 1. 先定义 update_date_visibility 函数 ==========
         def update_date_visibility(e=None):
@@ -4728,7 +4861,8 @@ def main(page: ft.Page):
                     preview_text = "🎤 歌词预览:\n" + "\n".join(preview_lines[:3])
                     if len(preview_lines) > 3:
                         preview_text += f"\n... 共 {len(preview_lines)} 行"
-                    show_snack_bar2(preview_text)
+                    #show_snack_bar2(preview_text)
+                    print(preview_text)
                 else:
                     # 如果提取不到歌词，显示文件基本信息
                     file_size = os.path.getsize(lrc_path)
@@ -5422,6 +5556,60 @@ def main(page: ft.Page):
                 print(f"[下载错误] {e}")
                 return False
 
+        # ========== 如果是编辑模式，覆盖默认值 ==========
+        if is_edit and selected_event:
+            # 设置事件类型（这会触发 on_event_type_select）
+            event_type.value = selected_event.event_type
+            
+            # 设置名称
+            name_field.value = selected_event.name
+            name_field.label = "姓名" if selected_event.event_type == "birthday" else "事件名称"
+            
+            # 设置历法
+            calendar_type.value = selected_event.calendar_type
+            
+            # 设置重复类型
+            if hasattr(selected_event, 'repeat_type'):
+                repeat_type.value = selected_event.repeat_type
+            
+            # 设置音乐文件
+            music_field.value = selected_event.sound_file if selected_event.sound_file else ""
+            
+            # 根据事件类型设置日期
+            # 每日事件
+            if selected_event.event_type == "daily":
+                date_display_field.visible = False
+            
+            # 每周事件
+            elif selected_event.event_type == "weekly":
+                date_display_field.visible = False
+            
+            # 每月事件
+            elif selected_event.event_type == "monthly":
+                day_num = int(selected_event.birth_date)
+                day_field.value = f"{day_num:02d}"
+                date_display_field.value = f"{day_num:02d}"
+                #date_display_field.read_only = True
+                #date_display_field.on_click = None
+                
+            # 一次性事件
+            elif selected_event.repeat_type == "once":
+                date_parts = selected_event.birth_date.split("-")
+                if len(date_parts) == 3:
+                    year_field.value = date_parts[0]
+                    month_field.value = date_parts[1]
+                    day_field.value = date_parts[2]
+                    date_display_field.value = f"{date_parts[0]}-{date_parts[1]}-{date_parts[2]}"
+
+            # 生日或纪念日
+            else:
+                date_parts = selected_event.birth_date.split("-")
+                if len(date_parts) == 3:
+                    year_field.value = date_parts[0]
+                    month_field.value = date_parts[1]
+                    day_field.value = date_parts[2]
+                    date_display_field.value = f"{date_parts[0]}-{date_parts[1]}-{date_parts[2]}"
+
         # 定义取消函数（放在这里，在使用之前）
         def cancel_click(e):
             close_dialog()
@@ -5439,16 +5627,34 @@ def main(page: ft.Page):
             if hasattr(open_add_dialog, 'reminders_list') and open_add_dialog.reminders_list:
                 for row in open_add_dialog.reminders_list.controls:
                     if len(row.controls) >= 2:
-                        time_field = row.controls[0]
+                        time_display_field = row.controls[0]
                         checkbox = row.controls[1]
-                        if checkbox.value and time_field.value:
-                            reminders.append({"time": time_field.value, "enabled": True})
-                            print(f"[保存] 添加提醒时间: {time_field.value}")
+                        if checkbox.value and time_display_field.value:
+                            reminders.append({"time": time_display_field.value, "enabled": True})
+                            print(f"[保存] 添加提醒时间: {time_display_field.value}")
             
             print(f"[保存] 总共收集到 {len(reminders)} 个提醒时间")
 
             repeat = repeat_type.value if event_type.value != "monthly" else "monthly"
 
+             # ========== 从 date_display_field 获取日期 ==========
+            year = 1990
+            month = 1
+            day = 1
+            
+            if date_display_field.value and date_display_field.value != "点击选择日期":
+                try:
+                    if event_type.value == "monthly":
+                        day = date_display_field.value
+                    else:
+                        date_parts = date_display_field.value.split("-")
+                        year = int(date_parts[0])
+                        month = int(date_parts[1])
+                        day = int(date_parts[2])
+                        print(f"[保存] 从日期选择器获取: {year}-{month}-{day}")
+                except:
+                    print(f"[保存] 解析日期失败，使用默认值")
+            
             # ========== 根据事件类型处理日期 ==========
             if event_type.value == "daily":
                 # 每天提醒：不需要日期，设置为空字符串或默认值
@@ -5465,72 +5671,32 @@ def main(page: ft.Page):
                 birth_date = weekday  # 保存 "1" 表示周一
                 calendar_type_value = "solar"
                 repeat_type_value = "weekly"
+                
             elif event_type.value == "monthly":
-                # 每月提醒：只需要日，格式为 "15" 表示每月15号
-                try:
-                    day = int(day_field.value)
-                    if day < 1 or day > 31:
-                        show_snack_bar("请输入有效的日期（日：1-31）")
-                        return
-                except:
-                    show_snack_bar("请输入有效的数字日期")
-                    return
-                birth_date = f"{day:02d}"  # 只保存日
+                # 每月提醒：使用 day
+                birth_date = day
                 calendar_type_value = "solar"
                 repeat_type_value = "monthly"
 
             elif event_type.value == "once":
-                # 一次性事件：需要完整的年月日
-                try:
-                    year = int(year_field.value)
-                    month = int(month_field.value)
-                    day = int(day_field.value)
-                    
-                    # 验证日期有效性
-                    event_date = datetime(year, month, day).date()
-                    today = datetime.now().date()
-                    
-                    if event_date < today:
-                        show_snack_bar("一次性事件的日期不能早于今天")
-                        return
-                        
-                    if month < 1 or month > 12 or day < 1 or day > 31:
-                        show_snack_bar("请输入有效的日期")
-                        return
-                except ValueError:
-                    show_snack_bar("请输入有效的数字日期")
+                # 一次性事件：使用完整的年月日
+                event_date = datetime(year, month, day).date()
+                today = datetime.now().date()
+                
+                if event_date < today:
+                    show_snack_bar("一次性事件的日期不能早于今天")
                     return
                 birth_date = f"{year:04d}-{month:02d}-{day:02d}"
                 calendar_type_value = calendar_type.value
                 repeat_type_value = "once"
                 
             elif event_type.value == "birthday":
-                try:
-                    year = int(year_field.value) if year_field.visible else 1990
-                    month = int(month_field.value)
-                    day = int(day_field.value)
-                    if month < 1 or month > 12 or day < 1 or day > 31:
-                        show_snack_bar("请输入有效的日期")
-                        return
-                except:
-                    show_snack_bar("请输入有效的数字日期")
-                    return
                 birth_date = f"{year}-{month:02d}-{day:02d}"
                 calendar_type_value = calendar_type.value
                 repeat_type_value = "yearly"
                 
             else:  # event
-                current_year = datetime.now().year
-                try:
-                    month = int(month_field.value)
-                    day = int(day_field.value)
-                    if month < 1 or month > 12 or day < 1 or day > 31:
-                        show_snack_bar("请输入有效的日期")
-                        return
-                except:
-                    show_snack_bar("请输入有效的数字日期")
-                    return
-                birth_date = f"{current_year}-{month:02d}-{day:02d}"
+                birth_date = f"{year}-{month:02d}-{day:02d}"
                 calendar_type_value = calendar_type.value
                 repeat_type_value = "yearly"
 
@@ -5538,10 +5704,10 @@ def main(page: ft.Page):
             reminders = []
             if hasattr(open_add_dialog, 'reminders_list') and open_add_dialog.reminders_list:
                 for row in open_add_dialog.reminders_list.controls:
-                    time_field = row.controls[0]
+                    time_display_field = row.controls[0]
                     checkbox = row.controls[1]
-                    if checkbox.value and time_field.value:
-                        reminders.append({"time": time_field.value, "enabled": True})
+                    if checkbox.value and time_display_field.value:
+                        reminders.append({"time": time_display_field.value, "enabled": True})
             
             # 保存事件
             if is_edit and selected_event:
@@ -5559,7 +5725,11 @@ def main(page: ft.Page):
                     if repeat_type_value == "once":
                         selected_event.completed = False
                     save_events(trigger_check=False)
-                    refresh_events_list()
+                    
+                    # ========== 根据当前视图刷新对应的视图 ==========
+                    refresh_current_view_by_state()
+                    #refresh_events_list()
+
                     close_dialog()
                     show_snack_bar(f"已更新「{name}」")
                 except Exception as e:
@@ -5577,7 +5747,11 @@ def main(page: ft.Page):
                         new_event.completed = False
                     events[event_id] = new_event
                     save_events(trigger_check=False)
-                    refresh_events_list()
+                    
+                    # ========== 根据当前视图刷新对应的视图 ==========
+                    refresh_current_view_by_state()
+                    #refresh_events_list()
+
                     close_dialog()
                     show_snack_bar(f"已添加「{name}」")
                 except Exception as e:
@@ -5617,9 +5791,38 @@ def main(page: ft.Page):
             border_radius=10,
         )
 
+
+        # 创建顶部按钮栏
+        def cancel_click(e):
+            close_dialog()
+            show_bottom_message("已取消")
+        
+        def save_click_wrapper(e):
+            save_click(e)  # 调用原有的保存函数
+        
+        top_bar = ft.Row([
+            ft.IconButton(
+                icon=ft.Icons.CLOSE,
+                icon_size=24,
+                icon_color=ft.Colors.RED_700,
+                tooltip="取消",
+                on_click=cancel_click,
+            ),
+            ft.Text("编辑事件" if is_edit else "添加事件", size=18, weight=ft.FontWeight.BOLD, expand=True, text_align=ft.TextAlign.CENTER),
+            ft.IconButton(
+                icon=ft.Icons.CHECK,
+                icon_size=24,
+                icon_color=ft.Colors.GREEN_700,
+                tooltip="保存",
+                on_click=save_click_wrapper,
+            ),
+        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+
         # 更新 dialog_content 包含新控件
         dialog_content = ft.Column([
-            ft.Text("编辑事件" if is_edit else "添加事件", size=20, weight=ft.FontWeight.BOLD),
+            #ft.Text("编辑事件" if is_edit else "添加事件", size=20, weight=ft.FontWeight.BOLD),
+            top_bar,  # 替换原来的 "编辑事件" if is_edit else "添加事件", size=20, weight=ft.FontWeight.BOLD
+            ft.Divider(height=5),
             event_type,
             name_field,
             # 日期选择（合并后的）
@@ -5632,7 +5835,7 @@ def main(page: ft.Page):
             ft.Divider(height=5),
             # 时间提醒设置
             ft.Text("⏰ 提醒设置", size=14, weight=ft.FontWeight.BOLD),
-            ft.Row([time_display_field], alignment=ft.MainAxisAlignment.CENTER),
+            #ft.Row([time_display_field], alignment=ft.MainAxisAlignment.CENTER),
             reminders_container,  # 确保这一行存在
             ft.Divider(height=5),
             # 音乐设置
@@ -5997,18 +6200,32 @@ def main(page: ft.Page):
                 # 触发提醒
                 if should_remind:
                     show_notification(f"🔔 事件提醒", f"{event.name} - {reminder_time} 提醒")
-                    # 可选：播放音乐
+
+                    # ========== 关键修复：在循环内直接播放，使用当前 event 对象 ==========
                     if event.sound_file and os.path.exists(event.sound_file):
-                        # 定义异步函数
-                        async def do_play():
+                        # 保存当前事件的信息到局部变量，避免闭包捕获问题
+                        current_event_name = event.name
+                        current_event_id = event.id
+                        current_sound_file = event.sound_file
+
+                        print(f"[时间提醒] 准备播放音乐: {os.path.basename(current_sound_file)}, 事件: {current_event_name}")
+
+                        # 定义异步函数，使用局部变量
+                        async def do_play(name=current_event_name, eid=current_event_id, sound=current_sound_file):
                             with music_playing_lock:
                                 if not is_playing:
-                                    print(f"[时间提醒] 播放音乐: {os.path.basename(event.sound_file)}")
+                                    print(f"[时间提醒] 开始播放音乐: {os.path.basename(sound)}, 事件: {name}")
                                     #play_music(event.sound_file, loop=False, event_name=event.name, event_id=event.id)
-                                    play_music_with_lock(event.sound_file, loop=False, event_name=event.name, event_id=event.id)
-                        
+                                    #play_music_with_lock(event.sound_file, loop=False, event_name=event.name, event_id=event.id)
+                                    play_music_with_lock(sound, loop=False, event_name=name, event_id=eid)
+                                else:
+                                    print(f"[时间提醒] 音乐正在播放中，跳过: {os.path.basename(sound)}")
                         # 使用 page.run_task 传入异步函数
+                        # 执行播放
                         page.run_task(do_play)
+                        break  # 找到第一个匹配的事件就退出，避免播放多个
+
+        print(f"[时间提醒] ========== 检查完成 ==========")
 
     # 修改 check_events 函数，添加详细日志
     def check_events():
@@ -6469,9 +6686,22 @@ def main(page: ft.Page):
         #today_circle_button.content.controls[0].value = str(today.day)
         #today_circle_button.tooltip = f"回到今天 ({today.month}月{today.day}日)"
         # 更新按钮上的日期数字（直接修改 content 的值）
-        today_circle_button.content.value = str(today.day)  # 因为 content 现在是 Text
-        today_circle_button.tooltip = f"回到今天 ({today.month}月{today.day}日)"
+        #today_circle_button.content.value = str(today.day)  # 因为 content 现在是 Text
+        #today_circle_button.tooltip = f"回到今天 ({today.month}月{today.day}日)"
         #today_circle_button.update()
+
+        # ========== 更新按钮上的日期数字（关键修复） ==========
+        # 更新按钮上的日期数字
+        if hasattr(today_circle_button, 'content'):
+            # 如果 content 是 Text 控件
+            if isinstance(today_circle_button.content, ft.Text):
+                today_circle_button.content.value = str(today.day)
+            # 如果 content 是 Column 控件（包含 Text）
+            elif isinstance(today_circle_button.content, ft.Column):
+                if today_circle_button.content.controls and len(today_circle_button.content.controls) > 0:
+                    if isinstance(today_circle_button.content.controls[0], ft.Text):
+                        today_circle_button.content.controls[0].value = str(today.day)
+        today_circle_button.tooltip = f"回到今天 ({today.month}月{today.day}日)"
         
         # 清空表格并重新生成
         data_table.rows.clear()
@@ -7460,39 +7690,83 @@ def main(page: ft.Page):
     page.on_close = on_page_close
     
     async def update_all():
-        global last_check_date,reminder_flags  # 添加这行
+        global last_check_date, reminder_flags, current_year, current_month, selected_date, current_date, current_view  # 添加需要修改的全局变量
         
         while True:
             try:
                 now = datetime.now()
-                current_date = now.date()
+                current_date_today = now.date()  # 重命名避免与全局变量冲突
                 
                 # ========== 添加跨天检测 ==========
                 if last_check_date is None:
-                    last_check_date = current_date
-                elif current_date != last_check_date:
+                    last_check_date = current_date_today
+                elif current_date_today != last_check_date:
                     # 日期发生了变化（跨天了）
-                    print(f"[跨天检测] 日期从 {last_check_date} 变更为 {current_date}，立即触发事件检查")
+                    print(f"[跨天检测] 日期从 {last_check_date} 变更为 {current_date_today}，立即触发事件检查")
                     
-                    # ========== 检查是否需要跨年重置 ==========
-                    if current_date.year != last_check_date.year:
-                        print(f"[跨天检测] 检测到跨年！从 {last_check_date.year} 年到 {current_date.year} 年")
+                    # ========== 1. 更新 last_check_date（必须在最前面） ==========
+                    last_check_date = current_date_today
+
+                    # ========== 2. 更新日历到当前日期 ==========
+                    # 更新全局的年月变量
+                    current_year = now.year
+                    current_month = now.month
+
+                    # 更新月份文本显示
+                    month_text.value = f"{current_year}年{current_month}月"
+
+                    # 更新选中的日期为今天
+                    selected_date = current_date_today
+                    current_date = current_date_today
+
+                    # 重新生成日历（会高亮今天）
+                    update_calendar()
+
+                    # ========== 强制更新回到今天按钮的日期数字 ==========
+                    today = datetime.now()
+                    if hasattr(today_circle_button, 'content'):
+                        if isinstance(today_circle_button.content, ft.Text):
+                            today_circle_button.content.value = str(today.day)
+                        elif isinstance(today_circle_button.content, ft.Column):
+                            if today_circle_button.content.controls and len(today_circle_button.content.controls) > 0:
+                                if isinstance(today_circle_button.content.controls[0], ft.Text):
+                                    today_circle_button.content.controls[0].value = str(today.day)
+                    today_circle_button.tooltip = f"回到今天 ({today.month}月{today.day}日)"
+                    today_circle_button.update()
+
+                    # 更新日期显示
+                    date_display.value = current_date_today.strftime("%Y年%m月%d日")
+
+                    # ========== 3. 检查是否需要跨年重置 ==========
+                    if current_date_today.year != last_check_date.year:
+                        print(f"[跨天检测] 检测到跨年！从 {last_check_date.year} 年到 {current_date_today.year} 年")
+
                         # 重置所有事件的 last_remind_year
                         for event in events.values():
-                            if event.last_remind_year < current_date.year:
+                            if event.last_remind_year < current_date_today.year:
                                 print(f"[跨天检测] 重置事件 {event.name} 的提醒状态 (从 {event.last_remind_year} 到 0)")
                                 event.last_remind_year = 0
                                 event.reminded_this_year = False
                         save_events()
                         print(f"[跨天检测] 跨年重置完成")
                     
-                    last_check_date = current_date
+                    #last_check_date = current_date_today
                     
-                    # 重置临时提醒标记
+                    # ========== 4. 重置临时提醒标记 ==========
                     reminder_flags.clear()
                     print(f"[跨天检测] 已重置提醒标记")
+
+
+                    # ========== 5. 根据当前视图决定是否需要切换 ==========
+                    # 如果当前是今日事件视图，跨天后切换到全部事件（因为今天是新的一天）
+                    if current_view == "today":
+                        current_view = "all"
+                        print(f"[跨天检测] 今日事件视图已过期，切换到全部事件视图")
                     
-                    # 立即执行事件检查
+                    # ========== 6. 刷新事件列表（根据当前视图） ==========
+                    refresh_current_view_by_state()
+
+                    # ========== 7. 立即执行事件检查 ==========
                     check_events()
                 
                 # 原有的更新时钟代码继续...
@@ -7528,7 +7802,7 @@ def main(page: ft.Page):
                 #date_text.update()
 
                 # 使用新函数更新
-                update_date_text_with_events(current_date, three_days_events)
+                update_date_text_with_events(current_date_today, three_days_events)
                 
                 # 同时更新两个控件
                 current_datetime_text.update()
