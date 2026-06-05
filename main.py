@@ -57,8 +57,8 @@ else:
         print("警告: pyncm 模块不可用")
 
 # ========== 版本信息 ==========
-APP_VERSION = "1.0.6"
-APP_VERSION_CODE = 6
+APP_VERSION = "1.0.7"
+APP_VERSION_CODE = 7
 # =============================
 
 
@@ -69,7 +69,7 @@ class SmoothMarqueeText(ft.Stack):
         self,
         text: str = "",
         width: int = 240, # 原始宽度是： 300，调小一点是为了适应手机屏幕，调小方向是对的。
-        height: int = 60,
+        height: int = None,
         speed: float = 0.8,
         fps: int = 60,
         gap: int = None,  # 改为 None，表示自动计算
@@ -81,6 +81,11 @@ class SmoothMarqueeText(ft.Stack):
         auto_start: bool = False,
         show_message=None,
     ):
+         
+        # 如果 height 为 None，自动计算为字体大小的 2.5 倍
+        if height is None:
+            height = int(font_size * 2.5)
+
         super().__init__()
         self.width = width
         self.height = height
@@ -1193,6 +1198,7 @@ def main(page: ft.Page):
     global last_check_date,reminder_flags,music_title_container, main_content, marquee_text # 添加这两个变量
     global selected_date,three_days_events, date_text,current_view   # 添加 date_text
     global month_text, current_year, current_month, today_circle_button  # 添加 today_circle_button
+    global music_control_container, playback_buttons, music_section_container  # 修改这里
 
     page.window_icon = "icon.png"
     page.title = "事件提醒助手"
@@ -1896,13 +1902,16 @@ def main(page: ft.Page):
             content=ft.Column([
                 line1_text,
                 line2_text,
-            ], spacing=3, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+            ], spacing=3, 
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            alignment=ft.MainAxisAlignment.CENTER),
             on_click=on_lyrics_click,
             padding=10,
             ink=True,
             border_radius=8,
             bgcolor=ft.Colors.TRANSPARENT,
             width=float("inf"),
+            height=100,  # 设置固定高度100
         )
         
         return lyrics_text_container, (line1_text, line2_text)
@@ -3706,27 +3715,44 @@ def main(page: ft.Page):
             if is_today:
                 today_events.append(event_info)
         
+        # 根据当前视图确定显示的事件
         if current_view == "today":
             title_text = "📅 今日事件"
             display_events = today_events
             if not display_events:
-                events_list.controls.append(ft.Text("🎉 今日没有事件", color=ft.Colors.GREEN_700, size=14))
-                #events_list.controls.append(ft.TextButton("查看全部事件", on_click=lambda e: toggle_view()))
+                # 没有今日事件，显示提示，但保留切换视图按钮
+                title_text = "📅 今日事件"
+      
+                # 全部事件始终有标题，不隐藏分割线
+                events_list.controls.append(ft.Text("🎉 今日没有事件", size=14, color=ft.Colors.GREEN_700))
+                
+                # 只有在有事件的情况下才显示标题行和分割线
+                events_list.controls.append(ft.Row([
+                    ft.Text(title_text, size=18, weight=ft.FontWeight.BOLD),
+                    ft.TextButton("切换视图", on_click=lambda e: toggle_view()),
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN))
+
+                update_event_count()
+                page.update()
+                return  # 直接返回，不继续执行后面的代码
             else:
                 events_list.controls.append(ft.Text(f"✨ 今日事件有 {len(display_events)} 个", 
                                                     size=14, color=ft.Colors.RED_700, weight=ft.FontWeight.BOLD))
         else:
             title_text = "📋 全部事件"
             display_events = sorted(all_events, key=lambda x: x["days_until"])
+            # 全部事件始终有标题，不隐藏分割线
             events_list.controls.append(ft.Text(f"✨ 全部事件有 {len(all_events)} 个", 
                                                     size=14, color=ft.Colors.GREEN_700))
         
+        # 只有在有事件的情况下才显示标题行和分割线
         events_list.controls.append(ft.Row([
             ft.Text(title_text, size=18, weight=ft.FontWeight.BOLD),
             ft.TextButton("切换视图", on_click=lambda e: toggle_view()),
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN))
         events_list.controls.append(ft.Divider(height=10))
         
+        # 显示事件卡片
         for info in display_events:
             event = info["event"]
             is_today = info["is_today"]
@@ -4198,6 +4224,7 @@ def main(page: ft.Page):
             read_only=True,
             expand=True,
             on_click=lambda e: page.show_dialog(date_picker),  # 使用 show_dialog
+            visible=True,  # 默认可见，但会根据事件类型动态调整
         )
 
         
@@ -4233,7 +4260,8 @@ def main(page: ft.Page):
                 label="提醒时间",
                 hint_text="点击选择时间（可选）",
                 read_only=True,
-                width=120,
+                #width=120,
+                expand=True,
                 value=time_str if time_str else "",  # 直接设置显示值
             )
 
@@ -4363,9 +4391,9 @@ def main(page: ft.Page):
         def update_date_visibility(e=None):
             import traceback
             """根据事件类型切换显示不同的日期输入控件"""
-            print(f"[调试] ========== update_date_visibility 被调用 ==========")
-            print(f"[调试] event_type.value = {event_type.value}")
-            print(f"[调试] 调用栈: {traceback.extract_stack()[-2].name}")
+            #print(f"[调试] ========== update_date_visibility 被调用 ==========")
+            #print(f"[调试] event_type.value = {event_type.value}")
+            #print(f"[调试] 调用栈: {traceback.extract_stack()[-2].name}")
             
             if event_type.value == "daily":
                 # 每天提醒：不显示任何日期控件
@@ -4374,6 +4402,7 @@ def main(page: ft.Page):
                 weekday_row.visible = False
                 calendar_type.visible = False
                 repeat_type.visible = False
+                date_display_field.visible = False  # 隐藏日期选择器显示字段
                 hint_text.value = "💡 提示: 每天提醒，可设置具体时间"
                 
             elif event_type.value == "weekly":
@@ -4383,6 +4412,7 @@ def main(page: ft.Page):
                 weekday_row.visible = True      # 显示星期选择
                 calendar_type.visible = False   # 隐藏历法选择
                 repeat_type.visible = False
+                date_display_field.visible = False  # 隐藏日期选择器显示字段
                 hint_text.value = "💡 提示: 每周提醒，选择日期后每周同一天提醒"
                 
             elif event_type.value == "monthly":
@@ -4392,6 +4422,7 @@ def main(page: ft.Page):
                 weekday_row.visible = False
                 calendar_type.visible = False
                 repeat_type.visible = False
+                date_display_field.visible = True   # 显示日期选择器
                 hint_text.value = "💡 提示: 每月固定日期提醒，只需选择每月几号"
                 
             elif event_type.value == "once":
@@ -4401,6 +4432,7 @@ def main(page: ft.Page):
                 weekday_row.visible = False
                 calendar_type.visible = True
                 repeat_type.visible = False
+                date_display_field.visible = True   # 显示日期选择器
                 hint_text.value = "💡 提示: 一次性事件只在指定日期提醒一次"
                 
             else:
@@ -4410,13 +4442,14 @@ def main(page: ft.Page):
                 weekday_row.visible = False
                 calendar_type.visible = True
                 repeat_type.visible = True
+                date_display_field.visible = True   # 显示日期选择器
                 if event_type.value == "birthday":
                     hint_text.value = "💡 提示: 农历生日会自动计算每年对应的阳历日期"
                 else:
                     hint_text.value = "💡 提示: 纪念日每年重复提醒，可设置农历或阳历"
             
-            print(f"[调试] date_row.visible = {date_row.visible}")
-            print(f"[调试] monthly_day_row.visible = {monthly_day_row.visible}")
+            #print(f"[调试] date_row.visible = {date_row.visible}")
+            #print(f"[调试] monthly_day_row.visible = {monthly_day_row.visible}")
             page.update()
 
         # ========== 事件类型下拉框（使用正确的 on_select 事件） ==========
@@ -4471,6 +4504,7 @@ def main(page: ft.Page):
                 weekday_row.visible = False  # 隐藏星期选择行
                 repeat_type.visible = True
                 repeat_type.value = "yearly"
+                date_display_field.visible = True  # 显示日期选择器
                 hint_text.value = "💡 提示: 农历生日会自动计算每年对应的阳历日期"
                 
             elif selected_key == "event":
@@ -4483,6 +4517,7 @@ def main(page: ft.Page):
                 monthly_day_row.visible = False
                 weekday_row.visible = False
                 repeat_type.visible = True
+                date_display_field.visible = True  # 显示日期选择器
                 hint_text.value = "💡 提示: 纪念日每年重复提醒，可设置农历或阳历"
                 
             elif selected_key == "monthly":
@@ -4496,6 +4531,7 @@ def main(page: ft.Page):
                 weekday_row.visible = False
                 repeat_type.visible = False
                 repeat_type.value = "monthly"
+                date_display_field.visible = True  # 显示日期选择器
                 hint_text.value = "💡 提示: 每月固定日期提醒，只需选择每月几号（如：15号）"
                 
             elif selected_key == "once":
@@ -4509,6 +4545,7 @@ def main(page: ft.Page):
                 weekday_row.visible = False
                 repeat_type.visible = False
                 repeat_type.value = "once"
+                date_display_field.visible = True  # 显示日期选择器
                 hint_text.value = "💡 提示: 一次性事件只在指定日期提醒一次，提醒后会自动标记为已完成"
                 
             # ========== 每天提醒 ==========
@@ -4523,6 +4560,7 @@ def main(page: ft.Page):
                 weekday_row.visible = False  # 隐藏星期选择行
                 repeat_type.visible = False
                 repeat_type.value = "daily"
+                date_display_field.visible = False  # 每日提醒隐藏日期选择器
                 hint_text.value = "💡 提示: 每天提醒，可设置具体时间（如：08:30、18:30）"
                 
             # ========== 每周提醒 ==========
@@ -4537,6 +4575,7 @@ def main(page: ft.Page):
                 weekday_row.visible = True      # 显示星期选择
                 repeat_type.visible = False
                 repeat_type.value = "weekly"
+                date_display_field.visible = False  # 每月提醒隐藏日期选择器
                 hint_text.value = "💡 提示: 每周固定日期提醒，选择星期几"
                 
             update_date_visibility()
@@ -5110,6 +5149,8 @@ def main(page: ft.Page):
             expand=True,
             text_align=ft.TextAlign.CENTER,
             visible=True,
+            read_only=True,  # 设置为只读
+            bgcolor=ft.Colors.GREY_50,  # 添加灰色背景，提示不可编辑
         )
 
         # 月份输入框（每月提醒时隐藏）
@@ -5134,6 +5175,8 @@ def main(page: ft.Page):
             value=month_default, 
             expand=True,
             text_align=ft.TextAlign.CENTER,
+            read_only=True,  # 设置为只读
+            bgcolor=ft.Colors.GREY_50,  # 添加灰色背景，提示不可编辑
         )
 
         # 日期输入框
@@ -5157,6 +5200,8 @@ def main(page: ft.Page):
             value=day_default, 
             expand=True,
             text_align=ft.TextAlign.CENTER,
+            read_only=True,  # 设置为只读
+            bgcolor=ft.Colors.GREY_50,  # 添加灰色背景，提示不可编辑
         )
 
         # ========== 每周提醒专用的星期选择行 ==========
@@ -5265,8 +5310,8 @@ def main(page: ft.Page):
         search_results = []
         
         # ========== 非 Android 平台才定义函数和绑定事件 ==========
-        print(f"测试打印平台： {platform.system()}")
-        print(f"测试打印平台： {IS_WINDOWS}")
+        #print(f"测试打印平台： {platform.system()}")
+        #print(f"测试打印平台： {IS_WINDOWS}")
         if IS_WINDOWS:
             # 定义搜索函数
             def do_search(e):
@@ -5779,11 +5824,14 @@ def main(page: ft.Page):
             content=ft.Column([
                 ft.Text("⏰ 多时段提醒", size=14, weight=ft.FontWeight.BOLD),
                 reminders_list,
-                ft.ElevatedButton(
-                    "添加提醒时间",
-                    on_click=lambda e: add_reminder_time(),
-                    icon=ft.Icons.ADD_ALARM,
-                    height=36,
+                ft.Row(
+                    [ft.ElevatedButton(
+                        "添加提醒时间",
+                        on_click=lambda e: add_reminder_time(),
+                        icon=ft.Icons.ADD_ALARM,
+                        height=36,
+                    )],
+                    alignment=ft.MainAxisAlignment.CENTER,  # 水平居中
                 ),
             ], spacing=8),
             padding=10,
@@ -5818,27 +5866,20 @@ def main(page: ft.Page):
             ),
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER)
 
-        # 更新 dialog_content 包含新控件
-        dialog_content = ft.Column([
-            #ft.Text("编辑事件" if is_edit else "添加事件", size=20, weight=ft.FontWeight.BOLD),
-            top_bar,  # 替换原来的 "编辑事件" if is_edit else "添加事件", size=20, weight=ft.FontWeight.BOLD
-            ft.Divider(height=5),
+        # ========== 创建可滚动的内容区域 ==========
+        scrollable_content = ft.Column([
+            ft.Container(height=1),
             event_type,
             name_field,
-            # 日期选择（合并后的）
             ft.Row([date_display_field], alignment=ft.MainAxisAlignment.CENTER),
-             # 日期输入（根据类型动态切换）
             date_row,           # 年/月/日输入（生日/纪念日/一次性使用）
             weekday_row,        # 星期选择（每周提醒使用）
             monthly_day_row,    # 只有日的输入（每月提醒使用）
             calendar_type,      # 历法选择（生日/纪念日/一次性使用）
             ft.Divider(height=5),
-            # 时间提醒设置
             ft.Text("⏰ 提醒设置", size=14, weight=ft.FontWeight.BOLD),
-            #ft.Row([time_display_field], alignment=ft.MainAxisAlignment.CENTER),
             reminders_container,  # 确保这一行存在
             ft.Divider(height=5),
-            # 音乐设置
             music_field,
             music_buttons,
             selected_file_display,
@@ -5846,34 +5887,36 @@ def main(page: ft.Page):
             ft.Text("🎵 在线搜索音乐", size=14, weight=ft.FontWeight.BOLD),
             ft.Row([search_keyword_field, search_btn], spacing=8),
             search_results_dropdown,
-            #ft.Row([download_btn, search_status], spacing=8, alignment=ft.MainAxisAlignment.CENTER),
-            # 下载按钮单独一行（使用 Row 居中）
-            ft.Row(
-                [download_btn],
-                alignment=ft.MainAxisAlignment.CENTER,
-            ),
-            # 提示信息单独一行（使用 Row 居中）
-            ft.Row(
-                [search_status],
-                alignment=ft.MainAxisAlignment.CENTER,
-            ),
+            ft.Row([download_btn],alignment=ft.MainAxisAlignment.CENTER,),
+            ft.Row([search_status],alignment=ft.MainAxisAlignment.CENTER,),
             ft.Divider(height=5),
             hint_text,
-            ft.Row([ft.TextButton("取消", on_click=cancel_click), ft.TextButton("保存", on_click=save_click)], 
-                alignment=ft.MainAxisAlignment.END),
-        ], spacing=15, scroll=ft.ScrollMode.AUTO, height=500)
-        
-        # 初始化时设置年份字段可见性
-        #if selected_event:
-            #on_type_change(None)
+        ], spacing=15, scroll=ft.ScrollMode.AUTO)
 
+        # ========== 整体布局：顶部固定 + 内容滚动 ==========
+        dialog_content = ft.Column([
+            top_bar,  # 顶部固定
+            ft.Divider(height=5),
+            ft.Container(
+                content=scrollable_content,
+                expand=True,  # 占据剩余空间
+            ),
+        ], spacing=10, height=500)  # 固定总高度
+
+        # 创建容器并添加到页面
         dialog_container = ft.Container(
             content=ft.Container(
                 content=dialog_content,
                 bgcolor=ft.Colors.WHITE,
                 padding=20,
-                border_radius=10,
-                expand=True,  # 添加事件界面自动填满可用空间
+                border_radius=12,
+                #border=ft.border.all(1, ft.Colors.BLUE_200),
+                shadow=ft.BoxShadow(
+                    spread_radius=1,
+                    blur_radius=15,
+                    color=ft.Colors.BLACK12,
+                ),
+                expand=True,
             ),
             left=20,
             top=50,
@@ -5881,11 +5924,9 @@ def main(page: ft.Page):
             bottom=50,
         )
         
-        # 然后再调用更新函数
         update_date_visibility()
-        
         page.overlay.append(dialog_container)
-        update_date_visibility()  # 再次确保显示正确
+        update_date_visibility()
         page.update()
     
     def group_events_by_date(events_list):
@@ -7347,7 +7388,8 @@ def main(page: ft.Page):
     set_music_state_update_callback()
 
     date_display = ft.Text(value=current_date.strftime("%Y年%m月%d日"), size=24, weight=ft.FontWeight.BOLD)
-    events_list = ft.Column(spacing=12, scroll=ft.ScrollMode.AUTO, height=400)
+    #events_list = ft.Column(spacing=12, scroll=ft.ScrollMode.AUTO, height=400)
+    events_list = ft.Column(spacing=12)
     
     # 添加新的平滑滚动字幕
     marquee_text = SmoothMarqueeText(
@@ -7370,14 +7412,22 @@ def main(page: ft.Page):
     music_title_container = ft.Container(
         content=marquee_text,
         #width=280,
-        height=60,
+        height=100,
+        #alignment="center",  # 让内容垂直居中
         border_radius=5,
+        bgcolor=ft.Colors.TRANSPARENT,  # 改为透明，与系统背景一致
     )
 
-    progress_slider = ft.Slider(min=0, max=100, value=0,disabled=True,expand=True)  # 添加 disabled=True
-    progress_text = ft.Text("0:00 / 0:00", size=11, color=ft.Colors.GREY_600)
-    #lyrics_display_text = ft.Text(value="🎤 未播放", size=12, color=ft.Colors.GREY_600, selectable=True, max_lines=3, overflow=ft.TextOverflow.ELLIPSIS)
-    # 替换为新的可点击歌词控件
+    progress_slider = ft.Slider(
+        min=0, 
+        max=100, 
+        value=0,
+        disabled=True,
+        expand=True,
+        active_color=ft.Colors.BLUE_700,  # 进度条颜色
+        inactive_color=ft.Colors.GREY_300,  # 背景颜色
+        )  # 添加 disabled=True
+    progress_text = ft.Text("0:00 / 0:00", size=11, color=ft.Colors.GREY_700)
     lyrics_display_container, lyrics_display_widgets = create_lyrics_display()
 
     count_text = ft.Text(value=f"📊 事件总数: {len(events)}", size=12, color=ft.Colors.BLUE_700)
@@ -7385,7 +7435,7 @@ def main(page: ft.Page):
     # ========== 添加 update_current_playing_info 函数在这里 ==========
     def update_current_playing_info():
         """更新顶部当前播放信息显示"""
-        global current_playing_event_id, current_music_state, marquee_text
+        global current_playing_event_id, current_music_state, marquee_text,music_section_container, playback_buttons
         
         print(f"[update_current_playing_info] 被调用 - event_id: {current_playing_event_id}, state: {current_music_state}")
         
@@ -7397,7 +7447,15 @@ def main(page: ft.Page):
             marquee_text.color = ft.Colors.GREY_600
             if marquee_text._initialized:
                 marquee_text._draw_frame()
-            print(f"[update_current_playing_info] 设置为未播放状态（灰色）")
+            # 隐藏整个音乐区域（包括分割线）
+            if music_section_container:
+                music_section_container.visible = False
+                music_section_container.update()
+            # 隐藏播放控制按钮
+            if playback_buttons:
+                playback_buttons.visible = False
+                playback_buttons.update()
+            print(f"[update_current_playing_info] 设置为未播放状态，隐藏音乐区域")
             return
         
         # 处理播放和暂停状态（必须有事件ID）
@@ -7408,6 +7466,14 @@ def main(page: ft.Page):
             marquee_text.stop()
             if marquee_text._initialized:
                 marquee_text._draw_frame()
+            # 隐藏整个音乐区域（包括分割线）
+            if music_section_container:
+                music_section_container.visible = False
+                music_section_container.update()
+            # 隐藏播放控制按钮
+            if playback_buttons:
+                playback_buttons.visible = False
+                playback_buttons.update()
             return
         
         event = events[current_playing_event_id]
@@ -7420,8 +7486,26 @@ def main(page: ft.Page):
             marquee_text.stop()
             if marquee_text._initialized:
                 marquee_text._draw_frame()
+            # 隐藏整个音乐区域（包括分割线）
+            if music_section_container:
+                music_section_container.visible = False
+                music_section_container.update()
+            # 隐藏播放控制按钮
+            if playback_buttons:
+                playback_buttons.visible = False
+                playback_buttons.update()
             return
         
+        # 有音乐播放，显示整个音乐区域（包括分割线）
+        if music_section_container:
+            music_section_container.visible = True
+            music_section_container.update()
+
+        # 显示播放控制按钮
+        if playback_buttons:
+            playback_buttons.visible = True
+            playback_buttons.update()
+            
         music_name = get_full_music_name(event.sound_file)
         
         if event.event_type == "birthday":
@@ -7480,6 +7564,42 @@ def main(page: ft.Page):
         tooltip="点击查看事件",
     )
 
+    # 在创建 main_content 之前，先创建音乐播放控制区域容器
+    music_control_container = ft.Container(
+        content=ft.Column([
+            music_title_container,
+            ft.Row([progress_slider, progress_text], spacing=10, alignment=ft.MainAxisAlignment.CENTER),
+            lyrics_display_container,
+        ], spacing=5, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+        padding=10,
+        bgcolor=ft.Colors.TRANSPARENT,
+        border_radius=10,
+        visible=False,  # 初始隐藏
+    )
+
+    # 创建播放控制按钮（可隐藏）
+    playback_buttons = ft.Row([
+        ft.TextButton("⏸️ 暂停", on_click=pause_music, tooltip="暂停音乐"),
+        ft.TextButton("⏹️ 停止", on_click=lambda e: stop_music(), tooltip="停止音乐"),
+    ], spacing=20, visible=False)  # 初始隐藏
+
+    # 创建导入导出按钮（始终显示）
+    import_export_buttons = ft.Row([
+        ft.TextButton("📥 导入", on_click=import_events_wrapper, tooltip="从Excel导入事件"),
+        ft.TextButton("📤 导出", on_click=export_events_wrapper, tooltip="导出事件到Excel"),
+    ], spacing=20)
+
+
+    # 创建音乐播放相关内容的容器
+    music_section_container = ft.Column([
+        music_control_container,
+        ft.Divider(),
+    ], spacing=8, visible=False)
+
+    # 确保内部控件的可见性初始为 True
+    music_control_container.visible = True
+    #playback_buttons.visible=True
+
     # 修改 main_content 的顶部部分
     main_content = ft.Column([
         # ========== 固定标题区域 ==========
@@ -7509,34 +7629,21 @@ def main(page: ft.Page):
                     date_text,
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                 
-                ft.Divider(),
-                
-                # 音乐播放控制区域
-                ft.Container(
-                    content=ft.Column([
-                        music_title_container,
-                        ft.Row([progress_slider, progress_text], spacing=10, alignment=ft.MainAxisAlignment.CENTER),
-                        lyrics_display_container,
-                    ], spacing=5, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                    padding=10,
-                    bgcolor=ft.Colors.GREY_50,
-                    border_radius=10,
-                ),
-                
-                ft.Divider(),
-                
-                # 音乐控制按钮行
+                ft.Divider(),  # 音乐区域上方的分割线
+
+                # 音乐相关区域（整个区域统一控制显示/隐藏）
+                music_section_container,
+
+                # 所有按钮行（播放控制按钮 + 导入导出按钮）
                 ft.Row([
-                    ft.TextButton("⏸️ 暂停", on_click=pause_music, tooltip="暂停音乐"),
-                    ft.TextButton("⏹️ 停止", on_click=lambda e: stop_music(), tooltip="停止音乐"),
-                    ft.TextButton("📥 导入", on_click=import_events_wrapper, tooltip="从Excel导入事件"),
-                    ft.TextButton("📤 导出", on_click=export_events_wrapper, tooltip="导出事件到Excel"),
-                ], alignment=ft.MainAxisAlignment.CENTER, spacing=20),
-                
+                    playback_buttons,
+                    import_export_buttons,
+                ], alignment=ft.MainAxisAlignment.CENTER, spacing=30),
+
                 ft.Divider(),
                 
-                # 事件列表
-                events_list,
+                # 事件列表（移除自己的滚动，让外层统一滚动）
+                events_list, # 这里不再设置 scroll，让内容自然扩展
                 
                 ft.Divider(),
                 
@@ -7820,8 +7927,10 @@ def main(page: ft.Page):
         """每小时自动刷新事件列表"""
         while True:
             await asyncio.sleep(60)  # 每分钟刷新一次
-            refresh_events_list()
-            print(f"[自动刷新] 已刷新事件列表 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            # ========== 根据当前视图刷新对应的视图 ==========
+            refresh_current_view_by_state()
+            #refresh_events_list()
+            print(f"[自动刷新] 已刷新当前视图 ({current_view}) - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
     asyncio.create_task(auto_refresh())
 
