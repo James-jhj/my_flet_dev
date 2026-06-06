@@ -59,8 +59,8 @@ else:
         print("警告: pyncm 模块不可用")
 
 # ========== 版本信息 ==========
-APP_VERSION = "1.0.15"
-APP_VERSION_CODE = 15
+APP_VERSION = "1.0.16"
+APP_VERSION_CODE = 16
 # =============================
 
 
@@ -180,9 +180,9 @@ class SmoothMarqueeText(ft.Stack):
                 if not self._warning_printed['gt500'] and self.show_message:
                     self.show_message(f"歌曲长度大于500测试：{total_width}")
                     self._warning_printed['gt500'] = True
-            elif total_width > 300:  # 中等文本（300-500像素）， 缩短前后2个歌曲名称中间的空格方法-手机调试扩大一倍
+            elif total_width > 300:  # 中等文本（300-500像素）， 缩短前后2个歌曲名称中间的空格方法-手机调试扩大一倍，现在手机歌曲长度到这里了大于300
                 # 中等文本：减去50像素
-                gap = total_width - 100
+                gap = total_width - 50
                 if not self._warning_printed['gt300'] and self.show_message:
                     self.show_message(f"歌曲长度大于300测试：{total_width}")
                     self._warning_printed['gt300'] = True
