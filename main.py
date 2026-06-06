@@ -59,8 +59,8 @@ else:
         print("警告: pyncm 模块不可用")
 
 # ========== 版本信息 ==========
-APP_VERSION = "1.0.14"
-APP_VERSION_CODE = 14
+APP_VERSION = "1.0.15"
+APP_VERSION_CODE = 15
 # =============================
 
 
@@ -188,7 +188,7 @@ class SmoothMarqueeText(ft.Stack):
                     self._warning_printed['gt300'] = True
             elif total_width > 150:  # 较短文本（150-300像素），目前短歌曲名就是走的这个，电脑(+45)刚刚好前面的歌曲名刚消失，后面的歌曲名称就出现了，手机待确定
                 # 较短文本：间隙等于文本宽度
-                gap = total_width - 25  # 手机现在设置 - 25 刚刚好，歌曲长度再长一点，就 - 20或- 10试试，慢慢微调，手机歌曲长度约285~300之间
+                gap = total_width - 5  # 手机现在设置 - 25 刚刚好，歌曲长度再长一点，就 - 20或- 10试试，慢慢微调，手机歌曲长度约285~300之间
                 if not self._warning_printed['gt150'] and self.show_message:
                     self.show_message(f"歌曲长度大于150测试：{total_width}")
                     self._warning_printed['gt150'] = True
@@ -7821,7 +7821,7 @@ def main(page: ft.Page):
         ft.Container(
             content=ft.Column([
                 ft.Text("📅 事件提醒助手", size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
-                ft.Text("支持四类事件提醒：生日、纪念日、每月事件及一次性事件", size=12, color=ft.Colors.GREY_600),
+                ft.Text("支持各类事件提醒功能，包括生日、每月、每天及每周等等事件", size=12, color=ft.Colors.GREY_600),
             ], horizontal_alignment=ft.CrossAxisAlignment.START),
             padding=13,
         ),
@@ -7876,7 +7876,7 @@ def main(page: ft.Page):
                         ], spacing=5),
                         ft.Divider(height=5),
                         ft.Text("💡 使用说明", size=14, weight=ft.FontWeight.BOLD),
-                        ft.Text("• 点击「+」添加事件\n• 点击「切换视图」查看今日/全部事件\n• 四类事件当天自动弹框并播放音乐\n• 启动程序自动检查今日四类事件", selectable=True),
+                        ft.Text("• 点击「+」添加事件\n• 点击「切换视图」查看今日/全部事件\n• 各类事件当天或提前3天预警自动弹框并播放音乐\n• 启动程序自动检查今日是否有事件发生", selectable=True),
                         ft.Row([ft.Text("🔔 提醒服务运行中", size=12, color=ft.Colors.GREEN_700), count_text], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                         ft.Row([
                             ft.Text(f"📱 版本 {APP_VERSION}", size=10, color=ft.Colors.GREY_500),
