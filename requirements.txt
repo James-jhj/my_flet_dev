@@ -5,4 +5,4 @@ requests
 mutagen
 zhdate
 openpyxl
-chinese-days
+chinese-calendar

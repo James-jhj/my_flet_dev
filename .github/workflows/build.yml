@@ -33,7 +33,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           pip install --upgrade pip
-          pip install flet flet-audio lunardate requests mutagen zhdate openpyxl chinese-days
+          pip install flet flet-audio lunardate requests mutagen zhdate openpyxl chinese-calendar
 
       - name: 读取版本号
         id: version
@@ -60,7 +60,7 @@ jobs:
               "mutagen",
               "zhdate",
               "openpyxl",
-              "chinese-days",
+              "chinese-calendar",
           ]
 
           [tool.flet]

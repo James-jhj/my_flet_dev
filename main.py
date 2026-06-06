@@ -26,7 +26,8 @@ from zhdate import ZhDate
 import openpyxl
 from openpyxl import Workbook, load_workbook
 from datetime import timezone, timedelta
-from chinesedays.date_utils import is_workday as cn_is_workday
+#from chinesedays.date_utils import is_workday as cn_is_workday
+from chinese_calendar import is_workday as cn_is_workday
 
 
 # ========== 平台检测（放在这里） ==========
@@ -58,8 +59,8 @@ else:
         print("警告: pyncm 模块不可用")
 
 # ========== 版本信息 ==========
-APP_VERSION = "1.0.11"
-APP_VERSION_CODE = 11
+APP_VERSION = "1.0.12"
+APP_VERSION_CODE = 12
 # =============================
 
 
