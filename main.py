@@ -59,8 +59,8 @@ else:
         print("警告: pyncm 模块不可用")
 
 # ========== 版本信息 ==========
-APP_VERSION = "1.0.17"
-APP_VERSION_CODE = 17
+APP_VERSION = "1.0.18"
+APP_VERSION_CODE = 18
 # =============================
 
 
@@ -6706,6 +6706,27 @@ def main(page: ft.Page):
     # 标题行
     title_row = ft.Row(
         [
+            # 年份减按钮
+            ft.Container(
+                content=ft.Icon(
+                    ft.Icons.KEYBOARD_DOUBLE_ARROW_LEFT,
+                    size=20,
+                    color=ft.Colors.BLACK_87,
+                ),
+                width=40,
+                height=40,
+                border=ft.border.Border(
+                    left=ft.border.BorderSide(1, ft.Colors.BLACK_26),
+                    top=ft.border.BorderSide(1, ft.Colors.BLACK_26),
+                    right=ft.border.BorderSide(1, ft.Colors.BLACK_26),
+                    bottom=ft.border.BorderSide(1, ft.Colors.BLACK_26),
+                ),
+                border_radius=20,
+                ink=True,
+                on_click=lambda e: change_year(-1),
+                tooltip="上一年",
+            ),
+            # 月份减按钮
             ft.Container(
                 content=ft.Icon(
                     ft.Icons.KEYBOARD_ARROW_LEFT,
@@ -6721,54 +6742,59 @@ def main(page: ft.Page):
                     bottom=ft.border.BorderSide(1, ft.Colors.BLACK_26),
                 ),
                 border_radius=20,
-                #alignment=ft.alignment.center,
                 ink=True,
                 on_click=lambda e: change_month(-1),
+                tooltip="上个月",
             ),
+            # 月份文本
             ft.Container(
                 content=month_text,
                 padding=10,
                 border_radius=30,
             ),
-            ft.Row(
-                [
-                    ft.Container(
-                        content=ft.Icon(
-                            ft.Icons.KEYBOARD_ARROW_RIGHT,
-                            size=24,
-                            color=ft.Colors.BLACK_87,
-                        ),
-                        width=40,
-                        height=40,
-                        border=ft.border.Border(
-                            left=ft.border.BorderSide(1, ft.Colors.BLACK_26),
-                            top=ft.border.BorderSide(1, ft.Colors.BLACK_26),
-                            right=ft.border.BorderSide(1, ft.Colors.BLACK_26),
-                            bottom=ft.border.BorderSide(1, ft.Colors.BLACK_26),
-                        ),
-                        border_radius=20,
-                        #alignment=ft.alignment.center,
-                        ink=True,
-                        on_click=lambda e: change_month(1),
-                    ),
-                    ft.IconButton(
-                        ft.Icons.TODAY,
-                        icon_size=22,
-                        icon_color=ft.Colors.BLUE_700,
-                        tooltip="回到今天",
-                        on_click=lambda e: go_to_today(),
-                        visible=False,
-                        style=ft.ButtonStyle(
-                            shape=ft.CircleBorder(),
-                            bgcolor=ft.Colors.BLUE_50,
-                        ),
-                    ),
-                ],
-                spacing=5,
+            # 月份加按钮
+            ft.Container(
+                content=ft.Icon(
+                    ft.Icons.KEYBOARD_ARROW_RIGHT,
+                    size=24,
+                    color=ft.Colors.BLACK_87,
+                ),
+                width=40,
+                height=40,
+                border=ft.border.Border(
+                    left=ft.border.BorderSide(1, ft.Colors.BLACK_26),
+                    top=ft.border.BorderSide(1, ft.Colors.BLACK_26),
+                    right=ft.border.BorderSide(1, ft.Colors.BLACK_26),
+                    bottom=ft.border.BorderSide(1, ft.Colors.BLACK_26),
+                ),
+                border_radius=20,
+                ink=True,
+                on_click=lambda e: change_month(1),
+                tooltip="下个月",
+            ),
+            # 年份加按钮
+            ft.Container(
+                content=ft.Icon(
+                    ft.Icons.KEYBOARD_DOUBLE_ARROW_RIGHT,
+                    size=20,
+                    color=ft.Colors.BLACK_87,
+                ),
+                width=40,
+                height=40,
+                border=ft.border.Border(
+                    left=ft.border.BorderSide(1, ft.Colors.BLACK_26),
+                    top=ft.border.BorderSide(1, ft.Colors.BLACK_26),
+                    right=ft.border.BorderSide(1, ft.Colors.BLACK_26),
+                    bottom=ft.border.BorderSide(1, ft.Colors.BLACK_26),
+                ),
+                border_radius=20,
+                ink=True,
+                on_click=lambda e: change_year(1),
+                tooltip="下一年",
             ),
         ],
         alignment=ft.MainAxisAlignment.CENTER,
-        spacing=15,
+        spacing=8,  # 减小间距，让按钮更紧凑
     )
 
     # 表格
@@ -6831,6 +6857,17 @@ def main(page: ft.Page):
         elif current_month < 1:
             current_month = 12
             current_year -= 1
+        update_calendar()
+
+    def change_year(delta):
+        """改变年份"""
+        global current_year, current_month
+        current_year += delta
+        # 确保年份在合理范围内（1900-2100）
+        if current_year < 1900:
+            current_year = 1900
+        elif current_year > 2100:
+            current_year = 2100
         update_calendar()
 
     def update_calendar():
