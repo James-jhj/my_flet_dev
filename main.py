@@ -59,8 +59,8 @@ else:
         print("警告: pyncm 模块不可用")
 
 # ========== 版本信息 ==========
-APP_VERSION = "1.0.16"
-APP_VERSION_CODE = 16
+APP_VERSION = "1.0.17"
+APP_VERSION_CODE = 17
 # =============================
 
 
@@ -4348,7 +4348,7 @@ def main(page: ft.Page):
         def on_date_selected(e):
             if date_picker.value:
                 # 时区转换
-                local_date = date_picker.value + timedelta(hours=8)
+                local_date = date_picker.value + timedelta(days=1)
                 
                 year = local_date.year
                 month = local_date.month
