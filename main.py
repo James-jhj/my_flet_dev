@@ -59,8 +59,8 @@ else:
         print("警告: pyncm 模块不可用")
 
 # ========== 版本信息 ==========
-APP_VERSION = "1.0.12"
-APP_VERSION_CODE = 12
+APP_VERSION = "1.0.13"
+APP_VERSION_CODE = 13
 # =============================
 
 
@@ -71,7 +71,7 @@ class SmoothMarqueeText(ft.Stack):
         self,
         text: str = "",
         width: int = 240, # 原始宽度是： 300，调小一点是为了适应手机屏幕，调小方向是对的。
-        height: int = None,
+        height: int = 60,
         speed: float = 0.8,
         fps: int = 60,
         gap: int = None,  # 改为 None，表示自动计算
@@ -83,11 +83,6 @@ class SmoothMarqueeText(ft.Stack):
         auto_start: bool = False,
         show_message=None,
     ):
-         
-        # 如果 height 为 None，自动计算为字体大小的 2.5 倍
-        if height is None:
-            height = int(font_size * 2.5)
-
         super().__init__()
         self.width = width
         self.height = height
@@ -1917,16 +1912,13 @@ def main(page: ft.Page):
             content=ft.Column([
                 line1_text,
                 line2_text,
-            ], spacing=3, 
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            alignment=ft.MainAxisAlignment.CENTER),
+            ], spacing=3, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
             on_click=on_lyrics_click,
             padding=10,
             ink=True,
             border_radius=8,
             bgcolor=ft.Colors.TRANSPARENT,
             width=float("inf"),
-            height=100,  # 设置固定高度100
         )
         
         return lyrics_text_container, (line1_text, line2_text)
@@ -7572,7 +7564,7 @@ def main(page: ft.Page):
     music_title_container = ft.Container(
         content=marquee_text,
         #width=280,
-        height=100,
+        height=60,
         #alignment="center",  # 让内容垂直居中
         border_radius=5,
         bgcolor=ft.Colors.TRANSPARENT,  # 改为透明，与系统背景一致
