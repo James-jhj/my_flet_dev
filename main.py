@@ -26,6 +26,7 @@ from zhdate import ZhDate
 import openpyxl
 from openpyxl import Workbook, load_workbook
 from datetime import timezone, timedelta
+from chinesedays.date_utils import is_workday as cn_is_workday
 
 
 # ========== 平台检测（放在这里） ==========
@@ -57,8 +58,8 @@ else:
         print("警告: pyncm 模块不可用")
 
 # ========== 版本信息 ==========
-APP_VERSION = "1.0.10"
-APP_VERSION_CODE = 10
+APP_VERSION = "1.0.11"
+APP_VERSION_CODE = 11
 # =============================
 
 
@@ -582,6 +583,7 @@ class Event:
         self.completed = False              # 标记一次性事件是否已完成
         self.reminders = reminders if reminders else []  # 提醒时间列表
         self.weekdays = weekdays if weekdays else []     # 每周提醒的星期几 (1-7)
+        self.workday_only = False  # 新增：是否只在法定工作日提醒
     
     def to_dict(self):
         return {
@@ -596,7 +598,7 @@ class Event:
             "last_remind_year": self.last_remind_year,
             "completed": getattr(self, 'completed', False) ,        # 一次性事件完成标记
             "reminders": getattr(self, 'reminders', []),            # 新增
-            "work_schedule": getattr(self, 'work_schedule', None),  # 新增
+            "workday_only": getattr(self, 'workday_only', False),
         }
     
     @classmethod
@@ -626,7 +628,7 @@ class Event:
         event.last_remind_year = data.get("last_remind_year", 0)
         event.last_remind_month = data.get("last_remind_month", 0)
         event.completed = data.get("completed", False)
-        event.work_schedule = data.get("work_schedule", None)
+        event.workday_only = data.get("workday_only", False)
         return event
     
     def get_next_date_info(self):
@@ -1299,6 +1301,14 @@ def main(page: ft.Page):
         if debug_mode:
             print(f"[DEBUG {datetime.now().strftime('%H:%M:%S')}] {msg}")
     
+    def is_workday(date):
+        """判断是否为工作日（使用chinese-days库）"""
+        try:
+            return cn_is_workday(date)
+        except Exception as e:
+            print(f"判断工作日失败: {e}")
+            # 降级：简单判断周末
+            return date.weekday() < 5
 
     # ========== 通知功能开始 ==========
     def show_notification(title: str, message: str, notification_id: int = 1001, ongoing: bool = False):
@@ -4400,53 +4410,58 @@ def main(page: ft.Page):
             #print(f"[调试] 调用栈: {traceback.extract_stack()[-2].name}")
             
             if event_type.value == "daily":
-                # 每天提醒：不显示任何日期控件
+                # 每天提醒：隐藏所有日期控件，显示工作日选项
                 date_row.visible = False
                 monthly_day_row.visible = False
                 weekday_row.visible = False
                 calendar_type.visible = False
                 repeat_type.visible = False
-                date_display_field.visible = False  # 隐藏日期选择器显示字段
-                hint_text.value = "💡 提示: 每天提醒，可设置具体时间"
+                date_display_field.visible = False   # 隐藏日期选择器显示字段
+                #workday_only_checkbox.visible = True # 显示工作日选项
+                hint_text.value = "💡 提示: 每天提醒，可设置具体时间。开启「仅在法定工作日提醒」后，只在工作日触发提醒"
                 
             elif event_type.value == "weekly":
-                # 每周提醒：显示完整日期选择（年/月/日）
+                # 每周提醒：隐藏日期选择器，隐藏工作日选项
                 date_row.visible = False        # 隐藏年月日行
                 monthly_day_row.visible = False
                 weekday_row.visible = True      # 显示星期选择
                 calendar_type.visible = False   # 隐藏历法选择
                 repeat_type.visible = False
-                date_display_field.visible = False  # 隐藏日期选择器显示字段
+                date_display_field.visible = False     # 隐藏日期选择器显示字段
+                #workday_only_checkbox.visible = False  # 隐藏工作日选项
                 hint_text.value = "💡 提示: 每周提醒，选择日期后每周同一天提醒"
                 
             elif event_type.value == "monthly":
-                # 每月提醒：只显示日
+                # 每月提醒：只显示日，隐藏工作日选项
                 date_row.visible = False
                 monthly_day_row.visible = True
                 weekday_row.visible = False
                 calendar_type.visible = False
                 repeat_type.visible = False
-                date_display_field.visible = True   # 显示日期选择器
+                date_display_field.visible = True      # 显示日期选择器
+                #workday_only_checkbox.visible = False  # 隐藏工作日选项
                 hint_text.value = "💡 提示: 每月固定日期提醒，只需选择每月几号"
                 
             elif event_type.value == "once":
-                # 一次性事件：显示完整日期
+                # 一次性事件：显示完整日期和日期选择器，隐藏工作日选项
                 date_row.visible = True
                 monthly_day_row.visible = False
                 weekday_row.visible = False
                 calendar_type.visible = True
                 repeat_type.visible = False
-                date_display_field.visible = True   # 显示日期选择器
+                date_display_field.visible = True      # 显示日期选择器
+                #workday_only_checkbox.visible = False  # 隐藏工作日选项
                 hint_text.value = "💡 提示: 一次性事件只在指定日期提醒一次"
                 
             else:
-                # 生日/纪念日：显示完整日期
+                # 生日/纪念日：显示完整日期和日期选择器，隐藏工作日选项
                 date_row.visible = True
                 monthly_day_row.visible = False
                 weekday_row.visible = False
                 calendar_type.visible = True
                 repeat_type.visible = True
-                date_display_field.visible = True   # 显示日期选择器
+                date_display_field.visible = True      # 显示日期选择器
+                #workday_only_checkbox.visible = False  # 隐藏工作日选项
                 if event_type.value == "birthday":
                     hint_text.value = "💡 提示: 农历生日会自动计算每年对应的阳历日期"
                 else:
@@ -5672,6 +5687,12 @@ def main(page: ft.Page):
                 show_snack_bar("请输入名称")
                 return
             
+            # 获取工作日选项的值（使用专门保存的 Switch 变量）
+            workday_only = False
+            if hasattr(open_add_dialog, 'workday_only_switch'):
+                workday_only = open_add_dialog.workday_only_switch.value
+                print(f"[保存] 工作日选项: {workday_only}")
+            
             # ========== 收集提醒时间（关键修复） ==========
             reminders = []
             # 尝试从 open_add_dialog.reminders_list 获取
@@ -5764,6 +5785,7 @@ def main(page: ft.Page):
             if is_edit and selected_event:
                 try:
                     reset_all_reminders()
+                    selected_event.workday_only = workday_only # 新增
                     selected_event.last_remind_year = 0
                     selected_event.reminded_this_year = False
                     selected_event.name = name
@@ -5794,6 +5816,7 @@ def main(page: ft.Page):
                         event_type.value, music_field.value.strip(), repeat_type_value,
                         reminders=reminders
                     )
+                    new_event.workday_only = workday_only
                     if repeat_type_value == "once":
                         new_event.completed = False
                     events[event_id] = new_event
@@ -5822,14 +5845,34 @@ def main(page: ft.Page):
         else:
             event_type.value = "birthday"  # 新增事件默认选择生日
 
-        # 调用日期显示切换函数，根据当前事件类型设置正确的显示
-        update_date_visibility()
+        # 先确定初始值(法定工作日)
+        initial_workday_only = False
+        if is_edit and selected_event:
+            initial_workday_only = getattr(selected_event, 'workday_only', False)
+
+        workday_only_switch = ft.Switch(
+            value=initial_workday_only,  # 设置初始值
+            active_color=ft.Colors.BLUE_700,
+        )
+
+        workday_only_checkbox = ft.Row([
+            ft.Text("法定工作日（智能跳过节假日）", size=13, color=ft.Colors.BLACK),
+            workday_only_switch,
+        ], spacing=10, alignment=ft.MainAxisAlignment.START)
+
+        # 保存到函数属性，方便其他地方访问
+        open_add_dialog.workday_only_checkbox = workday_only_checkbox
+        open_add_dialog.workday_only_switch = workday_only_switch
+
 
         # 多提醒时间容器
         reminders_container = ft.Container(
             content=ft.Column([
                 ft.Text("⏰ 多时段提醒", size=14, weight=ft.FontWeight.BOLD),
                 reminders_list,
+                ft.Divider(height=5),
+                workday_only_checkbox,  # 添加工作日选项
+                ft.Divider(height=5),
                 ft.Row(
                     [ft.ElevatedButton(
                         "添加提醒时间",
@@ -5837,14 +5880,18 @@ def main(page: ft.Page):
                         icon=ft.Icons.ADD_ALARM,
                         height=36,
                     )],
+                    
                     alignment=ft.MainAxisAlignment.CENTER,  # 水平居中
                 ),
             ], spacing=8),
             padding=10,
-            bgcolor=ft.Colors.GREY_50,
+            bgcolor=ft.Colors.TRANSPARENT,  # 改为透明
             border_radius=10,
+            visible=True,
         )
 
+        # 调用日期显示切换函数，根据当前事件类型设置正确的显示
+        update_date_visibility()
 
         # 创建顶部按钮栏
         def cancel_click(e):
@@ -6187,19 +6234,28 @@ def main(page: ft.Page):
         now = datetime.now()
         current_time = now.strftime("%H:%M")
         current_weekday = now.weekday() + 1  # 1=周一
+
+        # 判断今天是否是法定工作日
+        is_workday_today = is_workday(now)
         
         #print(f"[时间提醒] ========== 开始检查 ==========")
-        #print(f"[时间提醒] 当前时间: {current_time}, 当前星期: {current_weekday}")
+        #print(f"[时间提醒] 当前时间: {current_time}, 当前星期: {current_weekday}, 是否工作日: {is_workday_today}")
         
         for event in events.values():
             # 检查提醒列表
             if not event.reminders:
                 continue
+
+            # 如果是每日事件且启用了工作日选项，检查今天是否是工作日
+            if event.event_type == "daily" and hasattr(event, 'workday_only') and event.workday_only:
+                if not is_workday_today:
+                    #print(f"[时间提醒] 事件 {event.name} 只在工作日提醒，今天不是工作日，跳过")
+                    continue
             
             
             for reminder in event.reminders:
                 if not reminder.get("enabled"):
-                    continue 
+                    continue
                 
                 # 第一步：先判断时间是否匹配
                 reminder_time = reminder.get("time")
@@ -6212,6 +6268,7 @@ def main(page: ft.Page):
                 # 第三步：再根据事件类型判断是否需要提醒
                 should_remind = False
                 
+                # 每日事件检查
                 if event.event_type == "daily":
                     # 每天事件：每天都提醒
                     should_remind = True
@@ -6952,8 +7009,9 @@ def main(page: ft.Page):
             ws = wb.active
             ws.title = "事件列表"
             
-            # 写入表头
-            headers = ["事件类型", "名称", "birth_date", "历法", "重复类型", "音乐文件路径", "已提醒年份"]
+            # 写入表头（添加 reminders 和 workday_only 字段）
+            headers = ["事件类型", "名称", "birth_date", "历法", "重复类型", "音乐文件路径", 
+                    "已提醒年份", "提醒时间(多个用|分隔)", "仅法定工作日提醒"]
             ws.append(headers)
             
             # 设置表头样式
@@ -6970,6 +7028,10 @@ def main(page: ft.Page):
                     event_type = "纪念日/事件"
                 elif event.event_type == "monthly":
                     event_type = "每月提醒"
+                elif event.event_type == "daily":
+                    event_type = "每天提醒"
+                elif event.event_type == "weekly":
+                    event_type = "每周提醒"
                 else:
                     event_type = "一次性事件"
                 
@@ -6979,10 +7041,23 @@ def main(page: ft.Page):
                     repeat_str = "每年"
                 elif event.repeat_type == "monthly":
                     repeat_str = "每月"
+                elif event.repeat_type == "daily":
+                    repeat_str = "每天"
+                elif event.repeat_type == "weekly":
+                    repeat_str = "每周"
                 else:
                     repeat_str = "一次性"
                 
                 reminded_year = event.last_remind_year if event.last_remind_year > 0 else ""
+                
+                # 处理提醒时间：多个用 | 分隔
+                reminders_str = ""
+                if hasattr(event, 'reminders') and event.reminders:
+                    time_list = [r.get("time", "") for r in event.reminders if r.get("enabled")]
+                    reminders_str = "|".join(time_list)
+                
+                # 处理法定工作日提醒
+                workday_only_str = "是" if getattr(event, 'workday_only', False) else "否"
                 
                 ws.append([
                     event_type,
@@ -6991,7 +7066,9 @@ def main(page: ft.Page):
                     calendar_str,
                     repeat_str,
                     event.sound_file,
-                    reminded_year
+                    reminded_year,
+                    reminders_str,
+                    workday_only_str,
                 ])
             
             # 调整列宽
@@ -7002,6 +7079,8 @@ def main(page: ft.Page):
             ws.column_dimensions['E'].width = 10
             ws.column_dimensions['F'].width = 40
             ws.column_dimensions['G'].width = 12
+            ws.column_dimensions['H'].width = 20
+            ws.column_dimensions['I'].width = 15
             
             # 保存临时文件
             wb.save(temp_file)
@@ -7120,6 +7199,7 @@ def main(page: ft.Page):
             show_bottom_message("已取消导入")
         
         async def do_import(file_path):
+            """执行导入逻辑"""
             show_bottom_message(f"正在导入: {os.path.basename(file_path)}")
             page.update()
             
@@ -7143,8 +7223,10 @@ def main(page: ft.Page):
                 repeat_str = str(row[4]).strip() if row[4] else "每年"
                 sound_file = str(row[5]).strip() if row[5] else ""
                 reminded_year_str = str(row[6]).strip() if len(row) > 6 and row[6] else ""
+                reminders_str = str(row[7]).strip() if len(row) > 7 and row[7] else ""  # 新增：提醒时间
+                workday_only_str = str(row[8]).strip() if len(row) > 8 and row[8] else "否"  # 新增：法定工作日提醒
                 
-                if not name or not birth_date_raw:
+                if not name:
                     skipped_count += 1
                     continue
                 
@@ -7159,11 +7241,20 @@ def main(page: ft.Page):
                     event_type = "event"
                 elif event_type_str in ["每月提醒", "monthly"]:
                     event_type = "monthly"
+                elif event_type_str in ["每天提醒", "daily"]:
+                    event_type = "daily"
+                elif event_type_str in ["每周提醒", "weekly"]:
+                    event_type = "weekly"
                 elif event_type_str in ["一次性事件", "once"]:
                     event_type = "once"
                 else:
+                    # 根据 repeat_str 推断
                     if repeat_str in ["每月", "monthly"]:
                         event_type = "monthly"
+                    elif repeat_str in ["每天", "daily"]:
+                        event_type = "daily"
+                    elif repeat_str in ["每周", "weekly"]:
+                        event_type = "weekly"
                     elif repeat_str in ["一次性", "once"]:
                         event_type = "once"
                     else:
@@ -7171,8 +7262,13 @@ def main(page: ft.Page):
                 
                 calendar_type = "lunar" if calendar_str in ["农历", "lunar"] else "solar"
                 
+                # 处理重复类型
                 if repeat_str in ["每月", "monthly"]:
                     repeat_type = "monthly"
+                elif repeat_str in ["每天", "daily"]:
+                    repeat_type = "daily"
+                elif repeat_str in ["每周", "weekly"]:
+                    repeat_type = "weekly"
                 elif repeat_str in ["一次性", "once"]:
                     repeat_type = "once"
                 else:
@@ -7181,6 +7277,7 @@ def main(page: ft.Page):
                 # 处理birth_date格式
                 try:
                     if event_type == "monthly" or repeat_type == "monthly":
+                        # 每月事件：只存日
                         day_num = int(float(birth_date_raw)) if '.' in birth_date_raw else int(birth_date_raw)
                         if 1 <= day_num <= 31:
                             birth_date = f"{day_num:02d}"
@@ -7188,7 +7285,20 @@ def main(page: ft.Page):
                             skipped_count += 1
                             continue
                             
+                    elif event_type == "daily" or repeat_type == "daily":
+                        # 每天事件：不需要日期
+                        birth_date = ""
+                        
+                    elif event_type == "weekly" or repeat_type == "weekly":
+                        # 每周事件：存星期几 (1-7)
+                        weekday = str(int(float(birth_date_raw))) if '.' in birth_date_raw else str(birth_date_raw)
+                        if weekday in ["1", "2", "3", "4", "5", "6", "7"]:
+                            birth_date = weekday
+                        else:
+                            birth_date = "1"
+                            
                     elif event_type == "once" or repeat_type == "once":
+                        # 一次性事件：完整日期
                         parts = birth_date_raw.split("-")
                         if len(parts) == 3:
                             year = int(parts[0])
@@ -7201,6 +7311,7 @@ def main(page: ft.Page):
                             continue
                         
                     else:
+                        # 生日/纪念日：完整日期
                         parts = birth_date_raw.split("-")
                         if len(parts) == 3:
                             year = int(parts[0])
@@ -7213,9 +7324,22 @@ def main(page: ft.Page):
                         else:
                             raise ValueError
                             
-                except:
+                except Exception as e:
+                    print(f"解析日期失败: {birth_date_raw}, 错误: {e}")
                     skipped_count += 1
                     continue
+                
+                # 处理提醒时间（多个用|分隔）
+                reminders = []
+                if reminders_str and reminders_str != "":
+                    time_list = reminders_str.split("|")
+                    for t in time_list:
+                        t = t.strip()
+                        if t and ":" in t:
+                            reminders.append({"time": t, "enabled": True})
+                
+                # 处理法定工作日提醒
+                workday_only = workday_only_str == "是"
                 
                 # 处理已提醒年份
                 last_remind_year = 0
@@ -7225,14 +7349,18 @@ def main(page: ft.Page):
                 # 生成新的事件ID
                 event_id = str(int(datetime.now().timestamp() * 1000) + imported_count)
                 
+                # 创建事件
                 new_event = Event(
                     event_id, name, birth_date, calendar_type,
-                    event_type, sound_file, repeat_type
+                    event_type, sound_file, repeat_type,
+                    reminders=reminders
                 )
+                new_event.workday_only = workday_only
                 new_event.last_remind_year = last_remind_year
                 new_event.reminded_this_year = (last_remind_year == datetime.now().year)
                 new_events[event_id] = new_event
                 imported_count += 1
+                print(f"[导入] 成功导入: {name} (类型: {event_type})")
             
             if imported_count == 0:
                 show_bottom_message(f"没有导入任何事件，跳过 {skipped_count} 行")
@@ -7252,11 +7380,16 @@ def main(page: ft.Page):
                 close_confirm_dialog()
                 events.clear()
                 events.update(new_events)
-                save_events()
-                #refresh_events_list()
-                # ========== 根据当前视图刷新对应的视图 ==========
+                save_events(trigger_check=False)
                 refresh_current_view_by_state()
                 update_calendar()
+
+                # ========== 导入成功后，立即检查今日事件 ==========
+                # 直接调用，不需要 Timer
+                check_events()
+                check_time_reminders()
+                determine_startup_view()
+                
                 show_bottom_message(f"成功导入 {imported_count} 条事件")
                 page.update()
             
@@ -7328,7 +7461,8 @@ def main(page: ft.Page):
                 ),
                 ft.Text("导入事件", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, text_align=ft.TextAlign.CENTER),
                 ft.Divider(height=1, color=ft.Colors.GREY_300),
-                ft.Text("请选择导入方式", size=14, color=ft.Colors.GREY_700, text_align=ft.TextAlign.CENTER),
+                ft.Text("请选择Excel文件", size=14, color=ft.Colors.GREY_700, text_align=ft.TextAlign.CENTER),
+                ft.Text("支持格式: .xlsx, .xls", size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
                 ft.Divider(height=1, color=ft.Colors.GREY_300),
                 ft.Row([
                     ft.ElevatedButton(
@@ -7544,20 +7678,30 @@ def main(page: ft.Page):
             full_text = f"播放中: {event_icon}【{event.name}】- {event_type_text} : {music_name}"
             marquee_text.color = ft.Colors.BLUE_700
             marquee_text.update_text(full_text)
-            marquee_text.start()
+            # 使用 page.run_task 来启动滚动，而不是直接调用
+            try:
+                marquee_text.start()
+            except Exception as e:
+                print(f"启动滚动失败: {e}")
             print(f"[update_current_playing_info] 设置为播放状态（蓝色）并启动滚动")
         elif current_music_state == "paused":
             full_text = f"已暂停: {music_name}"
             marquee_text.color = ft.Colors.ORANGE_700
             marquee_text.update_text(full_text)
-            marquee_text.stop()
+            try:
+                marquee_text.stop()
+            except Exception as e:
+                print(f"停止滚动失败: {e}")
             if marquee_text._initialized:
                 marquee_text._draw_frame()
             print(f"[update_current_playing_info] 设置为暂停状态（橙色），停止滚动")
         else:
             marquee_text.update_text("🎵 未播放")
             marquee_text.color = ft.Colors.GREY_600
-            marquee_text.stop()
+            try:
+                marquee_text.stop()
+            except Exception as e:
+                print(f"停止滚动失败: {e}")
             if marquee_text._initialized:
                 marquee_text._draw_frame()
         
