@@ -59,8 +59,8 @@ else:
         print("警告: pyncm 模块不可用")
 
 # ========== 版本信息 ==========
-APP_VERSION = "1.0.13"
-APP_VERSION_CODE = 13
+APP_VERSION = "1.0.14"
+APP_VERSION_CODE = 14
 # =============================
 
 
@@ -6049,11 +6049,28 @@ def main(page: ft.Page):
             title = "🎉 今日提醒"
             title_color = ft.Colors.PURPLE_700
             
+            # 创建美化后的内容容器
             content_column = ft.Column([
-                ft.Text(title, size=22, weight=ft.FontWeight.BOLD, color=title_color),
+                # 顶部图标
+                ft.Container(
+                    content=ft.Icon(ft.Icons.CELEBRATION, size=48, color=ft.Colors.PURPLE_700),
+                    padding=10,
+                    bgcolor=ft.Colors.PURPLE_50,
+                    border_radius=50,
+                ),
+                ft.Text(title, size=24, weight=ft.FontWeight.BOLD, color=title_color),
+                ft.Divider(height=1, color=ft.Colors.GREY_300),
                 ft.Column(events_text, spacing=8),
+                ft.Divider(height=1, color=ft.Colors.GREY_300),
                 ft.Row([
-                    ft.TextButton("关闭", on_click=lambda e: close_combined_reminder()),
+                    ft.ElevatedButton(
+                        "关闭", 
+                        on_click=lambda e: close_combined_reminder(),
+                        style=ft.ButtonStyle(
+                            bgcolor=ft.Colors.BLUE_700,
+                            color=ft.Colors.WHITE,
+                        ),
+                    ),
                 ], alignment=ft.MainAxisAlignment.CENTER),
             ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
             
@@ -6099,13 +6116,30 @@ def main(page: ft.Page):
                     ft.Text(f"• {day_text}（{month}月{day}日）：{'，'.join(text_parts)}", size=14)
                 )
             
+            # 创建美化后的内容容器
             content_column = ft.Column([
-                ft.Text(title, size=20, weight=ft.FontWeight.BOLD, color=title_color),
-                ft.Text("以下事件即将到来：", size=16),
+                # 顶部图标
+                ft.Container(
+                    content=ft.Icon(ft.Icons.NOTIFICATIONS_ACTIVE, size=48, color=ft.Colors.ORANGE_700),
+                    padding=10,
+                    bgcolor=ft.Colors.ORANGE_50,
+                    border_radius=50,
+                ),
+                ft.Text("🎈 事件预告", size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.ORANGE_700),
+                ft.Divider(height=1, color=ft.Colors.GREY_300),
+                ft.Text("以下事件即将到来：", size=14, color=ft.Colors.GREY_700),
                 ft.Column(events_by_day_list, spacing=8),
-                ft.Text("记得提前准备哦！", size=12, color=ft.Colors.GREY_600),
+                ft.Text("记得提前准备哦！", size=12, color=ft.Colors.GREY_500),
+                ft.Divider(height=1, color=ft.Colors.GREY_300),
                 ft.Row([
-                    ft.TextButton("关闭", on_click=lambda e: close_combined_reminder()),
+                    ft.ElevatedButton(
+                        "关闭", 
+                        on_click=lambda e: close_combined_reminder(),
+                        style=ft.ButtonStyle(
+                            bgcolor=ft.Colors.BLUE_700,
+                            color=ft.Colors.WHITE,
+                        ),
+                    ),
                 ], alignment=ft.MainAxisAlignment.CENTER),
             ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
 
@@ -6118,16 +6152,32 @@ def main(page: ft.Page):
                     else:
                         print(f"[预警自动播放] 音乐正在播放中，跳过: {os.path.basename(music_file)}")
         
+        # 创建美化的对话框容器（居中、带边框和阴影）
         combined_container = ft.Container(
-            content=ft.Container(
-                content=content_column,
-                bgcolor=ft.Colors.WHITE,
-                padding=20,
-                border_radius=10,
-            ),
-            left=30,
-            top=150,
-            right=30,
+            content=ft.Column([
+                ft.Container(expand=True),  # 上方弹性空间
+                ft.Row([
+                    ft.Container(expand=True),  # 左侧弹性空间
+                    ft.Container(
+                        content=content_column,
+                        width=320,
+                        padding=20,
+                        bgcolor=ft.Colors.WHITE,
+                        border_radius=16,
+                        #border=ft.border.all(1, ft.Colors.BLUE_200),
+                        shadow=ft.BoxShadow(
+                            spread_radius=1,
+                            blur_radius=15,
+                            color=ft.Colors.BLACK12,
+                        ),
+                    ),
+                    ft.Container(expand=True),  # 右侧弹性空间
+                ]),
+                ft.Container(expand=True),  # 下方弹性空间
+            ]),
+            expand=True,
+            bgcolor=ft.Colors.BLACK26,  # 半透明背景遮罩
+            on_click=lambda e: close_combined_reminder(),  # 点击背景关闭
         )
         
         page.overlay.append(combined_container)
