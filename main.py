@@ -26,9 +26,210 @@ from zhdate import ZhDate
 import openpyxl
 from openpyxl import Workbook, load_workbook
 from datetime import timezone, timedelta
-#from chinesedays.date_utils import is_workday as cn_is_workday
 from chinese_calendar import is_workday as cn_is_workday
+from android_notify import Notification
 
+import hashlib
+import subprocess
+import uuid
+import sys
+
+# ========== 2. 版本信息 ==========
+APP_VERSION = "1.0.18"
+APP_VERSION_CODE = 18
+# =============================
+
+# ========== 3. 设备绑定功能 ==========
+
+def get_device_id():
+    """获取设备唯一标识"""
+    if platform.system() == "Windows":
+        # Windows：获取硬盘序列号
+        try:
+            result = subprocess.run(['wmic', 'diskdrive', 'get', 'serialnumber'], 
+                                    capture_output=True, text=True, timeout=5)
+            lines = result.stdout.strip().split('\n')
+            if len(lines) > 1 and lines[-1].strip():
+                return hashlib.md5(lines[-1].strip().encode()).hexdigest()
+        except:
+            pass
+        # 降级：使用计算机名 + 用户名
+        return hashlib.md5(f"{os.getlogin()}_{platform.node()}".encode()).hexdigest()
+    
+    else:
+        # Android：首次运行生成ID并存储，之后读取
+        try:
+            # 获取应用私有存储目录，这是 Android 上 App 的专属地盘
+            app_data_dir = os.getenv("FLET_APP_STORAGE_DATA", "")
+            if not app_data_dir:
+                # 兼容本地运行
+                app_data_dir = "."
+
+            device_id_file = os.path.join(app_data_dir, "device_id.json")
+
+            # 1. 尝试读取已保存的ID
+            if os.path.exists(device_id_file):
+                try:
+                    with open(device_id_file, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        return data.get('device_id')
+                except:
+                    pass
+
+            # 2. 首次运行，生成新ID并保存
+            new_device_id = hashlib.md5(str(uuid.uuid4()).encode()).hexdigest()
+            
+            # 3. 保存这个ID到文件
+            try:
+                os.makedirs(app_data_dir, exist_ok=True)
+                with open(device_id_file, 'w', encoding='utf-8') as f:
+                    json.dump({'device_id': new_device_id}, f)
+            except Exception as e:
+                print(f"保存设备ID失败: {e}")
+
+            return new_device_id
+        except:
+            pass
+
+
+def get_auth_file_path():
+    """获取授权文件路径（Android 兼容）"""
+    app_data_dir = os.getenv("FLET_APP_STORAGE_DATA", "")
+    if app_data_dir:
+        os.makedirs(app_data_dir, exist_ok=True)
+        return os.path.join(app_data_dir, "device_auth.json")
+    return "device_auth.json"
+
+
+def is_device_authorized():
+    """检查设备是否已授权（首次运行自动授权）"""
+    current_device_id = get_device_id()
+    auth_file = get_auth_file_path()
+    
+    # 检查授权文件是否存在
+    if os.path.exists(auth_file):
+        try:
+            with open(auth_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return data.get('device_id') == current_device_id
+        except:
+            pass
+    
+    # 首次运行，自动授权当前设备
+    try:
+        with open(auth_file, 'w', encoding='utf-8') as f:
+            json.dump({'device_id': current_device_id}, f)
+        return True
+    except:
+        return False
+
+
+def show_unauthorized_page(page, device_id=None):
+    """显示未授权页面"""
+    if device_id is None:
+        device_id = get_device_id()
+    
+    page.clean()
+    page.title = "设备未授权"
+    page.window_width = 400
+    page.window_height = 400
+    page.bgcolor = ft.Colors.WHITE
+    page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
+    page.vertical_alignment = ft.MainAxisAlignment.CENTER
+    
+    async def copy_to_clipboard(page, text):
+        """异步复制文本到剪贴板"""
+        try:
+            clipboard = ft.Clipboard()
+            await clipboard.set(text)
+            # 显示成功提示
+            snack = ft.SnackBar(content=ft.Text("✅ 设备ID已复制，请发送给管理员"), duration=3000)
+            page.overlay.append(snack)
+            snack.open = True
+            page.update()
+            return True
+        except Exception as e:
+            print(f"复制失败: {e}")
+            return False
+
+    def copy_device_id(e):
+        """复制设备ID"""
+        # 创建异步任务
+        asyncio.create_task(copy_to_clipboard(page, device_id))
+
+    page.add(
+        ft.Column([
+            ft.Icon(ft.Icons.WARNING, size=80, color=ft.Colors.RED_700),
+            ft.Text("设备未授权", size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.RED_700),
+            ft.Text("当前设备未获得使用授权", size=14, color=ft.Colors.GREY_600),
+            ft.Container(height=10),
+            ft.Text("请将以下设备ID发送给管理员:", size=12, color=ft.Colors.GREY_600),
+            ft.Container(
+                content=ft.Text(device_id, size=11, selectable=True),
+                padding=8,
+                bgcolor=ft.Colors.GREY_100,
+                border_radius=5,
+                width=320,
+            ),
+            ft.Button("复制设备ID", on_click=copy_device_id),
+            ft.Container(height=10),
+            ft.Text("管理员授权后即可使用", size=12, color=ft.Colors.GREY_500),
+        ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+    )
+    page.update()
+# ==================   添加设备授权功能  ============================
+
+
+# 尝试导入 android_notify
+try:
+    from android_notify import Notification
+    ANDROID_NOTIFY_AVAILABLE = True
+    print("✅ android_notify 导入成功")
+except ImportError as e:
+    ANDROID_NOTIFY_AVAILABLE = False
+    print(f"❌ android_notify 导入失败: {e}")
+
+
+# 尝试导入 Android 原生模块
+ANDROID_MODULE_AVAILABLE = False
+try:
+    import android
+    from android import activity
+    from android.os import PowerManager
+    ANDROID_MODULE_AVAILABLE = True
+    print("✅ android 原生模块导入成功")
+except ImportError as e:
+    print(f"❌ android 原生模块导入失败: {e}")
+
+# ========== 3. WakeLock 保活功能（放在这里） ==========
+wake_lock = None
+
+def acquire_wakelock():
+    """获取唤醒锁，防止 CPU 休眠"""
+    global wake_lock
+    try:
+        power_manager = activity.getSystemService(activity.POWER_SERVICE)
+        wake_lock = power_manager.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "EventReminder:WakeLock"
+        )
+        wake_lock.acquire()
+        print("[WakeLock] ✅ 已获取，CPU 将保持运行")
+        return wake_lock
+    except Exception as e:
+        print(f"[WakeLock] ❌ 获取失败: {e}")
+        return None
+
+def release_wakelock():
+    """释放唤醒锁"""
+    global wake_lock
+    try:
+        if wake_lock:
+            wake_lock.release()
+            wake_lock = None
+            print("[WakeLock] ✅ 已释放")
+    except Exception as e:
+        print(f"[WakeLock] ❌ 释放失败: {e}")
 
 # ========== 平台检测（放在这里） ==========
 IS_WINDOWS = platform.system() == "Windows"
@@ -57,12 +258,6 @@ else:
     except ImportError:
         PYCNM_AVAILABLE = False
         print("警告: pyncm 模块不可用")
-
-# ========== 版本信息 ==========
-APP_VERSION = "1.0.18"
-APP_VERSION_CODE = 18
-# =============================
-
 
 class SmoothMarqueeText(ft.Stack):
     """平滑滚动字幕控件 - 修复文本重叠问题"""
@@ -128,22 +323,6 @@ class SmoothMarqueeText(ft.Stack):
         
         if text:
             self._texts.append(text.strip())
-    
-    """ 
-    def get_text_width(self, text: str) -> float:
-        # 计算文本宽度（估算）
-        width = 0
-        for char in text:
-            if '\u4e00' <= char <= '\u9fff':
-                width += self.font_size
-            elif char.isupper():
-                width += self.font_size * 0.7
-            elif char.isdigit():
-                width += self.font_size * 0.6
-            else:
-                width += self.font_size * 0.5
-        return width
-    """
 
     def get_text_width(self, text: str) -> float:
         """计算文本宽度（更精确的估算）"""
@@ -1189,6 +1368,59 @@ def get_data_file_path(filename):
         return filename
 
 def main(page: ft.Page):
+
+    """入口：检查设备授权"""
+    
+    # ========== 预设授权设备列表 ==========
+    # 先运行一次程序，从控制台获取设备ID，然后填在这里
+    ALLOWED_DEVICES = [
+        "6472c4db5200105e8788ba00aee9fe84",  # 开发者的window ID
+        "819374e1a2b43595a5da70474fcc7e4f",  # 开发者的手机 ID
+        #"",  # 可以添加多个
+    ]
+    
+    # 获取当前设备ID
+    current_device_id = get_device_id()
+    print(f"[设备授权] 当前设备ID: {current_device_id}")
+    
+    # 检查设备是否在授权列表中
+    if current_device_id not in ALLOWED_DEVICES:
+        # 未授权，显示未授权页面
+        show_unauthorized_page(page, current_device_id)
+        return
+    
+    # 设备已授权，继续执行原来的主程序
+    print("[设备授权] ✅ 设备已授权，启动主程序")
+
+
+    # 设备已授权，进入主程序逻辑
+    def show_snack_bar_new(page, message, is_error=False):
+        """显示 SnackBar（兼容不同 Flet 版本）"""
+        try:
+            if hasattr(page, 'show_snack_bar'):
+                page.show_snack_bar(
+                    ft.SnackBar(
+                        content=ft.Text(message),
+                        bgcolor=ft.Colors.RED_700 if is_error else ft.Colors.GREEN_700,
+                    )
+                )
+            else:
+                snack = ft.SnackBar(
+                    content=ft.Text(message),
+                    bgcolor=ft.Colors.RED_700 if is_error else ft.Colors.GREEN_700,
+                    open=True,
+                )
+                page.overlay.append(snack)
+                page.update()
+                def close_snack():
+                    time.sleep(3)
+                    if snack in page.overlay:
+                        page.overlay.remove(snack)
+                        page.update()
+                threading.Thread(target=close_snack, daemon=True).start()
+        except Exception as e:
+            print(f"显示 SnackBar 失败: {e}")
+            
     # 在函数最开始声明所有需要使用的全局变量
     global current_audio, is_playing, current_music_file,current_playing_event_id,current_music_state,music_state_update_callback
     global lyrics_fullscreen_container, auto_scroll_task, current_position_sec,current_lyrics , events  # 添加 events
@@ -1196,7 +1428,8 @@ def main(page: ft.Page):
     global last_check_date,reminder_flags,music_title_container, main_content, marquee_text # 添加这两个变量
     global selected_date,three_days_events, date_text,current_view   # 添加 date_text
     global month_text, current_year, current_month, today_circle_button  # 添加 today_circle_button
-    global music_control_container, playback_buttons, music_section_container,sent_notifications  # 修改这里
+    global music_control_container, playback_buttons, music_section_container  # 修改这里
+    global sent_notifications  # 添加这行
 
     page.window_icon = "icon.png"
     page.title = "事件提醒助手"
@@ -1216,6 +1449,7 @@ def main(page: ft.Page):
     # 应用到主题
     page.theme = ft.Theme(system_overlay_style=my_overlay_style)
     page.dark_theme = ft.Theme(system_overlay_style=my_overlay_style)
+
     
     # 请求 Android 存储权限
     def request_permissions():
@@ -1224,12 +1458,24 @@ def main(page: ft.Page):
                 page.request_permission("android.permission.READ_EXTERNAL_STORAGE")
                 page.request_permission("android.permission.READ_MEDIA_AUDIO")
                 # 添加这行：请求通知权限（Android 13+ 必需）
-                # page.request_permission("android.permission.POST_NOTIFICATIONS")
+                page.request_permission("android.permission.POST_NOTIFICATIONS")
                 print("已请求存储权限")
             except Exception as e:
                 print(f"权限请求失败: {e}")
     
     page.on_ready = request_permissions
+
+    # ========== 初始化通知功能 ==========
+    # 初始化通知渠道
+    if ANDROID_NOTIFY_AVAILABLE and platform.system() == "Linux":
+        try:
+            init_notify = Notification()
+            init_notify.channel_name = "事件提醒助手"
+            init_notify.channel_description = "事件提醒助手通知渠道"
+            init_notify.importance = "low"
+            print("[通知] ✅ 通知渠道已初始化")
+        except Exception as e:
+            print(f"[通知] 渠道初始化失败: {e}")
 
     sent_notifications = set()  # 记录已发送的通知，格式: "事件ID_提醒时间_日期"
 
@@ -1267,7 +1513,7 @@ def main(page: ft.Page):
     current_position = 0
     current_lyrics = []
 
-     # 在适当位置添加这些变量（在其他变量附近）
+    # 在适当位置添加这些变量（在其他变量附近）
     lyrics_fullscreen_container = None  # 全屏歌词容器
     auto_scroll_task = None  # 自动滚动任务
     current_position_sec = 0  # 当前播放位置（秒）
@@ -1296,6 +1542,16 @@ def main(page: ft.Page):
         """调试日志函数"""
         if debug_mode:
             print(f"[DEBUG {datetime.now().strftime('%H:%M:%S')}] {msg}")
+
+    # 测试按钮的回调函数，仅做测试用途
+    def test_notification(e):
+        """测试通知功能"""
+        show_bottom_message("正在测试通知...")
+        result = show_notification(page, "🔔 测试通知", f"当前时间: {datetime.now().strftime('%H:%M:%S')}")
+        if result:
+            show_bottom_message("✅ 通知已发送")
+        else:
+            show_bottom_message("❌ 通知发送失败")
     
     def is_workday(date):
         """判断是否为工作日（使用chinese-days库）"""
@@ -1307,26 +1563,62 @@ def main(page: ft.Page):
             return date.weekday() < 5
 
     # ========== 通知功能开始 ==========
-    def show_notification(title: str, message: str, notification_id: int = 1001, ongoing: bool = False):
-        """显示系统通知（使用 plyer，支持 Android）"""
+    def show_notification(page, title: str, message: str, notification_id: int = None, ongoing: bool = False):
+        """发送系统通知
+        Args:
+            page: Flet Page 对象
+            title: 通知标题
+            message: 通知内容
+            notification_id: 通知ID（保留参数，暂未使用）
+            ongoing: 是否持续通知（保留参数，暂未使用）
+        """
+        print(f"[通知] 发送: {title} - {message}")
+        
+        if not ANDROID_NOTIFY_AVAILABLE:
+            print("[通知] ❌ android_notify 不可用")
+            return False
+
         try:
-            notification.notify(
-                title=title,
-                message=message,
-                app_name="事件提醒助手",
-                timeout=10,
-                ticker=title,
-            )
-            show_snack_bar(f"✅ 通知已显示: {title}")
+            n = Notification(title=title, message=message)
+            n.send()
+            print("[通知] ✅ 发送成功")
             return True
         except Exception as e:
-            print(f"显示通知失败: {e}")
+            print(f"[通知] ❌ 发送失败: {e}")
             return False
 
 
     def cancel_notification(notification_id: int):
-        """取消通知（plyer 不支持，保持兼容）"""
-        pass
+        """取消通知（使用 android-notify）"""
+        print(f"[通知] 尝试取消通知 ID: {notification_id}")
+        
+        if platform.system() != "Linux":
+            print("[通知] 非 Android 平台，跳过取消")
+            return
+        
+        if not ANDROID_NOTIFY_AVAILABLE:
+            print("[通知] android_notify 不可用，跳过取消")
+            return
+        
+        try:
+            # android-notify 的取消通知方法
+            # 方法1：创建一个相同 ID 的通知并取消
+            n = Notification(notification_id=notification_id)
+            n.cancel()
+            print(f"[通知] ✅ 已取消通知 ID: {notification_id}")
+        except AttributeError:
+            try:
+                # 方法2：使用 NotificationManager 直接取消
+                from android import activity
+                from android.app import NotificationManager
+                
+                notification_manager = activity.getSystemService("notification")
+                notification_manager.cancel(notification_id)
+                print(f"[通知] ✅ 已取消通知 ID: {notification_id} (方法2)")
+            except Exception as e2:
+                print(f"[通知] ❌ 取消通知失败: {e2}")
+        except Exception as e:
+            print(f"[通知] ❌ 取消通知失败: {e}")
 
 
     # 音乐播放通知ID（plyer 不需要）
@@ -1341,11 +1633,7 @@ def main(page: ft.Page):
             return
         
         status = "▶️ 播放中" if is_playing else "⏸️ 已暂停"
-        show_notification(
-            "🎵 事件提醒助手",
-            f"{status}: {song_name}",
-            notification_id=MUSIC_NOTIFICATION_ID,
-        )
+        show_notification( page,"🎵 事件提醒助手", f"{status}: {song_name}",notification_id=MUSIC_NOTIFICATION_ID,)
 
 
     def show_event_notification(event_name: str, event_type: str, days_left: int = 0):
@@ -1360,19 +1648,13 @@ def main(page: ft.Page):
             title = "⏰ 事件提醒"
             message = f"{event_name} 还有 {days_left} 天"
         
-        show_notification(title, message, notification_id=EVENT_NOTIFICATION_ID)
+        show_notification(page, title, message, notification_id=EVENT_NOTIFICATION_ID)
 
 
     def show_background_notification():
         """显示后台运行通知（持久）"""
-        show_notification(
-            "🔔 事件提醒助手",
-            "应用正在后台运行，监控您的提醒事件\n点击打开应用",
-            notification_id=BACKGROUND_NOTIFICATION_ID,
-            ongoing=True
-        )
+        show_notification(page,"🔔 事件提醒助手", "应用正在后台运行，监控您的提醒事件\n点击打开应用",notification_id=BACKGROUND_NOTIFICATION_ID,ongoing=True)
     # ========== 通知功能结束 ==========
-
 
     def load_events():
         try:
@@ -1563,7 +1845,7 @@ def main(page: ft.Page):
         return f"{minutes}:{secs:02d}"
     
 
-     # ========== 添加歌词相关函数 ==========
+    # ========== 添加歌词相关函数 ==========
     def parse_lyrics_to_lines(file_path, offset=-0.5):
         """解析LRC歌词文件为带时间戳的行列表
         offset: 时间偏移量（秒），负数表示提前显示，正数表示延后显示
@@ -2022,6 +2304,7 @@ def main(page: ft.Page):
         global current_audio, is_playing, current_music_file, current_duration, current_lyrics
         global current_playing_event_id, current_music_state, music_state_update_callback
         global current_lyrics  # 添加 current_lyrics
+        global music_section_container, playback_buttons
         
         print(f"[play_music] 接收到参数 - event_name: {event_name}, event_id: {event_id},sound_file: {sound_file}")
 
@@ -2187,6 +2470,22 @@ def main(page: ft.Page):
         # 记录当前播放的事件ID
         current_playing_event_id = event_id
         current_music_state = "playing"
+
+        # 强制显示音乐区域（试听模式也要显示）
+        if music_section_container:
+            music_section_container.visible = True
+            music_section_container.update()
+            print("[play_music] 已显示音乐区域")
+        
+        if playback_buttons:
+            playback_buttons.visible = True
+            playback_buttons.update()
+            print("[play_music] 已显示播放按钮")
+        
+        # 设置状态（即使是试听，也要设置状态）
+        current_playing_event_id = event_id
+        current_music_state = "playing"
+        current_music_file = sound_file
 
         # 立即更新UI显示
         try:
@@ -3729,7 +4028,7 @@ def main(page: ft.Page):
             if not display_events:
                 # 没有今日事件，显示提示，但保留切换视图按钮
                 title_text = "📅 今日事件"
-      
+    
                 # 全部事件始终有标题，不隐藏分割线
                 events_list.controls.append(ft.Text("🎉 今日没有事件", size=14, color=ft.Colors.GREEN_700))
                 
@@ -4033,6 +4332,8 @@ def main(page: ft.Page):
         show_bottom_message(f"已切换到{'全部事件' if current_view == 'all' else '今日事件'}")
     
 
+    
+
     def show_bottom_message(message, is_error=False):
         """在底部显示信息（替代snack_bar）"""
         print(f"[底部消息] {message}")
@@ -4174,7 +4475,7 @@ def main(page: ft.Page):
         # 检测是否为 Windows 平台
         #IS_WINDOWS = platform.system() == "Windows"
         
-         # 创建 FilePicker 并添加到页面服务
+        # 创建 FilePicker 并添加到页面服务
         file_picker = ft.FilePicker()
         page.services.append(file_picker)
         
@@ -5096,6 +5397,7 @@ def main(page: ft.Page):
         
         # 试听
         def test_play(e):
+            global music_section_container,playback_buttons
             file_path = music_field.value.strip()
 
             if not file_path:
@@ -5126,12 +5428,20 @@ def main(page: ft.Page):
                     play_music(file_path, loop=False, event_name=test_event_name, event_id=test_event_id)
                 else:
                     # 新增模式：只传递 event_name
-                    play_music(file_path, loop=False, event_name=test_event_name)
+                    play_music(file_path, loop=False, event_name=test_event_name,event_id=None)
             else:
-                play_music(file_path, loop=False, event_name=None)
+                play_music(file_path, loop=False, event_name="试听音乐", event_id=None)
+
+            # 强制显示音乐区域
+            if music_section_container:
+                music_section_container.visible = True
+                music_section_container.update()
+            if playback_buttons:
+                playback_buttons.visible = True
+                playback_buttons.update()
 
         
-         # 定义所有控件
+        # 定义所有控件
         # 名称输入框
         name_field = ft.TextField(
             label="姓名" if (selected_event and selected_event.event_type == "birthday") else "事件名称",
@@ -5678,6 +5988,7 @@ def main(page: ft.Page):
             name = name_field.value.strip()
             if not name:
                 show_snack_bar("请输入名称")
+                #show_snack_bar_new(page, "⚠️ 请输入名称", is_error=True)
                 return
             
             # 获取工作日选项的值（使用专门保存的 Switch 变量）
@@ -5702,7 +6013,7 @@ def main(page: ft.Page):
 
             repeat = repeat_type.value if event_type.value != "monthly" else "monthly"
 
-             # ========== 从 date_display_field 获取日期 ==========
+            # ========== 从 date_display_field 获取日期 ==========
             year = 1990
             month = 1
             day = 1
@@ -5989,6 +6300,25 @@ def main(page: ft.Page):
         """显示合并后的提醒弹窗"""
         if not events_by_day:
             return
+        
+        # ========== 发送通知（替代弹框或同时弹框） ==========
+        for days, events_list in events_by_day.items():
+            for event in events_list:
+                if is_today:
+                    # 今日事件通知
+                    show_notification(
+                        page,
+                        f"🎉 今日提醒",
+                        f"{event.name} 就在今天！"
+                    )
+                else:
+                    # 预告事件通知
+                    day_text = "明天" if days == 1 else f"{days}天后"
+                    show_notification(
+                        page,
+                        f"⏰ 事件预告",
+                        f"{event.name} {day_text} 就到啦！"
+                    )
         
         def close_combined_reminder():
             try:
@@ -6350,15 +6680,20 @@ def main(page: ft.Page):
                     # ========== 生成唯一标识，用于去重 ==========
                     notification_key = f"{event.id}_{reminder_time}_{current_date}"
                     
+                    # ========== 发送系统通知 ==========
+                    #if notification_key not in sent_notifications:
+                        #sent_notifications.add(notification_key)
+                        #show_notification(page,f"🔔 {event.name}",f"时间到了！{reminder_time}")
+                    
                     # 检查是否已经发送过
                     if notification_key in sent_notifications:
                         #print(f"[时间提醒] 跳过重复提醒: {event.name} - {reminder_time} (已发送过)")
                         continue
                     
-                    # 标记为已发送
+                    # ========== 发送系统通知 ==========
                     sent_notifications.add(notification_key)
                     print(f"[时间提醒] 发送通知: {event.name} - {reminder_time}")
-                    show_notification(f"🔔 事件提醒", f"{event.name} - {reminder_time} 提醒")
+                    show_notification(page,f"🔔 事件提醒", f"{event.name} - {reminder_time} 提醒")
 
                     # ========== 播放音乐（只播放第一个匹配的事件） ==========
                     if event.sound_file and os.path.exists(event.sound_file):
@@ -6566,11 +6901,11 @@ def main(page: ft.Page):
                     time.sleep(60)
         
         def time_reminder_loop():
-            """时间提醒循环 - 每半分钟检查"""
+            """时间提醒循环 - 每2分钟检查"""
             while True:
                 try:
-                    #check_time_reminders()  # 暂时不需要了，改为实时提醒
-                    time.sleep(30)           # 每半分钟检查一次
+                    show_notification(page, "🔔 保活通知", f"当前时间: {datetime.now().strftime('%H:%M:%S')}")      # 2分钟发个通知
+                    time.sleep(120)           # 每2分钟检查一次
                 except Exception as e:
                     print(f"时间提醒循环出错: {e}")
                     time.sleep(30)
@@ -7674,7 +8009,7 @@ def main(page: ft.Page):
     # ========== 添加 update_current_playing_info 函数在这里 ==========
     def update_current_playing_info():
         """更新顶部当前播放信息显示"""
-        global current_playing_event_id, current_music_state, marquee_text,music_section_container, playback_buttons
+        global current_playing_event_id, current_music_state, marquee_text, music_section_container, playback_buttons
         
         print(f"[update_current_playing_info] 被调用 - event_id: {current_playing_event_id}, state: {current_music_state}")
         
@@ -7836,6 +8171,7 @@ def main(page: ft.Page):
     import_export_buttons = ft.Row([
         ft.TextButton("📥 导入", on_click=import_events_wrapper, tooltip="从Excel导入事件"),
         ft.TextButton("📤 导出", on_click=export_events_wrapper, tooltip="导出事件到Excel"),
+        ft.TextButton("🔔 通知", on_click=test_notification)
     ], spacing=20)
 
 

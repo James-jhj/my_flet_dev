@@ -33,7 +33,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           pip install --upgrade pip
-          pip install flet flet-audio lunardate requests mutagen zhdate openpyxl chinese-calendar
+          pip install flet flet-audio lunardate requests mutagen zhdate openpyxl chinese-calendar pyjnius android-notify
 
       - name: 读取版本号
         id: version
@@ -48,7 +48,7 @@ jobs:
         run: |
           cat > pyproject.toml << 'EOF'
           [project]
-          name = "birthday_reminder"
+          name = "event_reminder"
           version = "${{ steps.version.outputs.version }}"
           description = "事件提醒助手"
           requires-python = ">=3.9"
@@ -61,6 +61,8 @@ jobs:
               "zhdate",
               "openpyxl",
               "chinese-calendar",
+              "pyjnius",
+              "android-notify",
           ]
 
           [tool.flet]
@@ -79,6 +81,8 @@ jobs:
           "android.permission.INTERNET" = true
           "android.permission.WAKE_LOCK" = true
           "android.permission.FOREGROUND_SERVICE" = true
+          "android.permission.POST_NOTIFICATIONS" = true
+          "android.permission.VIBRATE" = true
           EOF
 
       - name: 恢复签名密钥
@@ -106,7 +110,7 @@ jobs:
       # ========== 最后签名 ==========
       - name: Sign APK with apksigner (V1+V2+V3)
         run: |
-          APK_PATH="./build/apk/birthday_reminder.apk"
+          APK_PATH="./build/apk/event_reminder.apk"
           
           # 检查 APK 是否存在
           if [ ! -f "$APK_PATH" ]; then
@@ -115,11 +119,15 @@ jobs:
           fi
           
           echo "Signing APK: $APK_PATH"
+
+          # 从 Secrets 读取密码
+          KEYSTORE_PASS="${{ secrets.KEYSTORE_PASSWORD }}"
+          KEY_PASS="${{ secrets.KEY_PASSWORD }}"
           
           $APKSIGNER_PATH sign \
             --ks android-key.jks \
-            --ks-pass pass:'123456' \
-            --key-pass pass:'123456' \
+            --ks-pass pass:"$KEYSTORE_PASS" \
+            --key-pass pass:"$KEY_PASS" \
             --v1-signing-enabled true \
             --v2-signing-enabled true \
             --v3-signing-enabled true \
@@ -131,5 +139,5 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: birthday-reminder-v${{ steps.version.outputs.version }}
-          path: ./build/apk/birthday_reminder.apk
+          name: event_reminder_v${{ steps.version.outputs.version }}
+          path: ./build/apk/event_reminder.apk
