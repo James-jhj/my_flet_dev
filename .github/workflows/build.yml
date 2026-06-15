@@ -106,18 +106,95 @@ jobs:
           export FLET_APP_NAME="事件提醒助手"
           flet build apk --yes
 
-      - name: 添加 Gradle 依赖（修复前台服务）
+      # ========== 新增：修补 Android 项目文件以激活前台服务 ==========
+      - name: 激活前台服务（修补AndroidManifest.xml）
         run: |
-          BUILD_GRADLE_PATH="build/flutter/android/app/build.gradle"
-          if [ -f "$BUILD_GRADLE_PATH" ]; then
-            echo "✅ 找到 build.gradle 文件"
-            sed -i "/dependencies {/a \    implementation 'androidx.core:core:1.6.0'" $BUILD_GRADLE_PATH
-            sed -i "/dependencies {/a \    implementation 'androidx.core:core-ktx:1.15.0'" $BUILD_GRADLE_PATH
-            echo "✅ Gradle 依赖已添加"
+          # 1. 找到 AndroidManifest.xml 文件
+          MANIFEST_PATH="build/flutter/android/app/src/main/AndroidManifest.xml"
+          if [ -f "$MANIFEST_PATH" ]; then
+            echo "✅ 找到 AndroidManifest.xml"
+            
+            # 2. 在 <application> 标签内添加服务声明（如果还没有）
+            if ! grep -q "ForegroundService" "$MANIFEST_PATH"; then
+              sed -i '/<application /a \        <service android:name="org.flet.FletForegroundService" android:foregroundServiceType="mediaPlayback" />' "$MANIFEST_PATH"
+              echo "✅ 已添加服务声明"
+            else
+              echo "⚠️ 服务声明已存在，跳过"
+            fi
           else
-            echo "⚠️ 未找到 build.gradle，尝试搜索..."
-            find . -name "build.gradle" -type f
+            echo "❌ 未找到 AndroidManifest.xml"
+            exit 1
           fi
+
+      - name: 添加前端服务代码
+        run: |
+          # 创建 Flet 前端服务代码文件（如果不存在）
+          SERVICE_DIR="build/flutter/android/app/src/main/java/org/flet/"
+          SERVICE_FILE="${SERVICE_DIR}FletForegroundService.java"
+          
+          if [ ! -f "$SERVICE_FILE" ]; then
+            mkdir -p "$SERVICE_DIR"
+            cat > "$SERVICE_FILE" << 'EOF'
+          package org.flet;
+
+          import android.app.Notification;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.Service;
+          import android.content.Intent;
+          import android.os.Build;
+          import android.os.IBinder;
+          import androidx.core.app.NotificationCompat;
+
+          public class FletForegroundService extends Service {
+              private static final String CHANNEL_ID = "flet_foreground_channel";
+              private static final int NOTIFICATION_ID = 1001;
+
+              @Override
+              public void onCreate() {
+                  super.onCreate();
+                  createNotificationChannel();
+                  startForeground(NOTIFICATION_ID, buildNotification());
+              }
+
+              private void createNotificationChannel() {
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                      NotificationChannel channel = new NotificationChannel(
+                          CHANNEL_ID,
+                          "Flet 服务",
+                          NotificationManager.IMPORTANCE_LOW
+                      );
+                      NotificationManager manager = getSystemService(NotificationManager.class);
+                      if (manager != null) {
+                          manager.createNotificationChannel(channel);
+                      }
+                  }
+              }
+
+              private Notification buildNotification() {
+                  return new NotificationCompat.Builder(this, CHANNEL_ID)
+                      .setContentTitle("事件提醒助手")
+                      .setContentText("正在运行提醒服务")
+                      .setSmallIcon(android.R.drawable.ic_menu_edit)
+                      .setPriority(NotificationCompat.PRIORITY_LOW)
+                      .build();
+              }
+
+              @Override
+              public int onStartCommand(Intent intent, int flags, int startId) {
+                  return START_STICKY;
+              }
+
+              @Override
+              public IBinder onBind(Intent intent) {
+                  return null;
+              }
+          }
+          EOF
+                      echo "✅ 已创建 FletForegroundService.java"
+                    else
+                      echo "⚠️ 服务文件已存在，跳过"
+                    fi
 
       # ========== 然后设置签名工具 ==========
       - name: Set up Android SDK Build-Tools
