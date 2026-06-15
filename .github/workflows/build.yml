@@ -83,6 +83,14 @@ jobs:
           "android.permission.FOREGROUND_SERVICE" = true
           "android.permission.POST_NOTIFICATIONS" = true
           "android.permission.VIBRATE" = true
+
+          [tool.flet.android]
+          "android.foreground_service" = true
+          # 关键：指定服务类型为 mediaPlayback
+          "android.foreground_service_type" = "mediaPlayback"
+          "android.foreground_service.title" = "🎵 事件提醒助手"
+          "android.foreground_service.text" = "正在播放音乐"
+          "android.foreground_service.start_sticky" = true
           EOF
 
       - name: 恢复签名密钥
