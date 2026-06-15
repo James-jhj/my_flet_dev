@@ -98,6 +98,14 @@ jobs:
       # ========== 关键：先构建 APK ==========
       - name: 执行 APK 构建
         run: |
+          # 确保 .flet 目录被正确复制
+          if [ -d ".flet" ]; then
+            echo "✅ .flet 目录存在"
+            ls -la .flet/android/
+          else
+            echo "❌ .flet 目录不存在"
+            exit 1
+          fi
           export FLET_APP_NAME="事件提醒助手"
           flet build apk --yes
 

@@ -47,11 +47,10 @@ class ForegroundService : Service() {
                 "事件提醒助手",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "接收事件提醒"
+                description = "接收事件提醒和通知"
                 setSound(null, null)
                 enableVibration(true)
             }
-            
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
         }
@@ -66,7 +65,7 @@ class ForegroundService : Service() {
         
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("事件提醒助手")
-            .setContentText("正在后台运行")
+            .setContentText("正在后台运行，准备提醒您的事件")
             .setSmallIcon(android.R.drawable.ic_menu_edit)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
