@@ -1,48 +1,16 @@
 import flet as ft
-import flet.canvas as cv
-import flet_audio as ftaudio
-from flet_audio import AudioState
-import asyncio
-import threading
-import time
-import json
-import os
-import platform
-import requests
-import re
-import mutagen
-import html
-import datetime
-import math
-import asyncio
-import datetime as dt
-import calendar
-from datetime import datetime, timedelta
-from pathlib import Path
-from lunardate import LunarDate
-from urllib.parse import quote
-from typing import Optional
-from zhdate import ZhDate
-import openpyxl
-from openpyxl import Workbook, load_workbook
-from datetime import timezone, timedelta
-from chinese_calendar import is_workday as cn_is_workday
-from android_notify import Notification
-
-import hashlib
-import subprocess
-import uuid
 import sys
-
+import traceback  # 添加这个导入
+import platform
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.44"
-APP_VERSION_CODE = 44
+APP_VERSION = "1.0.45"
+APP_VERSION_CODE = 45
 # =============================
 
 class ReminderApp:
     def __init__(self):
         self.page = None
-        self.debug_text = None  # 用于显示调试信息
+        self.debug_text = None
         
     def log(self, message, is_error=False):
         """在界面上显示日志"""
@@ -51,12 +19,14 @@ class ReminderApp:
             self.debug_text.value += f"\n{message}"
             self.debug_text.color = color
             self.page.update()
-        print(message)  # 同时也打印，方便adb查看
+        print(message)
         
     def start_foreground_service(self):
         """启动前台服务 - 带界面调试"""
         self.log("=== 开始启动前台服务 ===")
+        self.log(f"platform.system() = {platform.system()}")
         
+        # Android 上 platform.system() 返回 "Linux"
         if platform.system() != "Linux":
             self.log("警告：不是Android平台", True)
             return False
@@ -114,7 +84,11 @@ class ReminderApp:
         except Exception as e:
             error_msg = traceback.format_exc()
             self.log(f"❌ 错误: {str(e)}", True)
-            self.log(f"详细: {error_msg}", True)
+            # 只显示最后几行错误信息，避免太长
+            lines = error_msg.split('\n')
+            for line in lines[-5:]:
+                if line.strip():
+                    self.log(f"  {line}", True)
             return False
 
 def main(page: ft.Page):
@@ -269,7 +243,7 @@ def main(page: ft.Page):
                     padding=10,
                     bgcolor=ft.Colors.GREY_100,
                     border_radius=5,
-                    height=300,
+                    height=350,
                 ),
             ], spacing=15),
             padding=20,
