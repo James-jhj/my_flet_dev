@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.38"
-APP_VERSION_CODE = 38
+APP_VERSION = "1.0.39"
+APP_VERSION_CODE = 39
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -1691,6 +1691,24 @@ def main(page: ft.Page):
         if debug_mode:
             print(f"[DEBUG {datetime.now().strftime('%H:%M:%S')}] {msg}")
 
+    def start_foreground_service():
+        """启动前台服务（播放音乐时调用）"""
+        try:
+            # 创建一个常驻通知
+            notification = Notification(
+                title="🎵 事件提醒助手",
+                message="正在播放音乐",
+                channel_name="音乐播放",
+                ongoing=True,        # 关键：不可清除
+                importance="high",
+            )
+            notification.send()
+            print("✅ 前台服务已启动，通知已显示")
+            return True
+        except Exception as e:
+            print(f"启动前台服务失败: {e}")
+            return False
+
     # 测试按钮的回调函数，仅做测试用途
     def test_notification(e):
         """测试通知功能"""
@@ -2597,6 +2615,9 @@ def main(page: ft.Page):
         #show_snack_bar(f"播放音乐: {sound_file}")
         current_music_file = sound_file
 
+        # ========== 启动前台服务（在这里添加） ==========
+        start_foreground_service()
+
         # 记录当前播放的事件ID（可能为None）
         current_playing_event_id = event_id
         current_music_state = "playing"
@@ -2842,7 +2863,7 @@ def main(page: ft.Page):
                 if lyrics_fullscreen_container and lyrics_fullscreen_container in page.overlay:
                     # 更新已经在 auto_scroll_to_current 中处理
                     pass
-        
+
         audio = ftaudio.Audio(
             src=sound_file,
             autoplay=True,

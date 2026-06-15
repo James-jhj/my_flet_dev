@@ -162,4 +162,8 @@ echo   APK Location: %DOWNLOAD_DIR%\event_reminder_v%NEW_VERSION%.apk
 echo ========================================
 echo.
 
+REM ========== 打开 APK 所在目录 ==========
+echo Opening APK download directory...
+start "" "%DOWNLOAD_DIR%"
+
 pause
