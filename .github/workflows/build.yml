@@ -106,35 +106,30 @@ jobs:
           export FLET_APP_NAME="事件提醒助手"
           flet build apk --yes
 
-      # ========== 新增：修补 Android 项目文件以激活前台服务 ==========
-      - name: 激活前台服务（修补AndroidManifest.xml）
+      # ========== 以下是手动激活前台服务的补丁 ==========
+      - name: 手动激活前台服务
         run: |
-          # 1. 找到 AndroidManifest.xml 文件
+          # 1. 修改 AndroidManifest.xml 添加服务和必要权限
           MANIFEST_PATH="build/flutter/android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST_PATH" ]; then
-            echo "✅ 找到 AndroidManifest.xml"
-            
-            # 2. 在 <application> 标签内添加服务声明（如果还没有）
-            if ! grep -q "ForegroundService" "$MANIFEST_PATH"; then
-              sed -i '/<application /a \        <service android:name="org.flet.FletForegroundService" android:foregroundServiceType="mediaPlayback" />' "$MANIFEST_PATH"
-              echo "✅ 已添加服务声明"
+            # 添加前台服务声明（如果不存在）
+            if ! grep -q "FletForegroundService" "$MANIFEST_PATH"; then
+              sed -i '/<application /a \        <service android:name=".FletForegroundService" android:foregroundServiceType="mediaPlayback" />' "$MANIFEST_PATH"
+              echo "✅ AndroidManifest.xml 已修补"
             else
-              echo "⚠️ 服务声明已存在，跳过"
+              echo "⚠️ AndroidManifest.xml 已包含服务声明"
             fi
           else
             echo "❌ 未找到 AndroidManifest.xml"
             exit 1
           fi
 
-      - name: 添加前端服务代码
-        run: |
-          # 创建 Flet 前端服务代码文件（如果不存在）
+          # 2. 创建原生服务 Java 文件
           SERVICE_DIR="build/flutter/android/app/src/main/java/org/flet/"
           SERVICE_FILE="${SERVICE_DIR}FletForegroundService.java"
           
-          if [ ! -f "$SERVICE_FILE" ]; then
-            mkdir -p "$SERVICE_DIR"
-            cat > "$SERVICE_FILE" << 'EOF'
+          mkdir -p "$SERVICE_DIR"
+          cat > "$SERVICE_FILE" << 'EOF'
           package org.flet;
 
           import android.app.Notification;
@@ -161,7 +156,7 @@ jobs:
                   if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                       NotificationChannel channel = new NotificationChannel(
                           CHANNEL_ID,
-                          "Flet 服务",
+                          "Flet 后台服务",
                           NotificationManager.IMPORTANCE_LOW
                       );
                       NotificationManager manager = getSystemService(NotificationManager.class);
@@ -191,10 +186,29 @@ jobs:
               }
           }
           EOF
-                      echo "✅ 已创建 FletForegroundService.java"
-                    else
-                      echo "⚠️ 服务文件已存在，跳过"
-                    fi
+          echo "✅ FletForegroundService.java 已创建"
+
+          # 3. 在 MainActivity 中启动服务（确保服务随应用启动）
+          MAIN_ACTIVITY_PATH="build/flutter/android/app/src/main/java/org/flet/MainActivity.java"
+          if [ -f "$MAIN_ACTIVITY_PATH" ]; then
+            # 检查是否已添加启动代码
+            if ! grep -q "startService" "$MAIN_ACTIVITY_PATH"; then
+              # 在 onCreate 方法中添加启动服务的代码
+              sed -i '/protected void onCreate(Bundle savedInstanceState) {/a \        startService(new Intent(this, FletForegroundService.class));' "$MAIN_ACTIVITY_PATH"
+              echo "✅ MainActivity.java 已修补"
+            else
+              echo "⚠️ MainActivity.java 已包含服务启动代码"
+            fi
+          else
+            echo "⚠️ 未找到 MainActivity.java"
+          fi
+
+          # 4. 添加必要的权限（虽然 pyproject.toml 已加，但再加一次确保万无一失）
+          if ! grep -q "FOREGROUND_SERVICE" "$MANIFEST_PATH"; then
+            sed -i '/<manifest /a \    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />' "$MANIFEST_PATH"
+            echo "✅ 权限已添加"
+          fi
+
 
       # ========== 然后设置签名工具 ==========
       - name: Set up Android SDK Build-Tools
