@@ -104,7 +104,7 @@ jobs:
       - name: 执行 APK 构建
         run: |
           export FLET_APP_NAME="事件提醒助手"
-          flet build apk --yes --dependencies pyjnius android-notify
+          flet build apk --yes
 
       - name: 添加 Gradle 依赖（修复前台服务）
         run: |
