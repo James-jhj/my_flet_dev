@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.41"
-APP_VERSION_CODE = 41
+APP_VERSION = "1.0.42"
+APP_VERSION_CODE = 42
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -1465,6 +1465,74 @@ def get_data_file_path(filename):
     else:
         return filename
 
+class ReminderApp:
+    def __init__(self):
+        self.page: Optional[ft.Page] = None
+        self.method_channel = None  # 不需要类型标注，或者用 Any
+        
+    def setup_platform_channel(self, page: ft.Page):
+        """设置与原生代码的通信通道"""
+        self.page = page
+        
+    def start_foreground_service(self):
+        """启动前台服务"""
+        if platform.system() == "Linux":
+            try:
+                # 使用 page 的 platform_interface 来调用原生方法
+                # 注意：这里需要根据实际 API 调整
+                print("尝试启动前台服务...")
+                # 如果上述方法不工作，可能需要使用 pyjnius
+                self._start_via_pyjnius()
+            except Exception as e:
+                print(f"启动服务失败: {e}")
+    
+    def _start_via_pyjnius(self):
+        """通过 pyjnius 直接调用 Android 原生方法"""
+        try:
+            from jnius import autoclass
+            
+            # 获取当前 Activity
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            activity = PythonActivity.mActivity
+            
+            # 创建 Intent 启动服务
+            Intent = autoclass('android.content.Intent')
+            ForegroundService = autoclass('com.jianghuajie.event_reminder.ForegroundService')
+            
+            intent = Intent(activity, ForegroundService)
+            intent.setAction('START_FOREGROUND')
+            
+            # Android 8.0+ 需要 startForegroundService
+            if activity.getApplicationInfo().targetSdkVersion >= 26:
+                activity.startForegroundService(intent)
+            else:
+                activity.startService(intent)
+                
+            print("前台服务启动成功")
+        except Exception as e:
+            print(f"pyjnius 调用失败: {e}")
+    
+    def stop_foreground_service(self):
+        """停止前台服务"""
+        if platform.system() == "Linux":
+            try:
+                from jnius import autoclass
+                
+                PythonActivity = autoclass('org.kivy.android.PythonActivity')
+                activity = PythonActivity.mActivity
+                
+                Intent = autoclass('android.content.Intent')
+                ForegroundService = autoclass('com.jianghuajie.event_reminder.ForegroundService')
+                
+                intent = Intent(activity, ForegroundService)
+                intent.setAction('STOP_FOREGROUND')
+                activity.stopService(intent)
+                
+                print("前台服务已停止")
+            except Exception as e:
+                print(f"停止服务失败: {e}")
+
+
 def main(page: ft.Page):
 
     """入口：检查设备授权"""
@@ -1531,8 +1599,12 @@ def main(page: ft.Page):
     global sent_notifications,events_list,filter_date
     global transactions  # 添加这行
     global current_page, floating_add_button,show_scroll_top_btn  # 添加这行，用于记录当前页面
-    
 
+    app = ReminderApp()
+    app.setup_platform_channel(page)
+    
+    # 在 App 启动时自动启动前台服务
+    app.start_foreground_service()
 
     page.window_icon = "icon.png"
     page.title = "事件提醒助手"
@@ -1691,23 +1763,6 @@ def main(page: ft.Page):
         if debug_mode:
             print(f"[DEBUG {datetime.now().strftime('%H:%M:%S')}] {msg}")
 
-    def start_foreground_service():
-        """启动前台服务（播放音乐时调用）"""
-        try:
-            # 创建一个常驻通知
-            notification = Notification(
-                title="🎵 事件提醒助手",
-                message="正在播放音乐",
-                channel_name="音乐播放",
-                ongoing=True,        # 关键：不可清除
-                importance="high",
-            )
-            notification.send()
-            print("✅ 前台服务已启动，通知已显示")
-            return True
-        except Exception as e:
-            print(f"启动前台服务失败: {e}")
-            return False
 
     # 测试按钮的回调函数，仅做测试用途
     def test_notification(e):
@@ -2614,9 +2669,6 @@ def main(page: ft.Page):
 
         #show_snack_bar(f"播放音乐: {sound_file}")
         current_music_file = sound_file
-
-        # ========== 启动前台服务（在这里添加） ==========
-        start_foreground_service()
 
         # 记录当前播放的事件ID（可能为None）
         current_playing_event_id = event_id
@@ -10575,6 +10627,9 @@ def main(page: ft.Page):
 
     # 执行启动检查
     check_today_birthdays_on_start()
+
+    # 退出时停止服务
+    page.on_close = lambda: app.stop_foreground_service()
 
 if __name__ == "__main__":
     ft.app(target=main, assets_dir="assets")
