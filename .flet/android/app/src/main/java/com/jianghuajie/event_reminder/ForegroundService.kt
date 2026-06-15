@@ -47,10 +47,9 @@ class ForegroundService : Service() {
                 "事件提醒助手",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "接收事件提醒和通知"
-                setSound(null, null)  // 不播放默认声音，让 Python 代码控制
+                description = "接收事件提醒"
+                setSound(null, null)
                 enableVibration(true)
-                vibrationPattern = longArrayOf(0, 500, 200, 500)
             }
             
             val manager = getSystemService(NotificationManager::class.java)
@@ -59,7 +58,6 @@ class ForegroundService : Service() {
     }
     
     private fun buildNotification(): Notification {
-        // 点击通知打开 App
         val intent = packageManager.getLaunchIntentForPackage(packageName)
         val pendingIntent = PendingIntent.getActivity(
             this, 0, intent,
@@ -68,10 +66,10 @@ class ForegroundService : Service() {
         
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("事件提醒助手")
-            .setContentText("正在后台运行，准备提醒您的事件")
+            .setContentText("正在后台运行")
             .setSmallIcon(android.R.drawable.ic_menu_edit)
             .setContentIntent(pendingIntent)
-            .setOngoing(true)  // 用户无法滑动清除
+            .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
     }

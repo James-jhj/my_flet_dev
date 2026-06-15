@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.42"
-APP_VERSION_CODE = 42
+APP_VERSION = "1.0.43"
+APP_VERSION_CODE = 43
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -1467,50 +1467,39 @@ def get_data_file_path(filename):
 
 class ReminderApp:
     def __init__(self):
-        self.page: Optional[ft.Page] = None
-        self.method_channel = None  # 不需要类型标注，或者用 Any
-        
-    def setup_platform_channel(self, page: ft.Page):
-        """设置与原生代码的通信通道"""
-        self.page = page
+        self.page = None
         
     def start_foreground_service(self):
-        """启动前台服务"""
+        """通过广播启动前台服务（更简单可靠）"""
         if platform.system() == "Linux":
             try:
-                # 使用 page 的 platform_interface 来调用原生方法
-                # 注意：这里需要根据实际 API 调整
-                print("尝试启动前台服务...")
-                # 如果上述方法不工作，可能需要使用 pyjnius
-                self._start_via_pyjnius()
+                from jnius import autoclass
+                
+                # 获取当前 Context
+                PythonActivity = autoclass('org.kivy.android.PythonActivity')
+                context = PythonActivity.mActivity
+                
+                # 创建 Intent
+                Intent = autoclass('android.content.Intent')
+                service_class = autoclass('com.jianghuajie.event_reminder.ForegroundService')
+                
+                intent = Intent(context, service_class)
+                intent.setAction('START_FOREGROUND')
+                
+                # Android 8.0+ 需要 startForegroundService
+                if context.getApplicationInfo().targetSdkVersion >= 26:
+                    context.startForegroundService(intent)
+                else:
+                    context.startService(intent)
+                    
+                print("前台服务启动成功")
+                return True
             except Exception as e:
                 print(f"启动服务失败: {e}")
-    
-    def _start_via_pyjnius(self):
-        """通过 pyjnius 直接调用 Android 原生方法"""
-        try:
-            from jnius import autoclass
-            
-            # 获取当前 Activity
-            PythonActivity = autoclass('org.kivy.android.PythonActivity')
-            activity = PythonActivity.mActivity
-            
-            # 创建 Intent 启动服务
-            Intent = autoclass('android.content.Intent')
-            ForegroundService = autoclass('com.jianghuajie.event_reminder.ForegroundService')
-            
-            intent = Intent(activity, ForegroundService)
-            intent.setAction('START_FOREGROUND')
-            
-            # Android 8.0+ 需要 startForegroundService
-            if activity.getApplicationInfo().targetSdkVersion >= 26:
-                activity.startForegroundService(intent)
-            else:
-                activity.startService(intent)
-                
-            print("前台服务启动成功")
-        except Exception as e:
-            print(f"pyjnius 调用失败: {e}")
+                import traceback
+                traceback.print_exc()
+                return False
+        return False
     
     def stop_foreground_service(self):
         """停止前台服务"""
@@ -1601,10 +1590,6 @@ def main(page: ft.Page):
     global current_page, floating_add_button,show_scroll_top_btn  # 添加这行，用于记录当前页面
 
     app = ReminderApp()
-    app.setup_platform_channel(page)
-    
-    # 在 App 启动时自动启动前台服务
-    app.start_foreground_service()
 
     page.window_icon = "icon.png"
     page.title = "事件提醒助手"
@@ -10627,6 +10612,25 @@ def main(page: ft.Page):
 
     # 执行启动检查
     check_today_birthdays_on_start()
+
+    # 显示启动按钮用于测试
+    status_text = ft.Text("服务未启动")
+    
+    def start_service(e):
+        if app.start_foreground_service():
+            status_text.value = "前台服务已启动"
+        else:
+            status_text.value = "启动失败，查看日志"
+        page.update()
+    
+    start_btn = ft.ElevatedButton("启动前台服务", on_click=start_service)
+    
+    page.add(
+        ft.Text("事件提醒助手", size=20),
+        start_btn,
+        status_text
+    )
+
 
     # 退出时停止服务
     page.on_close = lambda: app.stop_foreground_service()

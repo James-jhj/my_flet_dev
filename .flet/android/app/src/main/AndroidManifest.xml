@@ -1,7 +1,8 @@
 <!-- .flet/android/app/src/main/AndroidManifest.xml -->
+<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
-        <!-- 声明前台服务 -->
+        <!-- 注意：不需要重复声明 MainActivity，只声明 Service -->
         <service 
             android:name=".ForegroundService"
             android:enabled="true"
