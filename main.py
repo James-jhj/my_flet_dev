@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.49"
-APP_VERSION_CODE = 49
+APP_VERSION = "1.0.50"
+APP_VERSION_CODE = 50
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -3347,12 +3347,106 @@ def main(page: ft.Page):
         current_year = datetime.now().year
         current_month = datetime.now().month
         selected_date = datetime.now()
+
+        # ========== 在函数顶部定义滚动状态变量 ==========
+        show_scroll_top_btn = False  # 定义在函数顶部，所有内部函数都可以访问
         
-        # 记录列表容器
-        records_list = ft.Column(spacing=5, scroll=ft.ScrollMode.AUTO, expand=True)
+        # 记录列表容器（用于滚动）
+        records_list = ft.Column(spacing=5, expand=True)  # 移除 scroll，由外层控制
         
         # 加载数据
         load_accounting_data()  # 使用外部函数
+
+        # ========== 先定义滚动事件处理函数 ==========
+        def on_scroll_changed(e):
+            """滚动事件回调"""
+            nonlocal show_scroll_top_btn
+            
+            # 获取滚动位置
+            scroll_offset = e.pixels if hasattr(e, 'pixels') else 0
+            
+            # 调试打印
+            #print(f"[滚动事件] offset: {scroll_offset}")
+            
+            # 只要滚动超过20像素就显示回到顶部按钮
+            if scroll_offset > 20 and not show_scroll_top_btn:
+                show_scroll_top_btn = True
+                accounting_scroll_top_button.visible = True   # 使用局部变量
+                page.update()
+            elif scroll_offset <= 20 and show_scroll_top_btn:
+                show_scroll_top_btn = False
+                accounting_scroll_top_button.visible = False  # 使用局部变量
+                page.update()
+
+        # ========== 创建可滚动的容器（使用已经定义的 on_scroll_changed） ==========
+        scroll_container = ft.Column(
+            [records_list],
+            scroll=ft.ScrollMode.AUTO,
+            expand=True,
+            on_scroll=on_scroll_changed,
+        )
+
+        # ========== 创建记账界面独立的回到顶部按钮（局部变量） ==========
+        accounting_scroll_top_button = ft.Container(
+            content=ft.Icon(ft.Icons.ARROW_UPWARD, size=28, color=ft.Colors.BLUE_700),
+            width=50,  # 与 today_circle_button 一致
+            height=50,  # 与 today_circle_button 一致
+            bgcolor=ft.Colors.WHITE,
+            border_radius=25,  # 50/2 = 25
+            ink=True,
+            on_click=lambda e: asyncio.create_task(accounting_scroll_to_top(e)),
+            tooltip="回到顶部",
+            shadow=ft.BoxShadow(
+                spread_radius=1,
+                blur_radius=8,
+                color=ft.Colors.BLACK12,
+                offset=ft.Offset(0, 2),
+            ),
+            visible=False,
+        )
+
+        # ========== 滚动到顶部函数 ==========
+        async def accounting_scroll_to_top(e):
+            """滚动到顶部"""
+            nonlocal show_scroll_top_btn
+            
+            # 关键：使用 scroll_container 而不是 records_list
+            if hasattr(scroll_container, 'scroll_to'):
+                await scroll_container.scroll_to(offset=0, duration=500, curve=ft.AnimationCurve.EASE_IN_OUT)
+                # 滚动到顶部后隐藏按钮
+                show_scroll_top_btn = False
+                scroll_top_button.visible = False
+                page.update()
+            else:
+                # 备用方案：尝试使用 page.scroll_to
+                try:
+                    page.scroll_to(offset=0, duration=500)
+                    show_scroll_top_btn = False
+                    scroll_top_button.visible = False
+                    page.update()
+                except:
+                    print("滚动失败")
+
+        # ========== 滚动事件处理 ==========
+        def on_scroll_changed(e):
+            """滚动事件回调"""
+            nonlocal show_scroll_top_btn
+            
+            # 获取滚动位置
+            scroll_offset = e.pixels if hasattr(e, 'pixels') else 0
+            
+            # 调试打印
+            print(f"[滚动事件] offset: {scroll_offset}")
+            
+            # 只要滚动超过20像素就显示回到顶部按钮
+            if scroll_offset > 20 and not show_scroll_top_btn:
+                show_scroll_top_btn = True
+                scroll_top_button.visible = True
+                page.update()
+            elif scroll_offset <= 20 and show_scroll_top_btn:
+                show_scroll_top_btn = False
+                scroll_top_button.visible = False
+                page.update()
 
         def delete_transaction(transaction_id, transaction_name):
             """删除记录（带确认对话框）"""
@@ -3698,9 +3792,20 @@ def main(page: ft.Page):
                     ink=True,
                 )
                 records_list.controls.append(record_card)
+
+            # ========== 关键：在底部添加内边距，防止被悬浮按钮遮挡 ==========
+            # 计算悬浮按钮的高度（50px按钮 + 12px间距 + 50px添加按钮 = 112px + 额外安全边距）
+            records_list.controls.append(ft.Container(height=130))
+
+            # 刷新后重置滚动位置到顶部
+            async def reset_scroll():
+                if hasattr(scroll_container, 'scroll_to'):
+                    await scroll_container.scroll_to(offset=0, duration=0)
+            
+            asyncio.create_task(reset_scroll())
             
             page.update()
-        
+                
         def change_month_acct(delta):
             """切换月份"""
             nonlocal current_year, current_month, selected_date
@@ -3993,20 +4098,31 @@ def main(page: ft.Page):
             # 恢复原来的点击事件
             floating_add_button.on_click = original_floating_add_click
 
-            page.clean()
-            page.add(main_stack) # 重新添加主界面（包含悬浮按钮）
-
-            # ========== 重置滚动位置和按钮状态 ==========
-            # 滚动到顶部
-            try:
-                page.scroll_to(offset=0, duration=0)  # 瞬间滚动到顶部
-            except:
-                if hasattr(scrollable_content, 'scroll_to'):
-                    asyncio.create_task(scrollable_content.scroll_to(offset=0, duration=0))
+            # ========== 先重置所有滚动状态 ==========
+            nonlocal show_scroll_top_btn
+            show_scroll_top_btn = False
+            scroll_top_button.visible = False  # 全局的回到顶部按钮
             
-            # 隐藏回到顶部按钮
-            scroll_top_button.visible = False
-            page.update()
+            # 清除页面
+            page.clean()
+            
+            # 重新添加主界面
+            page.add(main_stack)
+
+            # 强制滚动到顶部
+            async def reset_main_scroll():
+                try:
+                    # 尝试重置主界面的滚动
+                    if hasattr(scrollable_content, 'scroll_to'):
+                        await scrollable_content.scroll_to(offset=0, duration=0)
+                except:
+                    pass
+                
+                # 再次确保按钮隐藏
+                scroll_top_button.visible = False
+                page.update()
+            
+            asyncio.create_task(reset_main_scroll())
 
             # 只有当音乐正在播放或暂停时才刷新播放信息
             if current_music_state in ["playing", "paused"] and current_music_file:
@@ -4031,7 +4147,7 @@ def main(page: ft.Page):
         # 固定标题区域
         fixed_header = ft.Container(
             content=ft.Column([
-                ft.Container(height=12),
+                ft.Container(height=20),
                 ft.Row([
                     ft.Container(
                         content=back_btn,
@@ -4054,9 +4170,10 @@ def main(page: ft.Page):
             bgcolor=ft.Colors.WHITE,
         )
 
-         # 可滚动的内容区域（只有记录列表滚动）
+        # ========== 可滚动的内容区域（添加滚动监听） ==========
+        # 使用 ListView 或 Column 并包装滚动事件
         scrollable_records = ft.Container(
-            content=records_list,
+            content=scroll_container,  # 使用 scroll_container
             expand=True,
             #padding=ft.padding.only(left=5, right=5),
         )
@@ -4084,12 +4201,12 @@ def main(page: ft.Page):
         # 悬浮按钮组（垂直排列）
         floating_buttons = ft.Column(
             [
-                back_to_today_btn,
-                ft.Container(height=12),  # 固定高度的间距
+                accounting_scroll_top_button,  # 初始隐藏
+                back_to_today_btn,             # 初始隐藏
                 floating_add_button,
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=0,
+            spacing=12,
         )
         
         # 使用 Column 布局：固定头部 + 可滚动内容
@@ -10168,17 +10285,18 @@ def main(page: ft.Page):
 
     # 创建回到顶部按钮
     scroll_top_button = ft.Container(
-        content=ft.Icon(ft.Icons.ARROW_UPWARD, size=28, color=ft.Colors.WHITE),  # 图标大小改为28
-        bgcolor=ft.Colors.BLUE_700,
-        border_radius=30,
-        padding=14,  # 与添加按钮相同的内边距
+        content=ft.Icon(ft.Icons.ARROW_UPWARD, size=28, color=ft.Colors.BLUE_700),
+        width=50,  # 与 today_circle_button 一致
+        height=50,  # 与 today_circle_button 一致
+        bgcolor=ft.Colors.WHITE,
+        border_radius=25,  # 50/2 = 25
         ink=True,
-        on_click=lambda e: asyncio.create_task(scroll_to_top(e)),  # 使用 asyncio.create_task
+        on_click=lambda e: asyncio.create_task(scroll_to_top(e)),
         tooltip="回到顶部",
         shadow=ft.BoxShadow(
             spread_radius=1,
-            blur_radius=10,
-            color=ft.Colors.BLACK26,
+            blur_radius=8,
+            color=ft.Colors.BLACK12,
             offset=ft.Offset(0, 2),
         ),
         visible=False,
