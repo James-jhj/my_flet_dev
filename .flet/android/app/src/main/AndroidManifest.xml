@@ -4,9 +4,9 @@
     <application>
         <!-- 注意：不需要重复声明 MainActivity，只声明 Service -->
         <service 
-            android:name=".ForegroundService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
+            android:name=".MyForegroundService"
+				    android:enabled="true"
+				    android:exported="false"
+				    android:foregroundServiceType="location|microphone" />
     </application>
 </manifest>

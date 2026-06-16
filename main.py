@@ -2,10 +2,11 @@ import flet as ft
 import sys
 import traceback  # 添加这个导入
 import platform
+from jnius import autoclass
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.46"
-APP_VERSION_CODE = 46
+APP_VERSION = "1.0.47"
+APP_VERSION_CODE = 47
 # =============================
 
 class ReminderApp:
@@ -33,7 +34,6 @@ class ReminderApp:
             return False
 
         try:
-            from jnius import autoclass
             self.log("✅ pyjnius 导入成功")
             
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
@@ -47,15 +47,15 @@ class ReminderApp:
             intent = Intent(context, ServiceClass)
             intent.setAction('START_FOREGROUND')
             
-            context.startForegroundService(intent)
-            self.log("✅ 服务启动成功")
+            context.startService(intent)  # 先启动服务一次
+            context.startForegroundService(intent) # 然后启动前台服务
+            self.log("✅ 前台服务启动成功")
             return True
             
         except Exception as e:
             self.log(f"❌ 启动失败: {str(e)}", True)
-            import traceback
-            self.log(traceback.format_exc(), True)
             return False
+        
 
 def main(page: ft.Page):
     page.title = "事件提醒助手"
