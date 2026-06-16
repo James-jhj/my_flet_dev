@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.48"
-APP_VERSION_CODE = 48
+APP_VERSION = "1.0.49"
+APP_VERSION_CODE = 49
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -3661,13 +3661,13 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Text("暂无记录，点击 + 添加", size=14, color=ft.Colors.GREY_500),
                         padding=20,
-                        #alignment="center",
                     )
                 )
                 page.update()
                 return
             
-            for t in month_records:
+            # 遍历记录，判断是否为最后一条
+            for index, t in enumerate(month_records):
                 is_income = t.type == "income"
                 amount_color = ft.Colors.GREEN_700 if is_income else ft.Colors.RED_700
                 amount_prefix = "+" if is_income else "-"
@@ -3688,13 +3688,13 @@ def main(page: ft.Page):
                             ft.Text(f"{amount_prefix}¥ {abs(t.amount):,.2f}", size=14, weight=ft.FontWeight.BOLD, color=amount_color),
                             ft.IconButton(ft.Icons.EDIT, icon_size=18, icon_color=ft.Colors.BLUE_400, 
                                         on_click=lambda e, tr=t: edit_transaction(tr)),
-                            # 修改为（传入记录对象）
                             ft.IconButton(ft.Icons.DELETE, icon_size=18, icon_color=ft.Colors.RED_400,
                                         on_click=lambda e, tr=t: delete_transaction(tr.id, tr.category)),
                         ], spacing=0),
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                     padding=10,
-                    border=ft.border.Border(bottom=ft.border.BorderSide(1, ft.Colors.GREY_200)),
+                    # 只有不是最后一条才添加底部分隔线
+                    border=ft.border.Border(bottom=ft.border.BorderSide(1, ft.Colors.GREY_200)) if index < len(month_records) - 1 else None,
                     ink=True,
                 )
                 records_list.controls.append(record_card)
@@ -4027,26 +4027,39 @@ def main(page: ft.Page):
         refresh_summary()
         refresh_records_list()
         
-        accounting_page = ft.Column([
-            ft.Container(height=12),
-            ft.Row([
-                ft.Container(
-                    content=back_btn,
-                    width=40,
-                ),
-                ft.Text("📊 记账本", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, expand=True, text_align=ft.TextAlign.CENTER),
-                ft.Container(width=40),  # 右侧空白，保持标题居中
-            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-            ft.Divider(),
-            month_row,
-            summary_container,
-            ft.Divider(),
-            ft.Row([
-                ft.Icon(ft.Icons.LIST, size=18, color=ft.Colors.BLUE_700),
-                ft.Text("记录列表", size=16, weight=ft.FontWeight.BOLD),
-            ], spacing=5),
-            records_list,
-        ], expand=True, spacing=12, scroll=ft.ScrollMode.AUTO)
+        # ========== 关键修改：使用 Stack + Column 固定标题，内容滚动 ==========
+        # 固定标题区域
+        fixed_header = ft.Container(
+            content=ft.Column([
+                ft.Container(height=12),
+                ft.Row([
+                    ft.Container(
+                        content=back_btn,
+                        width=40,
+                    ),
+                    ft.Text("📊 记账本", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, expand=True, text_align=ft.TextAlign.CENTER),
+                    ft.Container(width=40),
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                ft.Divider(),
+                month_row,
+                summary_container,
+                ft.Divider(),
+                ft.Row([
+                    ft.Icon(ft.Icons.LIST, size=18, color=ft.Colors.BLUE_700),
+                    ft.Text("记录列表", size=16, weight=ft.FontWeight.BOLD),
+                ], spacing=5),
+                ft.Divider(),
+            ], spacing=8),
+            #padding=ft.padding.only(left=5, right=5),
+            bgcolor=ft.Colors.WHITE,
+        )
+
+         # 可滚动的内容区域（只有记录列表滚动）
+        scrollable_records = ft.Container(
+            content=records_list,
+            expand=True,
+            #padding=ft.padding.only(left=5, right=5),
+        )
 
         # 创建回到本月按钮（与回到今天按钮风格一致）
         back_to_today_btn = ft.Container(
@@ -4078,7 +4091,17 @@ def main(page: ft.Page):
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             spacing=0,
         )
-
+        
+        # 使用 Column 布局：固定头部 + 可滚动内容
+        accounting_page = ft.Column(
+            [
+                fixed_header,           # 固定标题
+                scrollable_records,     # 可滚动的内容
+            ],
+            expand=True,
+            spacing=0,
+        )
+        
         # 使用 Stack 布局，将悬浮按钮放在右下角
         accounting_stack = ft.Stack(
             [
