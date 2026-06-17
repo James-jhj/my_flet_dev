@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.51"
-APP_VERSION_CODE = 51
+APP_VERSION = "1.0.52"
+APP_VERSION_CODE = 52
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -2128,7 +2128,7 @@ def main(page: ft.Page):
             line2_text.update()
     
     def show_fullscreen_lyrics():
-        """显示全屏歌词（改进版 - 使用 ListView 支持自动滚动）"""
+        """显示全屏歌词（当前歌词永远居中 - 使用实际测量高度）"""
         global lyrics_fullscreen_container, auto_scroll_task, current_lyrics, current_position_sec, current_playing_event_id, events
         
         # 获取当前播放的歌曲名称
@@ -2136,11 +2136,9 @@ def main(page: ft.Page):
         if current_playing_event_id and current_playing_event_id in events:
             event = events[current_playing_event_id]
             if event.sound_file and os.path.exists(event.sound_file):
-                # 直接去掉扩展名，显示完整文件名
                 base_name = os.path.basename(event.sound_file)
                 song_title = os.path.splitext(base_name)[0]
         else:
-            # 试听模式
             if current_music_file and os.path.exists(current_music_file):
                 base_name = os.path.basename(current_music_file)
                 song_title = os.path.splitext(base_name)[0]
@@ -2151,7 +2149,6 @@ def main(page: ft.Page):
             icon_size=30,
         )
         
-        # 定义按钮点击函数
         def on_play_button_click(e):
             global current_audio, current_music_state
             if not current_audio:
@@ -2169,15 +2166,41 @@ def main(page: ft.Page):
         
         play_button.on_click = on_play_button_click
         
-        # 创建 ListView 来显示所有歌词
+        # 创建 ListView
         lyrics_list_view = ft.ListView(
             spacing=10,
             padding=20,
             auto_scroll=False,
         )
         
-        # 存储每个歌词行的索引和控件
+        # ========== 计算可视区域高度 ==========
+        try:
+            if hasattr(page, 'window_height'):
+                list_view_height = page.window_height - 180
+            else:
+                list_view_height = 500
+        except:
+            list_view_height = 500
+        
+        # ========== 先用一个较大的值创建歌词列表 ==========
+        # 我们会先创建列表，然后测量实际高度
+        item_height = 50
+        padding_count = int((list_view_height / 2) / item_height) + 2
+        
+        print(f"[歌词填充] 可视高度: {list_view_height}")
+        
+        # ========== 存储所有歌词项 ==========
         lyric_items = []
+        
+        # 顶部空白填充
+        for idx in range(padding_count):
+            empty_item = ft.Container(
+                content=ft.Text("", size=16),
+                height=item_height,
+            )
+            lyrics_list_view.controls.append(empty_item)
+        
+        # 实际歌词
         for i, (time_sec, text) in enumerate(current_lyrics):
             lyric_item = ft.Container(
                 content=ft.Text(
@@ -2186,31 +2209,37 @@ def main(page: ft.Page):
                     color=ft.Colors.GREY_700,
                     text_align=ft.TextAlign.CENTER,
                 ),
-                padding=5,
+                padding=8,
+                height=item_height,
             )
             lyric_items.append(lyric_item)
             lyrics_list_view.controls.append(lyric_item)
         
-        # 创建全屏容器 - 点击背景关闭
+        # 底部空白填充
+        for idx in range(padding_count):
+            empty_item = ft.Container(
+                content=ft.Text("", size=16),
+                height=item_height,
+            )
+            lyrics_list_view.controls.append(empty_item)
+        
+        # 创建全屏容器
         lyrics_fullscreen_container = ft.Container(
             content=ft.Column([
-                # 顶部留白（避开手机状态栏）
-                ft.Container(height=10),  # 增加顶部留白，避开状态栏
-                # 顶部栏
+                ft.Container(height=10),
                 ft.Container(
                     content=ft.Row([
                         ft.IconButton(
                             icon=ft.Icons.ARROW_BACK,
                             icon_size=30,
-                            on_click=lambda e: close_fullscreen_lyrics()  # 返回按钮：关闭全屏
+                            on_click=lambda e: close_fullscreen_lyrics()
                         ),
                         ft.Text(f"{song_title}", size=18, weight=ft.FontWeight.BOLD, overflow=ft.TextOverflow.ELLIPSIS),
-                        play_button,  # 使用保存的按钮引用
+                        play_button,
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                     padding=10,
                 ),
                 ft.Divider(),
-                # 歌词列表区域
                 ft.Container(
                     content=lyrics_list_view,
                     expand=True,
@@ -2221,21 +2250,147 @@ def main(page: ft.Page):
             top=0,
             right=0,
             bottom=0,
-            on_click=lambda e: close_fullscreen_lyrics(),  # 点击背景关闭
+            on_click=lambda e: close_fullscreen_lyrics(),
         )
         
-        # 保存 lyric_items 和 list_view
         lyrics_fullscreen_container.data = {
             'lyric_items': lyric_items,
-            'list_view': lyrics_list_view
+            'list_view': lyrics_list_view,
+            'padding_count': padding_count,
+            'item_height': item_height,
+            'list_view_height': list_view_height,
+            'is_scrolling': False,
+            'actual_item_height': None,  # 存储实际测量高度
+            'measured': False,
         }
         
-        # 自动滚动到当前播放的行
+        # ========== 测量实际歌词项高度 ==========
+        async def measure_item_height():
+            """测量第一个歌词项的实际高度"""
+            try:
+                # 等待布局完成
+                await asyncio.sleep(0.3)
+                
+                if lyric_items and len(lyric_items) > 0:
+                    first_item = lyric_items[0]
+                    # 尝试获取实际高度
+                    if hasattr(first_item, 'height') and first_item.height:
+                        actual_height = first_item.height + 10  # 加上 spacing
+                        if actual_height > 0:
+                            lyrics_fullscreen_container.data['actual_item_height'] = actual_height
+                            lyrics_fullscreen_container.data['measured'] = True
+                            print(f"[测量] 实际歌词项高度: {actual_height}")
+                            return True
+            except Exception as e:
+                print(f"[测量] 测量失败: {e}")
+            return False
+        
+        # ========== 滚动到指定歌词并居中 ==========
+        async def scroll_to_lyric_index(real_index, duration=300):
+            """滚动到指定歌词索引并居中"""
+            if not current_lyrics or real_index < 0 or real_index >= len(current_lyrics):
+                return
+            
+            if lyrics_fullscreen_container.data.get('is_scrolling', False):
+                return
+            
+            padding_count = lyrics_fullscreen_container.data['padding_count']
+            list_view_height = lyrics_fullscreen_container.data['list_view_height']
+            
+            # ========== 获取实际高度（如果已测量） ==========
+            actual_item_height = lyrics_fullscreen_container.data.get('actual_item_height')
+            if actual_item_height and actual_item_height > 0:
+                item_height = actual_item_height
+            else:
+                item_height = 55  # 使用一个更大的默认值
+            
+            # 实际索引
+            actual_index = real_index + padding_count
+            
+            # 总项目数
+            total_items = len(current_lyrics) + padding_count * 2
+            
+            # ========== 计算居中偏移 ==========
+            target_offset = actual_index * item_height - (list_view_height / 2) + (item_height / 2)
+            
+            # 边界限制
+            if target_offset < 0:
+                target_offset = 0
+            max_offset = total_items * item_height - list_view_height
+            if target_offset > max_offset:
+                target_offset = max_offset
+            
+            print(f"[歌词滚动] real_index={real_index}, item_height={item_height:.1f}")
+            print(f"[歌词滚动] target_offset={target_offset:.1f}, max_offset={max_offset:.1f}")
+            
+            lyrics_fullscreen_container.data['is_scrolling'] = True
+            
+            try:
+                list_view = lyrics_fullscreen_container.data['list_view']
+                await list_view.scroll_to(
+                    offset=target_offset,
+                    duration=duration,
+                    curve=ft.AnimationCurve.EASE_IN_OUT,
+                )
+                await asyncio.sleep(duration / 1000 + 0.05)
+            finally:
+                lyrics_fullscreen_container.data['is_scrolling'] = False
+            
+            page.update()
+        
+        # ========== 更新歌词高亮 ==========
+        def update_lyric_highlight(real_index):
+            if not lyrics_fullscreen_container or not lyrics_fullscreen_container.data:
+                return
+            
+            lyric_items = lyrics_fullscreen_container.data['lyric_items']
+            for i, item in enumerate(lyric_items):
+                if i == real_index:
+                    if hasattr(item.content, 'color'):
+                        item.content.color = ft.Colors.BLUE_700
+                        item.content.weight = ft.FontWeight.BOLD
+                        item.content.size = 18
+                    item.bgcolor = ft.Colors.BLUE_50
+                else:
+                    if hasattr(item.content, 'color'):
+                        item.content.color = ft.Colors.GREY_700
+                        item.content.weight = ft.FontWeight.NORMAL
+                        item.content.size = 16
+                    item.bgcolor = None
+            page.update()
+        
+        # ========== 立即滚动到当前歌词位置 ==========
+        async def scroll_to_current_immediately():
+            if not current_lyrics:
+                return
+            
+            # 先测量实际高度
+            await measure_item_height()
+            
+            if current_position_sec <= 0:
+                current_index = 0
+            else:
+                current_index = -1
+                for i, (time_sec, text) in enumerate(current_lyrics):
+                    if current_position_sec >= time_sec:
+                        current_index = i
+                    else:
+                        break
+                if current_index < 0:
+                    current_index = 0
+            
+            update_lyric_highlight(current_index)
+            await scroll_to_lyric_index(current_index, duration=0)
+        
+        # ========== 自动滚动 ==========
         async def auto_scroll_to_current():
             last_index = -1
+            await asyncio.sleep(0.5)
+            
             while lyrics_fullscreen_container and lyrics_fullscreen_container in page.overlay:
-                await asyncio.sleep(0.3)
-                if current_position_sec > 0 and current_lyrics:
+                await asyncio.sleep(0.2)
+                
+                if current_position_sec >= 0 and current_lyrics:
                     current_index = -1
                     for i, (time_sec, text) in enumerate(current_lyrics):
                         if current_position_sec >= time_sec:
@@ -2243,44 +2398,13 @@ def main(page: ft.Page):
                         else:
                             break
                     
+                    if current_index < 0:
+                        current_index = 0
+                    
                     if current_index >= 0 and current_index != last_index:
                         last_index = current_index
-                        
-                        if lyrics_fullscreen_container and lyrics_fullscreen_container.data:
-                            for i, item in enumerate(lyrics_fullscreen_container.data['lyric_items']):
-                                if i == current_index:
-                                    if hasattr(item.content, 'color'):
-                                        item.content.color = ft.Colors.BLUE_700
-                                        item.content.weight = ft.FontWeight.BOLD
-                                        item.content.size = 18
-                                    item.bgcolor = ft.Colors.BLUE_50
-                                else:
-                                    if hasattr(item.content, 'color'):
-                                        item.content.color = ft.Colors.GREY_700
-                                        item.content.weight = ft.FontWeight.NORMAL
-                                        item.content.size = 16
-                                    item.bgcolor = None
-                            
-                            list_view = lyrics_fullscreen_container.data['list_view']
-                            
-                            try:
-                                container = lyrics_fullscreen_container.content.controls[2]
-                                visible_height = container.height if container.height else 500
-                            except:
-                                visible_height = 500
-                            
-                            item_height = 45
-                            items_per_screen = visible_height // item_height
-                            half_screen = items_per_screen // 2
-                            target_offset = max(0, (current_index - half_screen) * item_height)
-                            
-                            await list_view.scroll_to(
-                                offset=target_offset,
-                                duration=300,
-                                curve=ft.AnimationCurve.EASE_IN_OUT,
-                            )
-                            
-                            page.update()
+                        update_lyric_highlight(current_index)
+                        await scroll_to_lyric_index(current_index, duration=300)
         
         if auto_scroll_task:
             auto_scroll_task.cancel()
@@ -2288,6 +2412,9 @@ def main(page: ft.Page):
         
         page.overlay.append(lyrics_fullscreen_container)
         page.update()
+        
+        asyncio.create_task(scroll_to_current_immediately())
+
 
     def toggle_music_from_fullscreen():
         """从全屏歌词页面控制音乐暂停/继续"""
