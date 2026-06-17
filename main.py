@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.50"
-APP_VERSION_CODE = 50
+APP_VERSION = "1.0.51"
+APP_VERSION_CODE = 51
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -1658,6 +1658,7 @@ def main(page: ft.Page):
     # 收入分类（预设）
     INCOME_CATEGORIES = [
         "工资收入",
+        "报销收入",
         "奖金收入",
         "兼职收入",
         "投资收入",
@@ -1668,10 +1669,18 @@ def main(page: ft.Page):
     # 支出分类（预设）
     EXPENSE_CATEGORIES = [
         "餐饮",
+        "水电费-老家",
+        "水电费-泉州",
         "水电费",
+        "电话费-18575793589",
+        "电话费-13003731229",
+        "电话费-15767837692",
         "电话费",
         "房贷",
         "车贷",
+        "中国银行信用卡还贷",
+        "招商银行闪电贷还贷",
+        "书仪生活费",
         "购物",
         "娱乐",
         "交通",
@@ -4147,7 +4156,7 @@ def main(page: ft.Page):
         # 固定标题区域
         fixed_header = ft.Container(
             content=ft.Column([
-                ft.Container(height=20),
+                ft.Container(height=18),
                 ft.Row([
                     ft.Container(
                         content=back_btn,
