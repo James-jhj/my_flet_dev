@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.52"
-APP_VERSION_CODE = 52
+APP_VERSION = "1.0.53"
+APP_VERSION_CODE = 53
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -1531,6 +1531,7 @@ def main(page: ft.Page):
     global sent_notifications,events_list,filter_date
     global transactions  # 添加这行
     global current_page, floating_add_button,show_scroll_top_btn  # 添加这行，用于记录当前页面
+    global auto_fullscreen_lyrics  # 添加这行
     
 
 
@@ -1585,6 +1586,8 @@ def main(page: ft.Page):
     reminder_flags = {}  # 存储提醒标记
 
     three_days_events = []  # 存储3日内事件列表
+
+    auto_fullscreen_lyrics = False  # 记录是否需要在下次播放时自动打开全屏歌词
 
     # 初始化 filter_date
     filter_date = None
@@ -2128,7 +2131,7 @@ def main(page: ft.Page):
             line2_text.update()
     
     def show_fullscreen_lyrics():
-        """显示全屏歌词（当前歌词永远居中 - 使用实际测量高度）"""
+        """显示全屏歌词（当前歌词永远居中 - 带闪烁标题）"""
         global lyrics_fullscreen_container, auto_scroll_task, current_lyrics, current_position_sec, current_playing_event_id, events
         
         # 获取当前播放的歌曲名称
@@ -2166,6 +2169,46 @@ def main(page: ft.Page):
         
         play_button.on_click = on_play_button_click
         
+        # ========== 创建闪烁标题文本 ==========
+        title_text = ft.Text(
+            f"{song_title}",
+            size=18,
+            weight=ft.FontWeight.BOLD,
+            color=ft.Colors.BLUE_700,
+            overflow=ft.TextOverflow.ELLIPSIS,
+        )
+        
+        # ========== 闪烁动画任务 ==========
+        flash_task = None
+        flash_colors = [
+            ft.Colors.BLUE_700,
+            ft.Colors.RED_700,
+            ft.Colors.GREEN_700,
+            ft.Colors.PURPLE_700,
+            ft.Colors.ORANGE_700,
+            ft.Colors.PINK_700,
+            ft.Colors.TEAL_700,
+            ft.Colors.INDIGO_700,
+        ]
+        color_index = 0
+        
+        async def flash_title():
+            """标题闪烁动画 - 只变化颜色"""
+            nonlocal color_index
+            while True:
+                if not lyrics_fullscreen_container or lyrics_fullscreen_container not in page.overlay:
+                    break
+                try:
+                    # 切换到下一个颜色
+                    color_index = (color_index + 1) % len(flash_colors)
+                    title_text.color = flash_colors[color_index]
+                    title_text.update()
+                    page.update()
+                    await asyncio.sleep(0.5)  # 每0.5秒变化一次
+                except Exception as e:
+                    print(f"[闪烁] 错误: {e}")
+                    break
+        
         # 创建 ListView
         lyrics_list_view = ft.ListView(
             spacing=10,
@@ -2182,8 +2225,6 @@ def main(page: ft.Page):
         except:
             list_view_height = 500
         
-        # ========== 先用一个较大的值创建歌词列表 ==========
-        # 我们会先创建列表，然后测量实际高度
         item_height = 50
         padding_count = int((list_view_height / 2) / item_height) + 2
         
@@ -2232,9 +2273,9 @@ def main(page: ft.Page):
                         ft.IconButton(
                             icon=ft.Icons.ARROW_BACK,
                             icon_size=30,
-                            on_click=lambda e: close_fullscreen_lyrics()
+                            on_click=lambda e: close_fullscreen_lyrics(user_closed=True)  # 标记为用户关闭
                         ),
-                        ft.Text(f"{song_title}", size=18, weight=ft.FontWeight.BOLD, overflow=ft.TextOverflow.ELLIPSIS),
+                        title_text,  # 使用闪烁标题
                         play_button,
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                     padding=10,
@@ -2250,7 +2291,7 @@ def main(page: ft.Page):
             top=0,
             right=0,
             bottom=0,
-            on_click=lambda e: close_fullscreen_lyrics(),
+            on_click=lambda e: close_fullscreen_lyrics(user_closed=True),  # 标记为用户关闭
         )
         
         lyrics_fullscreen_container.data = {
@@ -2260,22 +2301,21 @@ def main(page: ft.Page):
             'item_height': item_height,
             'list_view_height': list_view_height,
             'is_scrolling': False,
-            'actual_item_height': None,  # 存储实际测量高度
+            'actual_item_height': None,
             'measured': False,
+            'title_text': title_text,  # 保存标题引用
+            'flash_task': None,
         }
         
         # ========== 测量实际歌词项高度 ==========
         async def measure_item_height():
             """测量第一个歌词项的实际高度"""
             try:
-                # 等待布局完成
                 await asyncio.sleep(0.3)
-                
                 if lyric_items and len(lyric_items) > 0:
                     first_item = lyric_items[0]
-                    # 尝试获取实际高度
                     if hasattr(first_item, 'height') and first_item.height:
-                        actual_height = first_item.height + 10  # 加上 spacing
+                        actual_height = first_item.height + 10
                         if actual_height > 0:
                             lyrics_fullscreen_container.data['actual_item_height'] = actual_height
                             lyrics_fullscreen_container.data['measured'] = True
@@ -2287,7 +2327,6 @@ def main(page: ft.Page):
         
         # ========== 滚动到指定歌词并居中 ==========
         async def scroll_to_lyric_index(real_index, duration=300):
-            """滚动到指定歌词索引并居中"""
             if not current_lyrics or real_index < 0 or real_index >= len(current_lyrics):
                 return
             
@@ -2297,31 +2336,25 @@ def main(page: ft.Page):
             padding_count = lyrics_fullscreen_container.data['padding_count']
             list_view_height = lyrics_fullscreen_container.data['list_view_height']
             
-            # ========== 获取实际高度（如果已测量） ==========
             actual_item_height = lyrics_fullscreen_container.data.get('actual_item_height')
             if actual_item_height and actual_item_height > 0:
                 item_height = actual_item_height
             else:
-                item_height = 55  # 使用一个更大的默认值
+                item_height = 55
             
-            # 实际索引
             actual_index = real_index + padding_count
-            
-            # 总项目数
             total_items = len(current_lyrics) + padding_count * 2
             
-            # ========== 计算居中偏移 ==========
             target_offset = actual_index * item_height - (list_view_height / 2) + (item_height / 2)
             
-            # 边界限制
             if target_offset < 0:
                 target_offset = 0
             max_offset = total_items * item_height - list_view_height
             if target_offset > max_offset:
                 target_offset = max_offset
             
-            print(f"[歌词滚动] real_index={real_index}, item_height={item_height:.1f}")
-            print(f"[歌词滚动] target_offset={target_offset:.1f}, max_offset={max_offset:.1f}")
+            #print(f"[歌词滚动] real_index={real_index}, item_height={item_height:.1f}")
+            #print(f"[歌词滚动] target_offset={target_offset:.1f}, max_offset={max_offset:.1f}")
             
             lyrics_fullscreen_container.data['is_scrolling'] = True
             
@@ -2364,7 +2397,6 @@ def main(page: ft.Page):
             if not current_lyrics:
                 return
             
-            # 先测量实际高度
             await measure_item_height()
             
             if current_position_sec <= 0:
@@ -2381,6 +2413,10 @@ def main(page: ft.Page):
             
             update_lyric_highlight(current_index)
             await scroll_to_lyric_index(current_index, duration=0)
+            
+            # ========== 启动闪烁动画 ==========
+            flash_task = asyncio.create_task(flash_title())
+            lyrics_fullscreen_container.data['flash_task'] = flash_task
         
         # ========== 自动滚动 ==========
         async def auto_scroll_to_current():
@@ -2456,11 +2492,26 @@ def main(page: ft.Page):
                 except Exception as e:
                     print(f"更新按钮图标失败: {e}")
     
-    def close_fullscreen_lyrics():
-        """关闭全屏歌词"""
-        global lyrics_fullscreen_container, auto_scroll_task
+    def close_fullscreen_lyrics(user_closed=False):
+        """关闭全屏歌词
+        Args:
+            user_closed: 是否由用户手动关闭（True表示用户点击关闭，False表示程序自动关闭）
+        """
+        global lyrics_fullscreen_container, auto_scroll_task, auto_fullscreen_lyrics
+        
         if lyrics_fullscreen_container and lyrics_fullscreen_container in page.overlay:
-            # 清理 data
+            # 停止闪烁动画
+            if lyrics_fullscreen_container.data and lyrics_fullscreen_container.data.get('flash_task'):
+                try:
+                    lyrics_fullscreen_container.data['flash_task'].cancel()
+                except:
+                    pass
+            
+            # 如果是由用户手动关闭，重置自动打开标志
+            if user_closed:
+                auto_fullscreen_lyrics = False
+                print("[自动全屏] 用户手动关闭全屏歌词，取消自动打开")
+            
             if hasattr(lyrics_fullscreen_container, 'data'):
                 lyrics_fullscreen_container.data = None
             page.overlay.remove(lyrics_fullscreen_container)
@@ -2493,6 +2544,9 @@ def main(page: ft.Page):
         def on_lyrics_click(e):
             global current_lyrics, current_position_sec, current_music_state
             if current_music_state != "stopped" and current_lyrics and len(current_lyrics) > 0:
+                # 用户手动打开，重置自动标志
+                global auto_fullscreen_lyrics
+                auto_fullscreen_lyrics = False
                 show_fullscreen_lyrics()
             else:
                 show_snack_bar("没有歌词数据或音乐未播放")
@@ -2815,6 +2869,7 @@ def main(page: ft.Page):
         # ========== 修改 on_state_change，使用闭包变量 ==========
         def on_state_change(e):
             global current_audio, is_playing, current_playing_event_id, current_music_state
+            global auto_fullscreen_lyrics  # 添加这行
             nonlocal is_playing_new, monitor_task, local_position_sec  # 使用 local_position_sec
             
             print(f"[播放状态] 状态改变: {e.state}")
@@ -2855,6 +2910,12 @@ def main(page: ft.Page):
                 if event_name:
                     music_name = get_music_name_from_file(sound_file) or os.path.basename(sound_file)
                     update_music_notification(f"{event_name} - {music_name}", is_playing=True)
+
+                # ========== 新增：如果 auto_fullscreen_lyrics 为 True，自动打开全屏歌词 ==========
+                if auto_fullscreen_lyrics:
+                    print("[自动全屏] 检测到需要自动打开全屏歌词")
+                    # 延迟一下，确保音乐已经开始播放
+                    asyncio.create_task(auto_open_fullscreen_lyrics())
             
             elif e.state == AudioState.COMPLETED:
                 print("[播放状态] 音乐播放完成")
@@ -2882,9 +2943,14 @@ def main(page: ft.Page):
                 progress_slider.update()
                 progress_text.update()
 
-                # ========== 关闭全屏歌词（如果打开） ==========
+                # ========== 关键：检测全屏歌词是否打开，如果打开则记录状态 ==========
                 if lyrics_fullscreen_container and lyrics_fullscreen_container in page.overlay:
+                    print("[自动全屏] 检测到全屏歌词正在显示，将在循环播放时自动重新打开")
+                    auto_fullscreen_lyrics = True
+                    # 关闭全屏歌词
                     close_fullscreen_lyrics()
+                else:
+                    auto_fullscreen_lyrics = False
 
                 # ========== 关键：调用更新UI函数，隐藏音乐区域 ==========
                 update_current_playing_info()
@@ -2918,6 +2984,7 @@ def main(page: ft.Page):
                     if music_state_update_callback and current_playing_event_id:
                         music_state_update_callback(current_playing_event_id, "stopped")
                     current_playing_event_id = None
+                    auto_fullscreen_lyrics = False  # 重置标志
 
                     # 额外重置一次，确保歌词显示正确
                     # 重置歌词
@@ -2945,11 +3012,22 @@ def main(page: ft.Page):
                 if music_state_update_callback and current_playing_event_id:
                     music_state_update_callback(current_playing_event_id, "stopped")
                 current_playing_event_id = None
+                auto_fullscreen_lyrics = False  # 重置标志
 
                 cancel_notification(MUSIC_NOTIFICATION_ID)
 
             else:
                 print(f"[播放状态] 其他状态: {e.state}")
+
+        # ========== 新增：自动打开全屏歌词的函数 ==========
+        async def auto_open_fullscreen_lyrics():
+            """自动打开全屏歌词（延迟执行，确保音乐已开始播放）"""
+            await asyncio.sleep(0.3)  # 等待音乐开始播放
+            if current_music_state == "playing" and current_lyrics and len(current_lyrics) > 0:
+                print("[自动全屏] 执行自动打开全屏歌词")
+                show_fullscreen_lyrics()
+            else:
+                print(f"[自动全屏] 条件不满足: state={current_music_state}, lyrics={len(current_lyrics) if current_lyrics else 0}")
         
         def on_position_change(e):
             nonlocal local_position_sec  # 使用 nonlocal 修改局部变量
