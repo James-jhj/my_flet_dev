@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.53"
-APP_VERSION_CODE = 53
+APP_VERSION = "1.0.54"
+APP_VERSION_CODE = 54
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -3773,6 +3773,14 @@ def main(page: ft.Page):
                     page.update()
             
             categories = INCOME_CATEGORIES if transaction.type == "income" else EXPENSE_CATEGORIES
+
+            # ========== 确定标题 ==========
+            if transaction.type == "income":
+                title_text = "编辑收入"
+                title_icon = "💰"
+            else:
+                title_text = "编辑支出"
+                title_icon = "💸"
             
             date_field = ft.TextField(
                 label="日期",
@@ -3857,7 +3865,7 @@ def main(page: ft.Page):
                     tooltip="取消",
                     on_click=lambda e: close_edit_dialog(),
                 ),
-                ft.Text("编辑记录", size=18, weight=ft.FontWeight.BOLD, expand=True, text_align=ft.TextAlign.CENTER),
+                ft.Text(f"{title_icon} {title_text}", size=18, weight=ft.FontWeight.BOLD, expand=True, text_align=ft.TextAlign.CENTER),
                 ft.IconButton(
                     icon=ft.Icons.CHECK,
                     icon_size=24,
@@ -4004,6 +4012,8 @@ def main(page: ft.Page):
                     # 只有不是最后一条才添加底部分隔线
                     border=ft.border.Border(bottom=ft.border.BorderSide(1, ft.Colors.GREY_200)) if index < len(month_records) - 1 else None,
                     ink=True,
+                    # ========== 新增：点击卡片进入编辑模式 ==========
+                    on_click=lambda e, tr=t: edit_transaction(tr),
                 )
                 records_list.controls.append(record_card)
 
@@ -4072,6 +4082,14 @@ def main(page: ft.Page):
                     page.overlay.remove(dialog_container)
                     dialog_container = None
                     page.update()
+
+             # ========== 确定标题和图标 ==========
+            if transaction_type == "income":
+                title_text = "添加收入"
+                title_icon = "💰"
+            else:
+                title_text = "添加支出"
+                title_icon = "💸"
             
             # 日期字段
             date_field = ft.TextField(
@@ -4162,8 +4180,7 @@ def main(page: ft.Page):
                     tooltip="取消",
                     on_click=cancel_click,
                 ),
-                ft.Text(f"添加{'收入' if transaction_type == 'income' else '支出'}", 
-                        size=18, weight=ft.FontWeight.BOLD, expand=True, text_align=ft.TextAlign.CENTER),
+                ft.Text(f"{title_icon} {title_text}", size=18, weight=ft.FontWeight.BOLD, expand=True, text_align=ft.TextAlign.CENTER),
                 ft.IconButton(
                     icon=ft.Icons.CHECK,
                     icon_size=24,
@@ -4361,7 +4378,7 @@ def main(page: ft.Page):
         # 固定标题区域
         fixed_header = ft.Container(
             content=ft.Column([
-                ft.Container(height=18),
+                ft.Container(height=16),
                 ft.Row([
                     ft.Container(
                         content=back_btn,
@@ -5202,7 +5219,9 @@ def main(page: ft.Page):
             padding=10, 
             bgcolor=bg_color, 
             border_radius=10,
-            #border=ft.border.Border(bottom=ft.border.BorderSide(1, ft.Colors.GREY_200)),  # 底部边框作为分隔
+            # ========== 新增：点击卡片进入编辑模式 ==========
+            on_click=lambda e, eid=event.id: edit_event_dialog(eid),
+            ink=True,  # 添加墨水效果，点击时有反馈
         )
 
         # 添加卡片和分隔符
@@ -5253,7 +5272,7 @@ def main(page: ft.Page):
                 if event.reminders:
                     time_list = [r.get("time", "") for r in event.reminders if r.get("enabled")]
                     time_str = " ".join(time_list)
-                    return f"工作日提醒 {time_str}"
+                    return f"{time_str}"
                 else:
                     return "工作日提醒"
             else:
@@ -5269,29 +5288,35 @@ def main(page: ft.Page):
             weekday_num = int(event.birth_date) if event.birth_date else 1
             if event.reminders:
                 time_list = [r.get("time", "") for r in event.reminders if r.get("enabled")]
-                return f"每周 {weekday_names[weekday_num]} {' '.join(time_list)}"
-            return f"每周 {weekday_names[weekday_num]}"
+                return f"{weekday_names[weekday_num]} {' '.join(time_list)}"
+            return f"{weekday_names[weekday_num]}"
         elif event.event_type == "birthday":
             if event.calendar_type == "solar":
-                return f"阳历 {month}月{day}日"
+                lunar_parts = event.birth_date.split("-")
+                return f"阳历 {int(lunar_parts[0])}年{int(lunar_parts[1])}月{int(lunar_parts[2])}日"
             else:
                 lunar_parts = event.birth_date.split("-")
-                return f"农历 {int(lunar_parts[1])}月{int(lunar_parts[2])}日"
+                return f"农历 {int(lunar_parts[0])}年{int(lunar_parts[1])}月{int(lunar_parts[2])}日"
         elif event.event_type == "monthly":
             day_num = int(event.birth_date)
             if event.reminders:
                 time_list = [r.get("time", "") for r in event.reminders if r.get("enabled")]
-                return f"每月 {day_num}日 {' '.join(time_list)}"
-            return f"每月 {day_num}日"
+                return f"{day_num}日 {' '.join(time_list)}"
+            return f"{day_num}日"
         elif event.repeat_type == "once":
-            date_parts = event.birth_date.split("-")
-            return f"{int(date_parts[0])}年{int(date_parts[1])}月{int(date_parts[2])}日"
-        else:
             if event.calendar_type == "solar":
-                return f"阳历 {month}月{day}日"
+                lunar_parts = event.birth_date.split("-")
+                return f"阳历 {int(lunar_parts[0])}年{int(lunar_parts[1])}月{int(lunar_parts[2])}日"
             else:
                 lunar_parts = event.birth_date.split("-")
-                return f"农历 {int(lunar_parts[1])}月{int(lunar_parts[2])}日"
+                return f"农历 {int(lunar_parts[0])}年{int(lunar_parts[1])}月{int(lunar_parts[2])}日"
+        else:
+            if event.calendar_type == "solar":
+                lunar_parts = event.birth_date.split("-")
+                return f"阳历 {int(lunar_parts[0])}年{int(lunar_parts[1])}月{int(lunar_parts[2])}日"
+            else:
+                lunar_parts = event.birth_date.split("-")
+                return f"农历 {int(lunar_parts[0])}年{int(lunar_parts[1])}月{int(lunar_parts[2])}日"
             
     def get_age_text(event, today, base_year):
         """获取年龄或年份显示文本"""
@@ -10387,9 +10412,14 @@ def main(page: ft.Page):
 
     # 创建导入导出按钮（始终显示）
     import_export_buttons = ft.Row([
+        ft.TextButton(
+            "💰 记账本", 
+            on_click=lambda e: show_accounting_page(page), 
+            tooltip="记账本",
+            style=ft.ButtonStyle(color=ft.Colors.BLUE_700,text_style=ft.TextStyle(weight=ft.FontWeight.BOLD), ),
+        ),
         ft.TextButton("📥 导入", on_click=show_import_menu, tooltip="从Excel导入事件"),
         ft.TextButton("📤 导出", on_click=show_export_menu, tooltip="导出事件到Excel"),
-        ft.TextButton("💰 记账", on_click=lambda e: show_accounting_page(page), tooltip="记账本"),
         #ft.TextButton("🔔 通知", on_click=test_notification)
     ], spacing=0)
 
@@ -10453,14 +10483,19 @@ def main(page: ft.Page):
                     ], spacing=5),
                     ft.Divider(height=5),
                     ft.Text("💡 使用说明", size=14, weight=ft.FontWeight.BOLD),
-                    ft.Text("• 点击「+」添加事件\n• 点击 💰 记账 进入记账本界面\n• 各类事件当天或提前3天预警自动弹框并播放音乐\n• 启动程序自动检查今日是否有事件发生", selectable=True),
-                    ft.Row([ft.Text("🔔 提醒服务运行中", size=12, color=ft.Colors.GREEN_700), count_text], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                    ft.Text("• 点击「+」添加事件\n• 点击 💰 记账本 进入记账本界面\n• 各类事件当天或提前3天预警自动弹框并播放音乐\n• 启动程序自动检查今日是否有事件发生", selectable=True),
+                    # ========== 修改这里：提醒服务单独一行，count_text和版本在同一行 ==========
+                    ft.Row([
+                        ft.Text("🔔 提醒服务运行中", size=12, color=ft.Colors.GREEN_700),
+                    ], alignment=ft.MainAxisAlignment.START),
                     ft.Row([
                         ft.Text(f"📱 版本 {APP_VERSION}", size=10, color=ft.Colors.GREY_500),
-                    ], spacing=5),
+                        ft.Container(expand=True),  # 弹性空间，把版本推到右边
+                        count_text,
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                 ]),
                 padding=12,
-            ),
+            )
         ], 
         spacing=8, 
         scroll=ft.ScrollMode.AUTO,
