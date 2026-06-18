@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.61"
-APP_VERSION_CODE = 61
+APP_VERSION = "1.0.62"
+APP_VERSION_CODE = 62
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -6084,7 +6084,8 @@ def main(page: ft.Page):
 
             # ========== 显示日期标题（阳历 + 农历） ==========
             lunar_str = get_lunar_date_str(filter_date.year, filter_date.month, filter_date.day)
-            date_title = f"📅 {filter_date.strftime('%Y年%m月%d日')} {lunar_str}"
+            #date_title = f"📅 {filter_date.strftime('%Y年%m月%d日')} {lunar_str}"
+            date_title = f"📅 农历 {lunar_str}"
             
             # 始终显示返回按钮/下拉框
             if hasattr(refresh_events_list, 'view_dropdown'):
@@ -9112,7 +9113,7 @@ def main(page: ft.Page):
             lunar = LunarDate.fromSolarDate(year, month, day)
             lunar_month_str = number_to_chinese_month(lunar.month)
             lunar_day_str = number_to_chinese_day(lunar.day)
-            return f"农历{lunar_month_str}{lunar_day_str}"
+            return f"{lunar_month_str}{lunar_day_str}"
         except:
             return ""
     
@@ -11113,7 +11114,7 @@ def main(page: ft.Page):
         ft.Container(
             content=ft.Column([
                 ft.Text(
-                    "📅 记事本", 
+                    "📋 记事本", 
                     size=20, 
                     weight=ft.FontWeight.BOLD, 
                     color=ft.Colors.BLUE_700, 
