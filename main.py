@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.55"
-APP_VERSION_CODE = 55
+APP_VERSION = "1.0.56"
+APP_VERSION_CODE = 56
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -1531,7 +1531,7 @@ def main(page: ft.Page):
     global sent_notifications,events_list,filter_date
     global transactions  # 添加这行
     global current_page, floating_add_button,show_scroll_top_btn  # 添加这行，用于记录当前页面
-    global auto_fullscreen_lyrics,hide_progress_timer  # 添加这行
+    global auto_fullscreen_lyrics,hide_progress_timer,current_selected_lunar  # 添加这行
     
 
 
@@ -1586,6 +1586,9 @@ def main(page: ft.Page):
     reminder_flags = {}  # 存储提醒标记
 
     three_days_events = []  # 存储3日内事件列表
+
+    # ========== 在文件顶部添加全局变量 ==========
+    current_selected_lunar = ""  # 存储当前选中的农历日期
 
     # ========== 隐藏进度文本的定时器 ==========
     hide_progress_timer = None
@@ -5729,7 +5732,7 @@ def main(page: ft.Page):
                 three_days_events.append((evt, days_until))
                 
     def refresh_events_list(filter_date=None):
-        global current_playing_event_id, current_music_state , three_days_events, current_view
+        global current_playing_event_id, current_music_state , three_days_events, current_view, current_selected_lunar
         print(f"[DEBUG] refresh_events_list 被调用, filter_date={filter_date}, current_view={current_view}")
         events_list.controls.clear()
         today = datetime.now().date()
@@ -5774,11 +5777,15 @@ def main(page: ft.Page):
             
             # 显示筛选结果
             events_list.controls.clear()
+
+            # ========== 显示日期标题（阳历 + 农历） ==========
+            lunar_str = get_lunar_date_str(filter_date.year, filter_date.month, filter_date.day)
+            date_title = f"📅 {filter_date.strftime('%Y年%m月%d日')} {lunar_str}"
             
             # 始终显示返回按钮/下拉框
             if hasattr(refresh_events_list, 'view_dropdown'):
                 events_list.controls.append(ft.Row([
-                    ft.Text(f"📅 {filter_date.strftime('%Y年%m月%d日')}", size=18, weight=ft.FontWeight.BOLD,expand=True),
+                    ft.Text(date_title, size=16, weight=ft.FontWeight.BOLD,expand=True),
                     refresh_events_list.view_dropdown,
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN))
                 events_list.controls.append(ft.Divider(height=10))
@@ -8793,7 +8800,18 @@ def main(page: ft.Page):
         print("后台定时检查已启动（每小时检查事件）")
         print("时间提醒检查已启动（每10分钟检查）")
 
-
+    # ========== 农历日期辅助函数 ==========
+    def get_lunar_date_str(year, month, day):
+        """获取农历日期字符串"""
+        try:
+            from lunardate import LunarDate
+            lunar = LunarDate.fromSolarDate(year, month, day)
+            lunar_month_str = number_to_chinese_month(lunar.month)
+            lunar_day_str = number_to_chinese_day(lunar.day)
+            return f"农历{lunar_month_str}{lunar_day_str}"
+        except:
+            return ""
+    
     def number_to_chinese_month(month):
         """月份数字转中文"""
         chinese_months = ['正月', '二月', '三月', '四月', '五月', '六月', 
@@ -9088,9 +9106,12 @@ def main(page: ft.Page):
             
             # 保存当前视图到 previous_view
             previous_view = current_view
-            
             current_date = selected_date
             date_display.value = selected_date.strftime("%Y年%m月%d日")
+
+            # 获取农历日期
+            lunar_str = get_lunar_date_str(year, month, day)
+            current_selected_lunar = lunar_str
             
             # 传入筛选日期刷新事件列表
             refresh_events_list(filter_date=selected_date)
