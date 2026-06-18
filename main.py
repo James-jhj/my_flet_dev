@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.57"
-APP_VERSION_CODE = 57
+APP_VERSION = "1.0.58"
+APP_VERSION_CODE = 58
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -360,27 +360,27 @@ class SmoothMarqueeText(ft.Stack):
             if total_width > 500:  # 长文本（超过500像素）
                 # 长文本：减去80像素，让文本稍微重叠，避免滚动间隙过大，目前长歌曲名就是走的这个，电脑(-80)刚刚好前面的歌曲名刚消失，后面的歌曲名称就出现了，手机待确定
                 gap = total_width - 80
-                if not self._warning_printed['gt500'] and self.show_message:
-                    self.show_message(f"歌曲长度大于500测试：{total_width}")
-                    self._warning_printed['gt500'] = True
+                #if not self._warning_printed['gt500'] and self.show_message:
+                    #self.show_message(f"歌曲长度大于500测试：{total_width}")
+                    #self._warning_printed['gt500'] = True
             elif total_width > 300:  # 中等文本（300-500像素）， 缩短前后2个歌曲名称中间的空格方法-手机调试扩大一倍，现在手机歌曲长度到这里了大于300
                 # 中等文本：减去50像素
                 gap = total_width - 50
-                if not self._warning_printed['gt300'] and self.show_message:
-                    self.show_message(f"歌曲长度大于300测试：{total_width}")
-                    self._warning_printed['gt300'] = True
+                #if not self._warning_printed['gt300'] and self.show_message:
+                    #self.show_message(f"歌曲长度大于300测试：{total_width}")
+                    #self._warning_printed['gt300'] = True
             elif total_width > 150:  # 较短文本（150-300像素），目前短歌曲名就是走的这个，电脑(+45)刚刚好前面的歌曲名刚消失，后面的歌曲名称就出现了，手机待确定
                 # 较短文本：间隙等于文本宽度
                 gap = total_width - 5  # 手机现在设置 - 25 刚刚好，歌曲长度再长一点，就 - 20或- 10试试，慢慢微调，手机歌曲长度约285~300之间
-                if not self._warning_printed['gt150'] and self.show_message:
-                    self.show_message(f"歌曲长度大于150测试：{total_width}")
-                    self._warning_printed['gt150'] = True
+                #if not self._warning_printed['gt150'] and self.show_message:
+                    #self.show_message(f"歌曲长度大于150测试：{total_width}")
+                    #self._warning_printed['gt150'] = True
             else:  # 很短文本（小于150像素）
                 # 很短文本：间隙 = 文本宽度 + 30，让滚动更平滑
                 gap = total_width - 30  # 手机现在设置 - 30 刚刚好，歌曲长度再长一点，就 - 20或- 10试试，慢慢微调
-                if not self._warning_printed['else'] and self.show_message:
-                    self.show_message(f"其他歌曲长度测试：{total_width}")
-                    self._warning_printed['else'] = True
+                #if not self._warning_printed['else'] and self.show_message:
+                    #self.show_message(f"其他歌曲长度测试：{total_width}")
+                    #self._warning_printed['else'] = True
 
             return max(10, gap)  # 确保间隙至少为10像素
             
@@ -1465,27 +1465,6 @@ def get_data_file_path(filename):
     else:
         return filename
     
-SLIDER_WIDTH = 470  # 默认值，会在 main 中重新计算
-
-# ========== 在 main 函数之前定义 ==========
-def get_slider_width(page):
-    """根据页面宽度获取滑块宽度"""
-    try:
-        if hasattr(page, 'window_width') and page.window_width:
-            page_width = page.window_width
-        else:
-            page_width = 500
-        
-        slider_width = page_width - 60
-        if slider_width < 280:
-            slider_width = 280
-        if slider_width > 600:
-            slider_width = 600
-        
-        return slider_width
-    except:
-        return 350
-    
 def main(page: ft.Page):
 
     """入口：检查设备授权"""
@@ -1553,8 +1532,7 @@ def main(page: ft.Page):
     global transactions  # 添加这行
     global current_page, floating_add_button,show_scroll_top_btn  # 添加这行，用于记录当前页面
     global auto_fullscreen_lyrics,hide_progress_timer,current_selected_lunar,last_card_update_time  # 添加这行
-    global SLIDER_WIDTH
-    
+    global SLIDER_WIDTH, progress_slider, progress_bubble, progress_bubble_container, slider_wrapper
 
 
     page.window_icon = "icon.png"
@@ -1614,11 +1592,6 @@ def main(page: ft.Page):
 
     # 添加一个时间戳变量，控制刷新频率
     last_card_update_time = 0
-
-    # ========== 根据页面宽度计算滑块宽度 ==========
-    SLIDER_WIDTH = get_slider_width(page)
-    print(f"[滑块宽度] {SLIDER_WIDTH}")
-    #show_bottom_message(f"[滑块宽度] {SLIDER_WIDTH}")
 
     # ========== 隐藏进度文本的定时器 ==========
     hide_progress_timer = None
@@ -3249,7 +3222,7 @@ def main(page: ft.Page):
         """根据当前视图刷新对应的视图"""
         global current_view
         
-        print(f"[刷新视图] 当前视图: {current_view}")
+        #print(f"[刷新视图] 当前视图: {current_view}")
         
         if current_view == "all":
             display_all_events()
@@ -10380,6 +10353,23 @@ def main(page: ft.Page):
         bgcolor=ft.Colors.TRANSPARENT,  # 改为透明，与系统背景一致
     )
     
+    # ========== 根据页面宽度计算滑块宽度 ==========
+    try:
+        if hasattr(page, 'window_width') and page.window_width:
+            page_width = page.window_width
+        else:
+            page_width = 500
+        
+        # 减去左右边距
+        SLIDER_WIDTH = page_width - 60
+        if SLIDER_WIDTH < 280:
+            SLIDER_WIDTH = 280
+        if SLIDER_WIDTH > 600:
+            SLIDER_WIDTH = 600
+        print(f"[滑块宽度] 页面宽度: {page_width}, 滑块宽度: {SLIDER_WIDTH}")
+    except:
+        SLIDER_WIDTH = 350
+
     # ========== 创建进度显示容器（默认隐藏，气泡方式跟随滑块） ==========
     progress_text = ft.Text(
         "0:00", 
@@ -10392,7 +10382,7 @@ def main(page: ft.Page):
     # 气泡容器
     progress_bubble = ft.Container(
         content=progress_text,
-        width=90,  # 固定宽度
+        width=70,  # 固定宽度
         height=30,  # 固定高度（小于宽度，形成椭圆形）
         bgcolor=ft.Colors.BLUE_700,
         border_radius=15,  # 高度的一半，形成椭圆
@@ -10416,6 +10406,12 @@ def main(page: ft.Page):
         active_color=ft.Colors.BLUE_700,
         inactive_color=ft.Colors.GREY_300,
     )
+    
+    # 使用动态宽度
+    slider_wrapper = ft.Container(
+        content=ft.Row([progress_slider], alignment=ft.MainAxisAlignment.CENTER),
+        width=SLIDER_WIDTH,
+    )
 
     # ========== 节流控制 ==========
     hide_progress_timer = None
@@ -10427,11 +10423,6 @@ def main(page: ft.Page):
         page.update()
         hide_progress_timer = None
 
-    slider_wrapper = ft.Container(
-        content=ft.Row([progress_slider], alignment=ft.MainAxisAlignment.CENTER),
-        width=SLIDER_WIDTH,
-    )
-
     def get_slider_value_position():
         """获取滑块值对应的像素位置"""
         # 直接使用固定宽度
@@ -10441,13 +10432,13 @@ def main(page: ft.Page):
         slider_padding = 18
         available = slider_width - slider_padding * 2
         bubble_center = slider_padding + available * value_percent
-        bubble_half_width = 45
+        bubble_half_width = 35
         left_pos = bubble_center - bubble_half_width
         
         if left_pos < 0:
             left_pos = 0
-        if left_pos > slider_width - 90:
-            left_pos = slider_width - 90
+        if left_pos > slider_width - 70:
+            left_pos = slider_width - 70
         
         return left_pos
 
@@ -10557,7 +10548,8 @@ def main(page: ft.Page):
                         update_lyrics_display(target_position, current_lyrics, lyrics_display_widgets, is_fullscreen=False)
                     
                     page.update()
-                    show_snack_bar(f"已跳转到 {format_time(target_position)}")
+                    #show_snack_bar(f"已跳转到 {format_time(target_position)}")
+                    show_snack_bar(f"打印SLIDER_WIDTH宽度：{SLIDER_WIDTH}")
                     
                 except Exception as ex:
                     print(f"[快进] 跳转失败: {ex}")
