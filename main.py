@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.54"
-APP_VERSION_CODE = 54
+APP_VERSION = "1.0.55"
+APP_VERSION_CODE = 55
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -1531,7 +1531,7 @@ def main(page: ft.Page):
     global sent_notifications,events_list,filter_date
     global transactions  # 添加这行
     global current_page, floating_add_button,show_scroll_top_btn  # 添加这行，用于记录当前页面
-    global auto_fullscreen_lyrics  # 添加这行
+    global auto_fullscreen_lyrics,hide_progress_timer  # 添加这行
     
 
 
@@ -1586,6 +1586,9 @@ def main(page: ft.Page):
     reminder_flags = {}  # 存储提醒标记
 
     three_days_events = []  # 存储3日内事件列表
+
+    # ========== 隐藏进度文本的定时器 ==========
+    hide_progress_timer = None
 
     auto_fullscreen_lyrics = False  # 记录是否需要在下次播放时自动打开全屏歌词
 
@@ -2776,8 +2779,16 @@ def main(page: ft.Page):
         try:
             from mutagen.mp3 import MP3
             current_duration = MP3(sound_file).info.length
+            print(f"[播放] 音乐时长: {current_duration} 秒")
         except:
-            current_duration = 180
+            # 尝试其他格式
+            try:
+                from mutagen.wave import WAVE
+                current_duration = WAVE(sound_file).info.length
+                print(f"[播放] 音乐时长(WAVE): {current_duration} 秒")
+            except:
+                current_duration = 180  # 默认3分钟
+                print(f"[播放] 无法获取时长，使用默认值: {current_duration} 秒")
         
         # 在开始播放时，显示通知
         if event_name:
@@ -4883,6 +4894,28 @@ def main(page: ft.Page):
                 events_list.controls.pop()
         
         page.update()
+    
+    def get_music_duration_display(file_path):
+        """获取音乐文件的时长，返回格式化的字符串"""
+        if not file_path or not os.path.exists(file_path):
+            return ""
+        
+        try:
+            from mutagen.mp3 import MP3
+            duration = MP3(file_path).info.length
+            return format_time(duration)
+        except:
+            try:
+                from mutagen.wave import WAVE
+                duration = WAVE(file_path).info.length
+                return format_time(duration)
+            except:
+                try:
+                    from mutagen.flac import FLAC
+                    duration = FLAC(file_path).info.length
+                    return format_time(duration)
+                except:
+                    return ""
 
     def display_event_card(event, is_filter_mode=False, custom_days_until=None):
         """显示单个事件卡片"""
@@ -4920,8 +4953,6 @@ def main(page: ft.Page):
 
             status_color = ft.Colors.GREY_600
             status_text = ""
-
-            
             
             # ========== 每天事件特殊处理（放在最前面） ==========
             if event.event_type == "daily":
@@ -5127,12 +5158,17 @@ def main(page: ft.Page):
         
         # ========== 获取音乐名称和状态 ==========
         music_name = None
+        music_duration_str = ""  # 新增：时长显示
         music_status_icon = "🔇"
         music_status_text = "❌ 无音乐"
         music_status_color = ft.Colors.GREY_400
         
         if event.sound_file and os.path.exists(event.sound_file):
             music_name = get_full_music_name(event.sound_file)
+
+            # ========== 获取歌曲时长 ==========
+            music_duration_str = get_music_duration_display(event.sound_file)
+
             if current_playing_event_id == event.id:
                 if current_music_state == "playing":
                     music_status_icon = "▶️"
@@ -5144,7 +5180,7 @@ def main(page: ft.Page):
                     music_status_color = ft.Colors.ORANGE_700
             else:
                 music_status_icon = "🎵"
-                music_status_text = "未播放"
+                music_status_text = "🔇"
                 music_status_color = ft.Colors.GREY_500
         
         # 创建动态音乐显示Row
@@ -5154,6 +5190,8 @@ def main(page: ft.Page):
             ft.Text(music_status_icon, size=10),
             ft.Text(music_name if music_name else "无音乐", size=10, color=ft.Colors.GREY_600,
                     weight=ft.FontWeight.NORMAL if music_status_icon in ["🔇", "🎵"] else ft.FontWeight.BOLD),
+            # ========== 时长显示在音乐名称后面 ==========
+            ft.Text(f"【{music_duration_str}】" if music_duration_str else "", size=9, color=ft.Colors.GREY_400),
             ft.Text(music_status_text, size=9, color=music_status_color,
                     weight=ft.FontWeight.BOLD if music_status_icon in ["▶️", "⏸️"] else ft.FontWeight.NORMAL),
         ], spacing=3, vertical_alignment=ft.CrossAxisAlignment.CENTER)
@@ -10265,17 +10303,210 @@ def main(page: ft.Page):
         border_radius=5,
         bgcolor=ft.Colors.TRANSPARENT,  # 改为透明，与系统背景一致
     )
+    
+    # ========== 创建进度显示容器（默认隐藏，气泡方式跟随滑块） ==========
+    progress_text = ft.Text(
+        "0:00", 
+        size=10, 
+        color=ft.Colors.WHITE,
+        weight=ft.FontWeight.BOLD,
+        text_align=ft.TextAlign.CENTER,
+    )
 
+    # 气泡容器
+    progress_bubble = ft.Container(
+        content=progress_text,
+        width=90,  # 固定宽度
+        height=30,  # 固定高度（小于宽度，形成椭圆形）
+        bgcolor=ft.Colors.BLUE_700,
+        border_radius=15,  # 高度的一半，形成椭圆
+        visible=False,
+        alignment=ft.Alignment(0, 0),  # 内容居中
+        shadow=ft.BoxShadow(
+            spread_radius=1,
+            blur_radius=6,
+            color=ft.Colors.BLACK26,
+            offset=ft.Offset(0, 2),
+        ),
+    )
+
+    # 滑块
     progress_slider = ft.Slider(
         min=0, 
         max=100, 
         value=0,
-        disabled=True,
+        disabled=False,
         expand=True,
-        active_color=ft.Colors.BLUE_700,  # 进度条颜色
-        inactive_color=ft.Colors.GREY_300,  # 背景颜色
-        )  # 添加 disabled=True
-    progress_text = ft.Text("0:00 / 0:00", size=11, color=ft.Colors.GREY_700)
+        active_color=ft.Colors.BLUE_700,
+        inactive_color=ft.Colors.GREY_300,
+    )
+
+    # ========== 节流控制 ==========
+    hide_progress_timer = None
+
+    def hide_progress_text():
+        """隐藏进度文本"""
+        global hide_progress_timer
+        progress_bubble.visible = False
+        page.update()
+        hide_progress_timer = None
+
+    # ========== 创建固定宽度的滑块容器 ==========
+    SLIDER_WIDTH = 470  # 根据实际屏幕调整
+
+    slider_wrapper = ft.Container(
+        content=ft.Row([progress_slider], alignment=ft.MainAxisAlignment.CENTER),
+        width=SLIDER_WIDTH,
+    )
+
+    def get_slider_value_position():
+        """获取滑块值对应的像素位置"""
+        # 直接使用固定宽度
+        slider_width = SLIDER_WIDTH
+        
+        value_percent = progress_slider.value / 100
+        slider_padding = 18
+        available = slider_width - slider_padding * 2
+        bubble_center = slider_padding + available * value_percent
+        bubble_half_width = 45
+        left_pos = bubble_center - bubble_half_width
+        
+        if left_pos < 0:
+            left_pos = 0
+        if left_pos > slider_width - 90:
+            left_pos = slider_width - 90
+        
+        return left_pos
+
+    def on_slider_change(e):
+        """滑块值改变时显示时间，2秒后自动隐藏"""
+        global hide_progress_timer
+        
+        if hide_progress_timer:
+            try:
+                hide_progress_timer.cancel()
+            except:
+                pass
+            hide_progress_timer = None
+        
+        # ========== 获取当前时长 ==========
+        duration = current_duration
+        if duration <= 0:
+            if current_music_file and os.path.exists(current_music_file):
+                try:
+                    from mutagen.mp3 import MP3
+                    duration = MP3(current_music_file).info.length
+                except:
+                    try:
+                        from mutagen.wave import WAVE
+                        duration = WAVE(current_music_file).info.length
+                    except:
+                        duration = 0
+        
+        if duration > 0:
+            current_pos = (progress_slider.value / 100) * duration
+            # ========== 显示完整时间：当前时间 / 总时长 ==========
+            progress_text.value = f"{format_time(current_pos)} / {format_time(duration)}"
+        else:
+            progress_text.value = "0:00 / 0:00"
+        
+        # 计算并更新气泡位置
+        new_left = get_slider_value_position()
+        progress_bubble_container.left = new_left
+        
+        # 显示气泡
+        progress_bubble.visible = True
+        page.update()
+        
+        # 2秒后自动隐藏
+        hide_progress_timer = threading.Timer(2.0, hide_progress_text)
+        hide_progress_timer.daemon = True
+        hide_progress_timer.start()
+    
+    # ========== 新增：拖动结束，跳转到指定位置 ==========
+    def on_slider_change_end(e):
+        """用户结束拖动时，跳转到指定位置"""
+        global current_audio, current_position_sec, current_duration
+        
+        if not current_audio:
+            print("[快进] 没有正在播放的音乐")
+            show_snack_bar("没有正在播放的音乐")
+            return
+        
+        # ========== 直接使用全局 current_duration ==========
+        duration = current_duration
+
+        print(f"打印duration长度： {duration}")
+        
+        # 如果 current_duration 为 0，尝试从音乐文件读取
+        if duration <= 0 and current_music_file and os.path.exists(current_music_file):
+            try:
+                from mutagen.mp3 import MP3
+                duration = MP3(current_music_file).info.length
+                print(f"[时长] 从MP3读取: {duration}")
+            except:
+                try:
+                    from mutagen.wave import WAVE
+                    duration = WAVE(current_music_file).info.length
+                    print(f"[时长] 从WAVE读取: {duration}")
+                except:
+                    duration = 0
+        
+        if duration <= 0:
+            print(f"[快进] 无效的时长: {duration}")
+            show_snack_bar("无法获取音乐时长")
+            return
+        
+        # 计算目标位置（秒）
+        target_position = (progress_slider.value / 100) * duration
+        target_ms = int(target_position * 1000)
+        
+        print(f"[快进] 跳转到: {format_time(target_position)} / {format_time(duration)}")
+        print(f"[快进] current_duration 值: {current_duration}")
+        
+        try:
+            async def seek_to():
+                try:
+                    # 尝试 seek
+                    if hasattr(current_audio, 'seek'):
+                        await current_audio.seek(target_ms)
+                        print(f"[快进] seek 成功: {target_ms}ms")
+                    else:
+                        print("[快进] 当前音频控件不支持跳转")
+                        show_snack_bar("当前音频控件不支持拖动快进")
+                        return
+                    
+                    # 更新全局位置
+                    current_position_sec = target_position
+                    
+                    # 更新歌词显示
+                    if current_lyrics:
+                        update_lyrics_display(target_position, current_lyrics, lyrics_display_widgets, is_fullscreen=False)
+                    
+                    page.update()
+                    show_snack_bar(f"已跳转到 {format_time(target_position)}")
+                    
+                except Exception as ex:
+                    print(f"[快进] 跳转失败: {ex}")
+                    show_snack_bar(f"跳转失败: {str(ex)}")
+            
+            asyncio.create_task(seek_to())
+            
+        except Exception as ex:
+            print(f"[快进] 跳转失败: {ex}")
+            show_snack_bar(f"跳转失败: {str(ex)}")
+
+    # 绑定事件
+    progress_slider.on_change = on_slider_change
+    progress_slider.on_change_end = on_slider_change_end  # 新增：拖动结束事件
+
+    # 气泡容器（用于定位）
+    progress_bubble_container = ft.Container(
+        content=progress_bubble,
+        top=2,
+        left=0,
+    )
+
     lyrics_display_container, lyrics_display_widgets = create_lyrics_display()
 
     count_text = ft.Text(value=f"📊 事件总数: {len(events)}", size=12, color=ft.Colors.BLUE_700)
@@ -10391,17 +10622,24 @@ def main(page: ft.Page):
         tooltip="点击查看事件",
     )
 
-    # 在创建 main_content 之前，先创建音乐播放控制区域容器
+    # ========== 创建音乐控制容器 ==========
     music_control_container = ft.Container(
         content=ft.Column([
             music_title_container,
-            ft.Row([progress_slider, progress_text], spacing=10, alignment=ft.MainAxisAlignment.CENTER),
+            ft.Container(height=8),
+            ft.Container(
+                content=ft.Stack([
+                    slider_wrapper,
+                    progress_bubble_container,
+                ], height=90),
+                alignment=ft.Alignment(0, 0),
+            ),
             lyrics_display_container,
         ], spacing=5, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
         padding=10,
         bgcolor=ft.Colors.TRANSPARENT,
         border_radius=10,
-        visible=False,  # 初始隐藏
+        visible=False,
     )
 
     # 创建播放控制按钮（可隐藏）
