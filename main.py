@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.56"
-APP_VERSION_CODE = 56
+APP_VERSION = "1.0.57"
+APP_VERSION_CODE = 57
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -1464,7 +1464,28 @@ def get_data_file_path(filename):
         return os.path.join(app_data_dir, filename)
     else:
         return filename
+    
+SLIDER_WIDTH = 470  # 默认值，会在 main 中重新计算
 
+# ========== 在 main 函数之前定义 ==========
+def get_slider_width(page):
+    """根据页面宽度获取滑块宽度"""
+    try:
+        if hasattr(page, 'window_width') and page.window_width:
+            page_width = page.window_width
+        else:
+            page_width = 500
+        
+        slider_width = page_width - 60
+        if slider_width < 280:
+            slider_width = 280
+        if slider_width > 600:
+            slider_width = 600
+        
+        return slider_width
+    except:
+        return 350
+    
 def main(page: ft.Page):
 
     """入口：检查设备授权"""
@@ -1531,7 +1552,8 @@ def main(page: ft.Page):
     global sent_notifications,events_list,filter_date
     global transactions  # 添加这行
     global current_page, floating_add_button,show_scroll_top_btn  # 添加这行，用于记录当前页面
-    global auto_fullscreen_lyrics,hide_progress_timer,current_selected_lunar  # 添加这行
+    global auto_fullscreen_lyrics,hide_progress_timer,current_selected_lunar,last_card_update_time  # 添加这行
+    global SLIDER_WIDTH
     
 
 
@@ -1589,6 +1611,14 @@ def main(page: ft.Page):
 
     # ========== 在文件顶部添加全局变量 ==========
     current_selected_lunar = ""  # 存储当前选中的农历日期
+
+    # 添加一个时间戳变量，控制刷新频率
+    last_card_update_time = 0
+
+    # ========== 根据页面宽度计算滑块宽度 ==========
+    SLIDER_WIDTH = get_slider_width(page)
+    print(f"[滑块宽度] {SLIDER_WIDTH}")
+    #show_bottom_message(f"[滑块宽度] {SLIDER_WIDTH}")
 
     # ========== 隐藏进度文本的定时器 ==========
     hide_progress_timer = None
@@ -3044,31 +3074,40 @@ def main(page: ft.Page):
                 print(f"[自动全屏] 条件不满足: state={current_music_state}, lyrics={len(current_lyrics) if current_lyrics else 0}")
         
         def on_position_change(e):
-            nonlocal local_position_sec  # 使用 nonlocal 修改局部变量
+            nonlocal local_position_sec
+            global last_card_update_time, current_position_sec
+            
             if e.position is not None:
                 local_position_sec = e.position / 1000
-                #print(f"[位置更新] 当前位置: {local_position_sec:.2f}秒, 歌词行数: {len(current_lyrics)}")
                 
                 if current_duration > 0:
                     progress = (local_position_sec / current_duration) * 100
                     progress = max(0, min(100, progress))
                     progress_slider.value = progress
-                    progress_text.value = f"{format_time(local_position_sec)} / {format_time(current_duration)}"
                     progress_slider.update()
-                    progress_text.update()
+                    
+                    # 如果进度文本可见，更新时间
+                    if progress_text.visible:
+                        progress_text.value = f"{format_time(local_position_sec)} / {format_time(current_duration)}"
+                        progress_text.update()
                 
-                # 更新歌词显示（普通模式）
-                if current_lyrics:
-                    update_lyrics_display(local_position_sec, current_lyrics, lyrics_display_widgets, is_fullscreen=False)
-                    #print(f"[歌词更新] 已调用 update_lyrics_display")
-                
-                # 更新全局位置供全屏歌词使用
-                global current_position_sec
+                # 更新全局位置
                 current_position_sec = local_position_sec
                 
-                # 如果全屏模式打开，也更新全屏歌词
+                # 更新歌词显示
+                if current_lyrics:
+                    update_lyrics_display(local_position_sec, current_lyrics, lyrics_display_widgets, is_fullscreen=False)
+                
+                # ========== 每2秒刷新一次事件卡片，更新时长显示 ==========
+                import time
+                current_time = time.time()
+                if current_time - last_card_update_time >= 0:
+                    last_card_update_time = current_time
+                    # 刷新当前视图，更新卡片上的时长
+                    refresh_current_view_by_state()
+                
+                # 如果全屏歌词打开，也更新
                 if lyrics_fullscreen_container and lyrics_fullscreen_container in page.overlay:
-                    # 更新已经在 auto_scroll_to_current 中处理
                     pass
         
         audio = ftaudio.Audio(
@@ -4922,7 +4961,7 @@ def main(page: ft.Page):
 
     def display_event_card(event, is_filter_mode=False, custom_days_until=None):
         """显示单个事件卡片"""
-        global current_playing_event_id, current_music_state
+        global current_playing_event_id, current_music_state, current_position_sec
         
         today = datetime.now().date()
         now = datetime.now()
@@ -5161,7 +5200,7 @@ def main(page: ft.Page):
         
         # ========== 获取音乐名称和状态 ==========
         music_name = None
-        music_duration_str = ""  # 新增：时长显示
+        music_duration_str = ""  # 显示当前播放位置/总时长
         music_status_icon = "🔇"
         music_status_text = "❌ 无音乐"
         music_status_color = ft.Colors.GREY_400
@@ -5169,10 +5208,18 @@ def main(page: ft.Page):
         if event.sound_file and os.path.exists(event.sound_file):
             music_name = get_full_music_name(event.sound_file)
 
-            # ========== 获取歌曲时长 ==========
-            music_duration_str = get_music_duration_display(event.sound_file)
-
+            # ========== 获取歌曲总时长 ==========
+            total_duration = get_music_duration_display(event.sound_file)
+            
+            # ========== 如果是当前播放的事件，显示实时位置 ==========
             if current_playing_event_id == event.id:
+                # 直接获取当前的播放位置
+                pos_sec = current_position_sec
+                if pos_sec > 0 and total_duration:
+                    music_duration_str = f"{format_time(pos_sec)} / {total_duration}"
+                else:
+                    music_duration_str = total_duration if total_duration else ""
+                
                 if current_music_state == "playing":
                     music_status_icon = "▶️"
                     music_status_text = "播放中"
@@ -5181,20 +5228,28 @@ def main(page: ft.Page):
                     music_status_icon = "⏸️"
                     music_status_text = "已暂停"
                     music_status_color = ft.Colors.ORANGE_700
+                else:
+                    music_status_icon = "🎵"
+                    music_status_text = "未播放"
+                    music_status_color = ft.Colors.GREY_500
             else:
                 music_status_icon = "🎵"
-                music_status_text = "🔇"
+                music_status_text = "未播放"
                 music_status_color = ft.Colors.GREY_500
+                music_duration_str = total_duration if total_duration else ""
         
-        # 创建动态音乐显示Row
+        # ========== 创建动态音乐显示Row ==========
+        # 直接使用文本，不保存引用
+        duration_display = f"⏱️ {music_duration_str}" if music_duration_str else ""
+        
         music_info_row = ft.Row([
             ft.Text(f"🏷️ {type_name}", size=10, color=ft.Colors.BLUE_400),
             ft.Container(width=8),
             ft.Text(music_status_icon, size=10),
             ft.Text(music_name if music_name else "无音乐", size=10, color=ft.Colors.GREY_600,
                     weight=ft.FontWeight.NORMAL if music_status_icon in ["🔇", "🎵"] else ft.FontWeight.BOLD),
-            # ========== 时长显示在音乐名称后面 ==========
-            ft.Text(f"【{music_duration_str}】" if music_duration_str else "", size=9, color=ft.Colors.GREY_400),
+            ft.Text(duration_display, size=9, color=ft.Colors.BLUE_700 if current_playing_event_id == event.id else ft.Colors.GREY_500,
+                    weight=ft.FontWeight.BOLD if current_playing_event_id == event.id else ft.FontWeight.NORMAL),
             ft.Text(music_status_text, size=9, color=music_status_color,
                     weight=ft.FontWeight.BOLD if music_status_icon in ["▶️", "⏸️"] else ft.FontWeight.NORMAL),
         ], spacing=3, vertical_alignment=ft.CrossAxisAlignment.CENTER)
@@ -10372,9 +10427,6 @@ def main(page: ft.Page):
         page.update()
         hide_progress_timer = None
 
-    # ========== 创建固定宽度的滑块容器 ==========
-    SLIDER_WIDTH = 470  # 根据实际屏幕调整
-
     slider_wrapper = ft.Container(
         content=ft.Row([progress_slider], alignment=ft.MainAxisAlignment.CENTER),
         width=SLIDER_WIDTH,
@@ -10614,7 +10666,10 @@ def main(page: ft.Page):
             page.run_task(async_stop_marquee)
             if marquee_text._initialized:
                 marquee_text._draw_frame()
-        
+
+        # ========== 新增：刷新事件列表，更新卡片上的时长 ==========
+        #refresh_current_view_by_state()
+
         print(f"[update_current_playing_info] UI更新完成")
     # ========== 函数添加结束 ==========
 
