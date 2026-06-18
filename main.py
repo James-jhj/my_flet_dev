@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.58"
-APP_VERSION_CODE = 58
+APP_VERSION = "1.0.59"
+APP_VERSION_CODE = 59
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -10353,22 +10353,29 @@ def main(page: ft.Page):
         bgcolor=ft.Colors.TRANSPARENT,  # 改为透明，与系统背景一致
     )
     
-    # ========== 根据页面宽度计算滑块宽度 ==========
-    try:
-        if hasattr(page, 'window_width') and page.window_width:
-            page_width = page.window_width
-        else:
-            page_width = 500
-        
-        # 减去左右边距
-        SLIDER_WIDTH = page_width - 60
-        if SLIDER_WIDTH < 280:
-            SLIDER_WIDTH = 280
-        if SLIDER_WIDTH > 600:
-            SLIDER_WIDTH = 600
-        print(f"[滑块宽度] 页面宽度: {page_width}, 滑块宽度: {SLIDER_WIDTH}")
-    except:
-        SLIDER_WIDTH = 350
+    # ========== 根据平台设置滑块宽度 ==========
+    #import platform
+    is_android = platform.system() == "Linux"  # Android 是 Linux
+    
+    if is_android:
+        # 手机：使用较小的固定值
+        SLIDER_WIDTH = 320  # 可以根据实际手机调整
+        print(f"[手机模式] SLIDER_WIDTH = {SLIDER_WIDTH}")
+    else:
+        # 电脑：根据页面宽度计算
+        try:
+            if hasattr(page, 'window_width') and page.window_width:
+                page_width = page.window_width
+                SLIDER_WIDTH = page_width - 60
+                if SLIDER_WIDTH < 400:
+                    SLIDER_WIDTH = 400
+                if SLIDER_WIDTH > 600:
+                    SLIDER_WIDTH = 600
+            else:
+                SLIDER_WIDTH = 470
+        except:
+            SLIDER_WIDTH = 470
+        print(f"[电脑模式] SLIDER_WIDTH = {SLIDER_WIDTH}")
 
     # ========== 创建进度显示容器（默认隐藏，气泡方式跟随滑块） ==========
     progress_text = ft.Text(
@@ -10425,11 +10432,23 @@ def main(page: ft.Page):
 
     def get_slider_value_position():
         """获取滑块值对应的像素位置"""
+        global SLIDER_WIDTH
+
         # 直接使用固定宽度
         slider_width = SLIDER_WIDTH
-        
         value_percent = progress_slider.value / 100
-        slider_padding = 18
+
+        # ========== 根据平台判断 ==========
+        #import platform
+        is_android = platform.system() == "Linux"
+        
+        if is_android:
+            # 手机上滑块的左右边距更大
+            slider_padding = 28  # 手机使用更大的 padding
+            print(f"[手机] value: {value_percent:.2f}, padding: {slider_padding}")
+        else:
+            slider_padding = 18
+
         available = slider_width - slider_padding * 2
         bubble_center = slider_padding + available * value_percent
         bubble_half_width = 35
