@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.59"
-APP_VERSION_CODE = 59
+APP_VERSION = "1.0.60"
+APP_VERSION_CODE = 60
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -1532,7 +1532,7 @@ def main(page: ft.Page):
     global transactions  # 添加这行
     global current_page, floating_add_button,show_scroll_top_btn  # 添加这行，用于记录当前页面
     global auto_fullscreen_lyrics,hide_progress_timer,current_selected_lunar,last_card_update_time  # 添加这行
-    global SLIDER_WIDTH, progress_slider, progress_bubble, progress_bubble_container, slider_wrapper
+    global SLIDER_WIDTH, progress_slider, progress_bubble, progress_bubble_container, slider_wrapper,card_duration_texts
 
 
     page.window_icon = "icon.png"
@@ -1584,6 +1584,8 @@ def main(page: ft.Page):
     sent_notifications = set()  # 记录已发送的通知，格式: "事件ID_提醒时间_日期"
 
     reminder_flags = {}  # 存储提醒标记
+
+    card_duration_texts = {}  # {event_id: Text控件}
 
     three_days_events = []  # 存储3日内事件列表
 
@@ -2938,7 +2940,27 @@ def main(page: ft.Page):
                 print("[播放状态] 音乐播放完成")
                 is_playing = False
                 current_audio = None
+
+                # ========== 1. 先从 card_duration_texts 中删除该卡片的引用 ==========
+                if original_event_id and original_event_id in card_duration_texts:
+                    try:
+                        # 直接删除引用，让卡片无法被更新
+                        del card_duration_texts[original_event_id]
+                        print(f"[播放完成] 已删除卡片引用: {original_event_id}")
+                    except Exception as e:
+                        print(f"[播放完成] 删除引用失败: {e}")
+                
+                # ========== 2. 再设置状态 ==========
                 current_music_state = "stopped"
+                
+                # ========== 3. 然后刷新整个列表，让卡片显示总时长 ==========
+                # 延迟一点点刷新，确保状态已经更新
+                async def refresh_after_complete():
+                    await asyncio.sleep(0.1)
+                    # 刷新当前视图，重新创建卡片
+                    refresh_current_view_by_state()
+                
+                asyncio.create_task(refresh_after_complete())
 
                 # 如果是试听模式，清除事件ID
                 if current_playing_event_id is None or current_playing_event_id not in events:
@@ -3048,10 +3070,19 @@ def main(page: ft.Page):
         
         def on_position_change(e):
             nonlocal local_position_sec
-            global last_card_update_time, current_position_sec
+            global last_card_update_time, current_position_sec,card_duration_texts
             
             if e.position is not None:
                 local_position_sec = e.position / 1000
+
+                # ========== 如果音乐已停止，不更新卡片时长 ==========
+                if current_music_state == "stopped":
+                    # 更新全局位置（但不更新卡片）
+                    current_position_sec = local_position_sec
+                    return
+
+                # ========== 获取总时长（使用 current_duration 数字） ==========
+                total_duration_sec = current_duration  # 这是数字（秒）
                 
                 if current_duration > 0:
                     progress = (local_position_sec / current_duration) * 100
@@ -3070,14 +3101,41 @@ def main(page: ft.Page):
                 # 更新歌词显示
                 if current_lyrics:
                     update_lyrics_display(local_position_sec, current_lyrics, lyrics_display_widgets, is_fullscreen=False)
-                
-                # ========== 每2秒刷新一次事件卡片，更新时长显示 ==========
-                import time
-                current_time = time.time()
-                if current_time - last_card_update_time >= 0:
-                    last_card_update_time = current_time
-                    # 刷新当前视图，更新卡片上的时长
-                    refresh_current_view_by_state()
+
+                # ========== 只有当音乐正在播放或暂停时，才更新卡片时长 ==========
+                # ========== 更新卡片时长 ==========
+                if current_music_state in ["playing", "paused"]:
+                    if current_playing_event_id and current_playing_event_id in card_duration_texts:
+                        if total_duration_sec and total_duration_sec > 0 and local_position_sec > 0:
+                            current_pos_str = format_time(local_position_sec)
+                            total_duration_str = format_time(total_duration_sec)
+                            duration_text = card_duration_texts[current_playing_event_id]
+                            
+                            try:
+                                if hasattr(duration_text, 'page') and duration_text.page is not None:
+                                    # ========== 如果当前位置接近总时长（差0.5秒内），显示总时长 ==========
+                                    if local_position_sec >= total_duration_sec - 0.5:
+                                        duration_text.value = f"⏱️ {total_duration_str}"
+                                        duration_text.color = ft.Colors.GREY_500
+                                        duration_text.weight = ft.FontWeight.NORMAL
+                                    else:
+                                        duration_text.value = f"⏱️ {current_pos_str} / {total_duration_str}"
+                                        duration_text.color = ft.Colors.BLUE_700
+                                        duration_text.weight = ft.FontWeight.BOLD
+                                    duration_text.update()
+                                else:
+                                    if current_playing_event_id in card_duration_texts:
+                                        del card_duration_texts[current_playing_event_id]
+                            except Exception as ex:
+                                print(f"[时长更新] 更新失败: {ex}")
+                                if current_playing_event_id in card_duration_texts:
+                                    del card_duration_texts[current_playing_event_id]
+                # 更新全局位置
+                current_position_sec = local_position_sec
+
+                # 更新歌词显示
+                if current_lyrics:
+                    update_lyrics_display(local_position_sec, current_lyrics, lyrics_display_widgets, is_fullscreen=False)
                 
                 # 如果全屏歌词打开，也更新
                 if lyrics_fullscreen_container and lyrics_fullscreen_container in page.overlay:
@@ -3100,7 +3158,7 @@ def main(page: ft.Page):
 
     def stop_music():
         global current_audio, is_playing, current_music_file, current_lyrics
-        global current_playing_event_id, current_music_state, music_section_container, playback_buttons
+        global current_playing_event_id, current_music_state, music_section_container, playback_buttons,card_duration_texts
         
         print("停止音乐")
         
@@ -3211,6 +3269,25 @@ def main(page: ft.Page):
             # ========== 根据当前视图刷新对应的视图 ==========
             refresh_current_view_by_state()
             #refresh_events_list()
+
+            # ========== 清除卡片时长显示 ==========
+            if clearing_event_id and clearing_event_id in card_duration_texts:
+                try:
+                    duration_text = card_duration_texts[clearing_event_id]
+                    if hasattr(duration_text, 'page') and duration_text.page is not None:
+                        # 只显示总时长
+                        total_duration = get_music_duration_display(current_music_file) if current_music_file else ""
+                        duration_text.value = f"⏱️ {total_duration}" if total_duration else ""
+                        duration_text.color = ft.Colors.GREY_500
+                        duration_text.weight = ft.FontWeight.NORMAL
+                        duration_text.update()
+                    else:
+                        if clearing_event_id in card_duration_texts:
+                            del card_duration_texts[clearing_event_id]
+                except Exception as e:
+                    print(f"[停止音乐] 清除时长显示失败: {e}")
+                    if clearing_event_id in card_duration_texts:
+                        del card_duration_texts[clearing_event_id]
             
             # 注意：不要再调用 music_state_update_callback，因为我们已经手动设置了UI
             # 如果需要通知其他组件，可以考虑，但会导致重复更新
@@ -3355,8 +3432,12 @@ def main(page: ft.Page):
     
     def show_daily_events():
         """显示每日事件列表"""
-        global current_view, events_list
+        global current_view, events_list, card_duration_texts
         current_view = "daily"
+
+        # ========== 清空旧的卡片引用 ==========
+        card_duration_texts.clear()
+
         events_list.controls.clear()
         
         print(f"[DEBUG] show_daily_events 被调用, current_view={current_view}")
@@ -3378,8 +3459,12 @@ def main(page: ft.Page):
         
         print(f"[show_daily_events] 每日事件数量: {len(daily_events)}")
 
-        # 按提醒时间排序（由早到晚）
+        # 按提醒时间排序
         daily_events.sort(key=lambda x: x["sort_time"])
+        
+        # ========== 提取事件对象并调用置顶排序 ==========
+        event_list = [item["event"] for item in daily_events]
+        event_list = get_sorted_events_for_display(event_list)
         
         # ========== 始终显示标题行和下拉框 ==========
         if hasattr(refresh_events_list, 'view_dropdown'):
@@ -3401,10 +3486,15 @@ def main(page: ft.Page):
                 )
             )
         else:
-            for item in daily_events:
-                display_event_card(item["event"], is_filter_mode=True)
-
-            # 移除最后一个多余的分隔符
+            # ========== 调试：打印排序后的事件列表 ==========
+            print(f"[显示] 排序后事件列表:")
+            for idx, event in enumerate(event_list):
+                is_playing = (event.id == current_playing_event_id and current_music_state in ["playing", "paused"])
+                print(f"  {idx}: {event.name}, is_playing: {is_playing}")
+            
+            for event in event_list:
+                display_event_card(event, is_filter_mode=True)
+            
             if events_list.controls and isinstance(events_list.controls[-1], ft.Divider):
                 events_list.controls.pop()
         
@@ -3413,8 +3503,12 @@ def main(page: ft.Page):
     
     def show_weekly_events():
         """显示每周事件列表"""
-        global current_view, events_list
+        global current_view, events_list, card_duration_texts
         current_view = "weekly"
+
+        # ========== 清空旧的卡片引用 ==========
+        card_duration_texts.clear()
+
         events_list.controls.clear()
 
         weekly_events = []
@@ -3430,6 +3524,10 @@ def main(page: ft.Page):
         
         # 按剩余天数排序（由近到远）
         weekly_events.sort(key=lambda x: x["days_until"])
+
+         # ========== 提取事件对象列表并调用排序函数 ==========
+        event_list = [item["event"] for item in weekly_events]
+        event_list = get_sorted_events_for_display(event_list)
 
         # ========== 始终显示标题行和下拉框 ==========
         if hasattr(refresh_events_list, 'view_dropdown'):
@@ -3450,8 +3548,8 @@ def main(page: ft.Page):
                 )
             )
         else:
-            for item in weekly_events:
-                display_event_card(item["event"], is_filter_mode=True)
+            for event in event_list:
+                display_event_card(event, is_filter_mode=True)
 
             # 移除最后一个多余的分隔符
             if events_list.controls and isinstance(events_list.controls[-1], ft.Divider):
@@ -3461,8 +3559,12 @@ def main(page: ft.Page):
 
     def show_three_days_events():
         """显示3日内事件列表（预警事件）"""
-        global current_view, events_list
+        global current_view, events_list, card_duration_texts
         current_view = "three_days"
+
+        # ========== 清空旧的卡片引用 ==========
+        card_duration_texts.clear()
+
         events_list.controls.clear()
         
         today = datetime.now().date()
@@ -3506,6 +3608,10 @@ def main(page: ft.Page):
         
         # 按剩余天数排序
         three_days_events.sort(key=lambda x: x[1])
+
+        # ========== 提取事件对象列表并调用排序函数 ==========
+        event_list = [item[0] for item in three_days_events]
+        event_list = get_sorted_events_for_display(event_list)
         
         # 添加标题行
         if hasattr(refresh_events_list, 'view_dropdown'):
@@ -3527,7 +3633,8 @@ def main(page: ft.Page):
                 )
             )
         else:
-            for event, days_until in three_days_events:
+            # ========== 直接使用排序后的 event_list ==========
+            for event in event_list:
                 display_event_card(event, is_filter_mode=True)
 
             # 移除最后一个多余的分隔符
@@ -4741,11 +4848,48 @@ def main(page: ft.Page):
         
         #print(f"[日期显示] 今日:{today_events_count}, 预警:{three_days_count}, 每日:{daily_events_count}, 每周:{weekly_events_count}")
         date_text.update()
+    
+    # ========== 在刷新事件列表的函数中，添加排序逻辑 ==========
+
+
+    # ========== 通用置顶排序函数 ==========
+    def get_sorted_events_for_display(events_list):
+        """
+        对事件列表进行排序，播放中的排在第一位
+        events_list: 事件对象列表
+        返回排序后的事件对象列表
+        """
+        if not events_list:
+            return events_list
+        
+        playing_events = []
+        other_events = []
+        
+        # ========== 调试信息 ==========
+        print(f"[置顶调试] current_playing_event_id: {current_playing_event_id}")
+        print(f"[置顶调试] current_music_state: {current_music_state}")
+        
+        for event in events_list:
+            is_playing = (event.id == current_playing_event_id and current_music_state in ["playing", "paused"])
+            print(f"[置顶调试] 事件: {event.name}, id: {event.id}, is_playing: {is_playing}")
+            
+            if is_playing:
+                playing_events.append(event)
+            else:
+                other_events.append(event)
+        
+        result = playing_events + other_events
+        print(f"[置顶调试] 排序后第一个事件: {result[0].name if result else '无'}")
+        
+        return result
 
     def display_all_events():
         """显示全部事件"""
-        global current_view, current_playing_event_id, current_music_state
+        global current_view, current_playing_event_id, current_music_state, card_duration_texts
         current_view = "all"
+
+        # ========== 清空旧的卡片引用 ==========
+        card_duration_texts.clear()
         
         events_list.controls.clear()
         
@@ -4766,12 +4910,11 @@ def main(page: ft.Page):
                     ft.dropdown.Option("once", "⏰ 一次性事件"),
                 ],
                 on_select=lambda e: on_view_change(e),
-                #width=250,
                 expand=True,
             )
             refresh_events_list.view_dropdown.value = current_view
         
-        # ========== 添加标题行（包含下拉框） ==========
+        # ========== 添加标题行 ==========
         title_text = f"📋 全部事件 ({len(events)}个)" if events else "📋 全部事件 0 个"
         events_list.controls.append(ft.Row([
             ft.Text(title_text, size=18, weight=ft.FontWeight.BOLD, expand=True),
@@ -4779,27 +4922,28 @@ def main(page: ft.Page):
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN))
         events_list.controls.append(ft.Divider(height=10))
         
-        # ========== 显示事件内容 ==========
         if not events:
             events_list.controls.append(
                 ft.Container(
                     content=ft.Column([
                         ft.Text("✨ 暂无事件", size=14, color=ft.Colors.GREEN_700),
-                    ], spacing=8,),
+                    ], spacing=8),
                     padding=20,
                 )
             )
             page.update()
             return
         
-        # 有事件时，显示事件数量提示和卡片
         events_list.controls.append(ft.Text(f"✨ 全部事件有 {len(events)} 个", 
                                             size=14, color=ft.Colors.GREEN_700))
         events_list.controls.append(ft.Divider(height=5))
         
-        # 收集并排序事件
+        # ========== 分离播放中的事件和其他事件 ==========
+        playing_event_info = None
+        other_events_info = []
+        
         today = datetime.now().date()
-        all_events_list = []
+        
         for event in events.values():
             month, day, year, base_year, days_until = event.get_next_date_info()
             
@@ -4813,13 +4957,13 @@ def main(page: ft.Page):
                 age_text = "📆 每月提醒"
             elif event.event_type == "daily":
                 age_text = "📆 每天提醒"
-                # 对于每日事件，获取最早的提醒时间用于排序
+                # 每日事件：获取最早的提醒时间用于排序
                 earliest_time = "23:59"
                 if event.reminders:
                     times = [r.get("time", "23:59") for r in event.reminders if r.get("enabled")]
                     if times:
                         earliest_time = min(times)
-                days_until = earliest_time  # 特殊处理：用时间字符串作为排序依据
+                days_until = earliest_time  # 字符串
             elif event.event_type == "weekly":
                 age_text = "📅 每周提醒"
             elif event.repeat_type == "once":
@@ -4831,29 +4975,48 @@ def main(page: ft.Page):
                 else:
                     age_text = "📅 纪念日"
             
-            all_events_list.append({
+            event_info = {
                 "event": event,
                 "month": month,
                 "day": day,
                 "age_text": age_text,
                 "days_until": days_until,
                 "base_year": base_year,
-                "event_type": event.event_type  # 添加事件类型用于排序
-            })
-        
-        # 自定义排序函数
-        def sort_key(item):
-            event_type = item["event_type"]
-            if event_type == "daily":
-                # 每日事件按提醒时间排序（字符串格式 "HH:MM"）
-                return (0, item["days_until"])  # 类型优先级0，按时间字符串排序
+                "event_type": event.event_type
+            }
+            
+            # 判断是否是播放中的事件
+            if event.id == current_playing_event_id and current_music_state in ["playing", "paused"]:
+                playing_event_info = event_info
             else:
-                # 其他事件按剩余天数排序（整数）
-                return (1, item["days_until"])  # 类型优先级1，按天数排序
+                other_events_info.append(event_info)
         
-        all_events_list.sort(key=sort_key)
+        # ========== 先显示播放中的事件 ==========
+        if playing_event_info:
+            print(f"[置顶] 播放中事件: {playing_event_info['event'].name}")
+            display_event_card(playing_event_info["event"], is_filter_mode=True)
         
-        for info in all_events_list:
+        # ========== 对其他事件排序（按事件类型分组排序） ==========
+        # 分离每日事件和其他事件
+        daily_events = []
+        normal_events = []
+        
+        for info in other_events_info:
+            if info["event_type"] == "daily":
+                daily_events.append(info)
+            else:
+                normal_events.append(info)
+        
+        # 每日事件按提醒时间排序
+        daily_events.sort(key=lambda x: x["days_until"])  # days_until 是字符串 "HH:MM"
+        
+        # 其他事件按剩余天数排序
+        normal_events.sort(key=lambda x: x["days_until"])  # days_until 是整数
+        
+        # 合并：每日事件在前，其他事件在后
+        other_events_info = daily_events + normal_events
+        
+        for info in other_events_info:
             display_event_card(info["event"], is_filter_mode=True)
 
         # 移除最后一个多余的分隔符
@@ -4864,8 +5027,12 @@ def main(page: ft.Page):
 
     def show_today_events():
         """显示今日事件列表"""
-        global current_view, events_list
+        global current_view, events_list, card_duration_texts
         current_view = "today"
+
+        # ========== 清空旧的卡片引用 ==========
+        card_duration_texts.clear()
+
         events_list.controls.clear()
         
         today = datetime.now().date()
@@ -4881,6 +5048,9 @@ def main(page: ft.Page):
                         today_events.append(event)
                 else:
                     today_events.append(event)
+
+        # ========== 调用置顶排序 ==========
+        today_events = get_sorted_events_for_display(today_events)
         
         # 先添加标题行（包含下拉框），始终显示
         if hasattr(refresh_events_list, 'view_dropdown'):
@@ -4901,6 +5071,7 @@ def main(page: ft.Page):
                 )
             )
         else:
+            # ========== 直接使用排序后的 today_events ==========
             for event in today_events:
                 display_event_card(event, is_filter_mode=True)
 
@@ -4934,13 +5105,25 @@ def main(page: ft.Page):
 
     def display_event_card(event, is_filter_mode=False, custom_days_until=None):
         """显示单个事件卡片"""
-        global current_playing_event_id, current_music_state, current_position_sec
+        global current_playing_event_id, current_music_state, current_position_sec, events_list,card_duration_texts  # 添加 events_list
         
         today = datetime.now().date()
         now = datetime.now()
         base_year = 0
         month, day = 1, 1
-        bg_color = ft.Colors.WHITE
+
+        # 在 display_event_card 中，判断是否是播放中的事件
+        is_playing_event = (event.id == current_playing_event_id and current_music_state in ["playing", "paused"])
+
+        # 如果是播放中的事件，使用特殊背景色
+        if is_playing_event:
+            bg_color = ft.Colors.BLUE_50  # 浅蓝色背景
+            #border = ft.border.all(1, ft.Colors.BLUE_300)  # 蓝色边框
+        else:
+            bg_color = ft.Colors.WHITE
+            border = None
+
+        #bg_color = ft.Colors.WHITE
 
         # 优先使用自定义天数
         if custom_days_until is not None:
@@ -5212,8 +5395,18 @@ def main(page: ft.Page):
                 music_duration_str = total_duration if total_duration else ""
         
         # ========== 创建动态音乐显示Row ==========
-        # 直接使用文本，不保存引用
+        # ========== 创建时长文本控件（保存引用） ==========
         duration_display = f"⏱️ {music_duration_str}" if music_duration_str else ""
+    
+        duration_text = ft.Text(
+            duration_display, 
+            size=9, 
+            color=ft.Colors.BLUE_700 if current_playing_event_id == event.id else ft.Colors.GREY_500,
+            weight=ft.FontWeight.BOLD if current_playing_event_id == event.id else ft.FontWeight.NORMAL,
+        )
+        
+        # ========== 保存到全局字典中 ==========
+        card_duration_texts[event.id] = duration_text
         
         music_info_row = ft.Row([
             ft.Text(f"🏷️ {type_name}", size=10, color=ft.Colors.BLUE_400),
@@ -5221,8 +5414,7 @@ def main(page: ft.Page):
             ft.Text(music_status_icon, size=10),
             ft.Text(music_name if music_name else "无音乐", size=10, color=ft.Colors.GREY_600,
                     weight=ft.FontWeight.NORMAL if music_status_icon in ["🔇", "🎵"] else ft.FontWeight.BOLD),
-            ft.Text(duration_display, size=9, color=ft.Colors.BLUE_700 if current_playing_event_id == event.id else ft.Colors.GREY_500,
-                    weight=ft.FontWeight.BOLD if current_playing_event_id == event.id else ft.FontWeight.NORMAL),
+            duration_text,  # 使用保存引用的控件
             ft.Text(music_status_text, size=9, color=music_status_color,
                     weight=ft.FontWeight.BOLD if music_status_icon in ["▶️", "⏸️"] else ft.FontWeight.NORMAL),
         ], spacing=3, vertical_alignment=ft.CrossAxisAlignment.CENTER)
@@ -5429,8 +5621,12 @@ def main(page: ft.Page):
     
     def show_monthly_events():
         """显示每月事件列表"""
-        global current_view, current_playing_event_id, current_music_state
+        global current_view, current_playing_event_id, current_music_state, card_duration_texts
         current_view = "monthly"
+        
+        # ========== 清空旧的卡片引用 ==========
+        card_duration_texts.clear()
+
         events_list.controls.clear()
         
         monthly_events = []
@@ -5446,6 +5642,10 @@ def main(page: ft.Page):
         
         # 按剩余天数排序（每月事件的剩余天数是指距离下一个提醒日的天数）
         monthly_events.sort(key=lambda x: x["days_until"])
+
+        # ========== 调用排序函数 ==========
+        event_list = [item["event"] for item in monthly_events]
+        event_list = get_sorted_events_for_display(event_list)
         
         # ========== 始终显示标题行和下拉框 ==========
         if hasattr(refresh_events_list, 'view_dropdown'):
@@ -5466,8 +5666,8 @@ def main(page: ft.Page):
                 )
             )
         else:
-            for item in monthly_events:
-                display_event_card(item["event"], is_filter_mode=True)
+            for event in event_list:
+                display_event_card(event, is_filter_mode=True)
 
             # 移除最后一个多余的分隔符
             if events_list.controls and isinstance(events_list.controls[-1], ft.Divider):
@@ -5477,8 +5677,12 @@ def main(page: ft.Page):
 
     def show_birthday_events():
         """显示生日事件列表"""
-        global current_view, current_playing_event_id, current_music_state
+        global current_view, current_playing_event_id, current_music_state, card_duration_texts
         current_view = "birthday"
+
+        # ========== 清空旧的卡片引用 ==========
+        card_duration_texts.clear()
+
         events_list.controls.clear()
         
         birthday_events = []
@@ -5495,6 +5699,16 @@ def main(page: ft.Page):
         
         # 按剩余天数排序
         birthday_events.sort(key=lambda x: x["days_until"])
+
+        # ========== 调用排序函数 ==========
+        event_list = [item["event"] for item in birthday_events]
+        event_list = get_sorted_events_for_display(event_list)
+
+        # ========== 调试：打印排序后的列表 ==========
+        print(f"[show_birthday_events] 排序后:")
+        for idx, e in enumerate(event_list):
+            is_playing = (e.id == current_playing_event_id and current_music_state in ["playing", "paused"])
+            print(f"  {idx}: {e.name}, is_playing: {is_playing}")
 
         # ========== 始终显示标题行和下拉框 ==========
         if hasattr(refresh_events_list, 'view_dropdown'):
@@ -5515,8 +5729,9 @@ def main(page: ft.Page):
                 )
             )
         else:
-            for item in birthday_events:
-                display_event_card(item["event"], is_filter_mode=True)
+            # ========== 直接使用排序后的 event_list ==========
+            for event in event_list:
+                display_event_card(event, is_filter_mode=True)
 
             # 移除最后一个多余的分隔符
             if events_list.controls and isinstance(events_list.controls[-1], ft.Divider):
@@ -5527,8 +5742,12 @@ def main(page: ft.Page):
 
     def show_event_events():
         """显示纪念日事件列表"""
-        global current_view, current_playing_event_id, current_music_state
+        global current_view, current_playing_event_id, current_music_state, card_duration_texts
         current_view = "event"
+
+        # ========== 清空旧的卡片引用 ==========
+        card_duration_texts.clear()
+
         events_list.controls.clear()
         
         event_events_list = []
@@ -5545,6 +5764,10 @@ def main(page: ft.Page):
         
         # 按剩余天数排序
         event_events_list.sort(key=lambda x: x["days_until"])
+
+        # ========== 调用排序函数 ==========
+        event_list = [item["event"] for item in event_events_list]
+        event_list = get_sorted_events_for_display(event_list)
 
         # ========== 始终显示标题行和下拉框 ==========
         if hasattr(refresh_events_list, 'view_dropdown'):
@@ -5565,8 +5788,8 @@ def main(page: ft.Page):
                 )
             )
         else:
-            for item in event_events_list:
-                display_event_card(item["event"], is_filter_mode=True)
+            for event in event_list:
+                display_event_card(event, is_filter_mode=True)
 
             # 移除最后一个多余的分隔符
             if events_list.controls and isinstance(events_list.controls[-1], ft.Divider):
@@ -5576,8 +5799,12 @@ def main(page: ft.Page):
 
     def show_once_events():
         """显示一次性事件列表"""
-        global current_view, current_playing_event_id, current_music_state
+        global current_view, current_playing_event_id, current_music_state, card_duration_texts
         current_view = "once"
+
+        # ========== 清空旧的卡片引用 ==========
+        card_duration_texts.clear()
+
         events_list.controls.clear()
         
         once_events_list = []
@@ -5594,6 +5821,10 @@ def main(page: ft.Page):
         
         # 按剩余天数排序
         once_events_list.sort(key=lambda x: x["days_until"])
+
+        # ========== 调用排序函数 ==========
+        event_list = [item["event"] for item in once_events_list]
+        event_list = get_sorted_events_for_display(event_list)
 
         # ========== 始终显示标题行和下拉框 ==========
         if hasattr(refresh_events_list, 'view_dropdown'):
@@ -5614,8 +5845,8 @@ def main(page: ft.Page):
                 )
             )
         else:
-            for item in once_events_list:
-                display_event_card(item["event"], is_filter_mode=True)
+            for event in event_list:
+                display_event_card(event, is_filter_mode=True)
 
             # 移除最后一个多余的分隔符
             if events_list.controls and isinstance(events_list.controls[-1], ft.Divider):
@@ -5758,10 +5989,43 @@ def main(page: ft.Page):
                 continue
             if 0 < days_until <= 3:
                 three_days_events.append((evt, days_until))
-                
+    
+    def sort_events_by_playing(events_list):
+        """将事件列表排序，播放中的排在第一位
+        支持传入事件对象列表或字典列表（包含 'event' 键）
+        """
+        if not events_list:
+            return events_list
+        
+        playing_events = []
+        other_events = []
+        
+        for item in events_list:
+            # ========== 判断是事件对象还是字典 ==========
+            if hasattr(item, 'id'):  # 是事件对象
+                event = item
+            elif isinstance(item, dict) and 'event' in item:  # 是字典，包含 'event' 键
+                event = item['event']
+            else:
+                other_events.append(item)
+                continue
+            
+            # 判断是否是播放中的事件
+            if event.id == current_playing_event_id and current_music_state in ["playing", "paused"]:
+                playing_events.append(item)
+            else:
+                other_events.append(item)
+        
+        return playing_events + other_events
+
     def refresh_events_list(filter_date=None):
-        global current_playing_event_id, current_music_state , three_days_events, current_view, current_selected_lunar
+        global current_playing_event_id, current_music_state , three_days_events, current_view, current_selected_lunar,card_duration_texts
         print(f"[DEBUG] refresh_events_list 被调用, filter_date={filter_date}, current_view={current_view}")
+
+        # ========== 清空旧的卡片引用（放在最开头） ==========
+        card_duration_texts.clear()
+        
+        # 清空事件列表控件
         events_list.controls.clear()
         today = datetime.now().date()
         
@@ -5803,6 +6067,18 @@ def main(page: ft.Page):
                     # 如果选中日期已经过了，显示负数
                     filtered_events.append((event, days_until))
             
+            # ========== 调用排序函数 ==========
+            event_list = [item[0] for item in filtered_events]
+            event_list = sort_events_by_playing(event_list)
+            
+            # 重新构建 filtered_events
+            filtered_events = []
+            for event in event_list:
+                days_until = (filter_date - today).days
+                if days_until < 0:
+                    days_until = -1
+                filtered_events.append((event, days_until))
+                
             # 显示筛选结果
             events_list.controls.clear()
 
@@ -10567,8 +10843,8 @@ def main(page: ft.Page):
                         update_lyrics_display(target_position, current_lyrics, lyrics_display_widgets, is_fullscreen=False)
                     
                     page.update()
-                    #show_snack_bar(f"已跳转到 {format_time(target_position)}")
-                    show_snack_bar(f"打印SLIDER_WIDTH宽度：{SLIDER_WIDTH}")
+                    show_snack_bar(f"已跳转到 {format_time(target_position)}")
+                    #show_snack_bar(f"打印SLIDER_WIDTH宽度：{SLIDER_WIDTH}")
                     
                 except Exception as ex:
                     print(f"[快进] 跳转失败: {ex}")
@@ -11192,6 +11468,7 @@ def main(page: ft.Page):
 
                     # ========== 8. 立即执行事件检查 ==========
                     check_events()
+
                 
                 # 原有的更新时钟代码继续...
                 #clock.update_clock()
