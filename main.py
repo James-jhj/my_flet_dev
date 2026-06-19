@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.63"
-APP_VERSION_CODE = 63
+APP_VERSION = "1.0.64"
+APP_VERSION_CODE = 64
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -260,7 +260,7 @@ class SearchableDropdown(ft.Column):
         self.text_field = ft.TextField(
             label=label,
             value=value,
-            height=48,  # Flet TextField 默认高度约 50
+            #height=56,  # Flet TextField 默认高度约 56
             expand=True,
             on_change=self.on_text_change,
             on_focus=self.on_focus,
@@ -281,7 +281,7 @@ class SearchableDropdown(ft.Column):
             content=ft.Column([], spacing=2, scroll=ft.ScrollMode.AUTO),
             #width=300,
             expand=True,
-            height=150,
+            height=350,
             bgcolor=ft.Colors.WHITE,
             border=border,
             border_radius=4,
@@ -1765,6 +1765,7 @@ def main(page: ft.Page):
 
     # 收入分类（预设）
     INCOME_CATEGORIES = [
+        "请选择收入类型",
         "工资收入",
         "报销收入",
         "奖金收入",
@@ -1776,6 +1777,7 @@ def main(page: ft.Page):
     
     # 支出分类（预设）
     EXPENSE_CATEGORIES = [
+        "请选择支持类型",
         "餐饮",
         "水电费-老家",
         "水电费-泉州",
