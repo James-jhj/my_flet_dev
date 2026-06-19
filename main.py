@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.64"
-APP_VERSION_CODE = 64
+APP_VERSION = "1.0.65"
+APP_VERSION_CODE = 65
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -260,7 +260,7 @@ class SearchableDropdown(ft.Column):
         self.text_field = ft.TextField(
             label=label,
             value=value,
-            #height=56,  # Flet TextField 默认高度约 56
+            height=56,  # Flet TextField 默认高度约 56
             expand=True,
             on_change=self.on_text_change,
             on_focus=self.on_focus,
@@ -281,7 +281,7 @@ class SearchableDropdown(ft.Column):
             content=ft.Column([], spacing=2, scroll=ft.ScrollMode.AUTO),
             #width=300,
             expand=True,
-            height=350,
+            height=300,
             bgcolor=ft.Colors.WHITE,
             border=border,
             border_radius=4,
