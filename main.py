@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.65"
-APP_VERSION_CODE = 65
+APP_VERSION = "1.0.66"
+APP_VERSION_CODE = 66
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -969,7 +969,7 @@ class Event:
             
             next_date = datetime.now().date() + timedelta(days=days_until)
         
-            print(f"[每周事件] {self.name}, 今天星期: {today_weekday}, 目标星期: {target_weekday}, 剩余天数: {days_until}")
+            #print(f"[每周事件] {self.name}, 今天星期: {today_weekday}, 目标星期: {target_weekday}, 剩余天数: {days_until}")
 
             return (next_date.month, next_date.day, next_date.year, 0, days_until)
 
@@ -3717,7 +3717,7 @@ def main(page: ft.Page):
         
         # 添加标题行
         if hasattr(refresh_events_list, 'view_dropdown'):
-            title_text = f"⏰ 预警事件 ({len(three_days_events)}个)" if three_days_events else "⏰ 预警事件"
+            title_text = f"⏰ 预警事件 {len(three_days_events)} 个" if three_days_events else "⏰ 预警事件 0 个"
             events_list.controls.append(ft.Row([
                 ft.Text(title_text, size=18, weight=ft.FontWeight.BOLD, expand=True),
                 refresh_events_list.view_dropdown,
@@ -5035,7 +5035,7 @@ def main(page: ft.Page):
             refresh_events_list.view_dropdown.value = current_view
         
         # ========== 添加标题行 ==========
-        title_text = f"📋 全部事件 ({len(events)}个)" if events else "📋 全部事件 0 个"
+        title_text = f"📋 全部事件 {len(events)} 个" if events else "📋 全部事件 0 个"
         events_list.controls.append(ft.Row([
             ft.Text(title_text, size=18, weight=ft.FontWeight.BOLD, expand=True),
             refresh_events_list.view_dropdown,
@@ -5054,9 +5054,8 @@ def main(page: ft.Page):
             page.update()
             return
         
-        events_list.controls.append(ft.Text(f"✨ 全部事件有 {len(events)} 个", 
-                                            size=14, color=ft.Colors.GREEN_700))
-        events_list.controls.append(ft.Divider(height=5))
+        #events_list.controls.append(ft.Text(f"✨ 全部事件有 {len(events)} 个", size=14, color=ft.Colors.GREEN_700))
+        #events_list.controls.append(ft.Divider(height=5))
         
         # ========== 分离播放中的事件和其他事件 ==========
         playing_event_info = None
@@ -5175,7 +5174,7 @@ def main(page: ft.Page):
         # 先添加标题行（包含下拉框），始终显示
         if hasattr(refresh_events_list, 'view_dropdown'):
             events_list.controls.append(ft.Row([
-                ft.Text(f"📅 今日事件 ({len(today_events)}) 个", size=18, weight=ft.FontWeight.BOLD, expand=True),
+                ft.Text(f"📅 今日事件 {len(today_events)} 个", size=18, weight=ft.FontWeight.BOLD, expand=True),
                 refresh_events_list.view_dropdown,
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN))
             events_list.controls.append(ft.Divider(height=10))
@@ -10722,7 +10721,12 @@ def main(page: ft.Page):
 
     date_display = ft.Text(value=current_date.strftime("%Y年%m月%d日"), size=24, weight=ft.FontWeight.BOLD)
     #events_list = ft.Column(spacing=12, scroll=ft.ScrollMode.AUTO, height=400)
-    events_list = ft.Column(spacing=12)
+    #events_list = ft.Column(spacing=12)
+    events_list = ft.ListView(
+        spacing=12,
+        padding=10,
+        auto_scroll=False,
+    )
     
     # 添加新的平滑滚动字幕
     marquee_text = SmoothMarqueeText(
@@ -10730,7 +10734,7 @@ def main(page: ft.Page):
         #width=280,
         height=60,
         speed=0.8,  # 可以适当降低速度
-        fps=60,
+        fps=30,     # 降低帧率
         gap=None,  # None 表示自动计算，间隙 = 文本宽度
         font_size=15,
         font_weight=ft.FontWeight.BOLD,
