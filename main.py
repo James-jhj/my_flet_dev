@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.66"
-APP_VERSION_CODE = 66
+APP_VERSION = "1.0.67"
+APP_VERSION_CODE = 67
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -1765,7 +1765,6 @@ def main(page: ft.Page):
 
     # 收入分类（预设）
     INCOME_CATEGORIES = [
-        "请选择收入类型",
         "工资收入",
         "报销收入",
         "奖金收入",
@@ -1777,7 +1776,6 @@ def main(page: ft.Page):
     
     # 支出分类（预设）
     EXPENSE_CATEGORIES = [
-        "请选择支持类型",
         "餐饮",
         "水电费-老家",
         "水电费-泉州",
@@ -3672,7 +3670,7 @@ def main(page: ft.Page):
         today = datetime.now().date()
         three_days_events = []
         
-        print(f"[预警事件] 开始收集，当前日期: {today}")
+        #print(f"[预警事件] 开始收集，当前日期: {today}")
         
         for event in events.values():
             # 跳过每天事件和每周事件
@@ -3680,33 +3678,33 @@ def main(page: ft.Page):
                 continue
             
             month, day, year, base_year, days_until = event.get_next_date_info()
-            print(f"[预警事件] 检查: {event.name}, 类型: {event.event_type}, 剩余天数: {days_until}")
+            #print(f"[预警事件] 检查: {event.name}, 类型: {event.event_type}, 剩余天数: {days_until}")
             
             # 一次性事件特殊处理
             if event.repeat_type == "once":
                 if event.completed or days_until < 0:
-                    print(f"[预警事件]   - 跳过（已完成或已过期）")
+                    #print(f"[预警事件]   - 跳过（已完成或已过期）")
                     continue
             
             # 每月事件：检查剩余天数
             if event.event_type == "monthly":
                 if 0 < days_until <= 3:
                     three_days_events.append((event, days_until))
-                    print(f"[预警事件]   - 添加每月事件到预警列表")
+                    #print(f"[预警事件]   - 添加每月事件到预警列表")
             
             # 生日/纪念日：检查剩余天数
             elif event.event_type in ["birthday", "event"]:
                 if 0 < days_until <= 3:
                     three_days_events.append((event, days_until))
-                    print(f"[预警事件]   - 添加生日/纪念日到预警列表")
+                    #print(f"[预警事件]   - 添加生日/纪念日到预警列表")
             
             # 一次性事件：检查剩余天数
             elif event.repeat_type == "once":
                 if 0 < days_until <= 3:
                     three_days_events.append((event, days_until))
-                    print(f"[预警事件]   - 添加一次性事件到预警列表")
+                    #print(f"[预警事件]   - 添加一次性事件到预警列表")
         
-        print(f"[预警事件] 共找到 {len(three_days_events)} 个预警事件")
+        #print(f"[预警事件] 共找到 {len(three_days_events)} 个预警事件")
         
         # 按剩余天数排序
         three_days_events.sort(key=lambda x: x[1])
@@ -3785,6 +3783,11 @@ def main(page: ft.Page):
         # 切换到记账页面
         current_page = "accounting"
 
+        # ========== 筛选相关变量 ==========
+        filter_income_categories = []  # 选中的收入分类
+        filter_expense_categories = []  # 选中的支出分类
+        is_filter_active = False  # 是否启用筛选
+
         # 保存原来的点击事件，并替换为记账页面的添加菜单
         original_floating_add_click = floating_add_button.on_click
         floating_add_button.on_click = lambda e: show_accounting_add_menu()
@@ -3797,14 +3800,19 @@ def main(page: ft.Page):
         current_month = datetime.now().month
         selected_date = datetime.now()
 
-        # ========== 在函数顶部定义滚动状态变量 ==========
-        show_scroll_top_btn = False  # 定义在函数顶部，所有内部函数都可以访问
-        
+        # ========== 新增：区间查询变量 ==========
+        query_mode = "month"  # "month" 或 "range"
+        start_date = datetime.now().replace(day=1).date()
+        end_date = datetime.now().date()
+
         # 记录列表容器（用于滚动）
         records_list = ft.Column(spacing=5, expand=True)  # 移除 scroll，由外层控制
-        
+
         # 加载数据
-        load_accounting_data()  # 使用外部函数
+        load_accounting_data()
+
+        # ========== 在函数顶部定义滚动状态变量 ==========
+        show_scroll_top_btn = False  # 定义在函数顶部，所有内部函数都可以访问
 
         # ========== 先定义滚动事件处理函数 ==========
         def on_scroll_changed(e):
@@ -3826,14 +3834,6 @@ def main(page: ft.Page):
                 show_scroll_top_btn = False
                 accounting_scroll_top_button.visible = False  # 使用局部变量
                 page.update()
-
-        # ========== 创建可滚动的容器（使用已经定义的 on_scroll_changed） ==========
-        scroll_container = ft.Column(
-            [records_list],
-            scroll=ft.ScrollMode.AUTO,
-            expand=True,
-            on_scroll=on_scroll_changed,
-        )
 
         # ========== 创建记账界面独立的回到顶部按钮（局部变量） ==========
         accounting_scroll_top_button = ft.Container(
@@ -3876,26 +3876,13 @@ def main(page: ft.Page):
                 except:
                     print("滚动失败")
 
-        # ========== 滚动事件处理 ==========
-        def on_scroll_changed(e):
-            """滚动事件回调"""
-            nonlocal show_scroll_top_btn
-            
-            # 获取滚动位置
-            scroll_offset = e.pixels if hasattr(e, 'pixels') else 0
-            
-            # 调试打印
-            print(f"[滚动事件] offset: {scroll_offset}")
-            
-            # 只要滚动超过20像素就显示回到顶部按钮
-            if scroll_offset > 20 and not show_scroll_top_btn:
-                show_scroll_top_btn = True
-                scroll_top_button.visible = True
-                page.update()
-            elif scroll_offset <= 20 and show_scroll_top_btn:
-                show_scroll_top_btn = False
-                scroll_top_button.visible = False
-                page.update()
+        # ========== 创建可滚动的容器（在 on_scroll_changed 定义之后） ==========
+        scroll_container = ft.Column(
+            [records_list],
+            scroll=ft.ScrollMode.AUTO,
+            expand=True,
+            on_scroll=on_scroll_changed,
+        )
 
         def delete_transaction(transaction_id, transaction_name):
             """删除记录（带确认对话框）"""
@@ -4023,15 +4010,6 @@ def main(page: ft.Page):
                 read_only=True,
                 expand=True,
             )
-            
-            """ 
-            category_field = ft.Dropdown(
-                label="分类",
-                options=[ft.dropdown.Option(c, c) for c in categories],
-                expand=True,
-                value=transaction.category,
-            )
-            """
 
             category_field = SearchableDropdown(
                 label="分类",
@@ -4164,12 +4142,35 @@ def main(page: ft.Page):
         def refresh_summary():
             """刷新统计卡片"""
             summary_container.controls.clear()
-            
-            # 计算当月收支
-            month_str = f"{current_year}-{current_month:02d}"
-            month_income = sum(t.amount for t in transactions if t.type == "income" and t.date.startswith(month_str))
-            month_expense = sum(t.amount for t in transactions if t.type == "expense" and t.date.startswith(month_str))
-            month_balance = month_income - month_expense
+
+             # 根据查询模式计算收支
+            base_records = []  # 初始化为空列表
+            if query_mode == "month":
+                month_str = f"{current_year}-{current_month:02d}"
+                month_income = sum(t.amount for t in transactions if t.type == "income" and t.date.startswith(month_str))
+                month_expense = sum(t.amount for t in transactions if t.type == "expense" and t.date.startswith(month_str))
+                month_balance = month_income - month_expense
+                date_label = f"📅 {current_year}年{current_month}月"
+            else:
+                # 区间查询
+                start_str = start_date.strftime("%Y-%m-%d")
+                end_str = end_date.strftime("%Y-%m-%d")
+                month_income = sum(t.amount for t in transactions if t.type == "income" and start_str <= t.date <= end_str)
+                month_expense = sum(t.amount for t in transactions if t.type == "expense" and start_str <= t.date <= end_str)
+                month_balance = month_income - month_expense
+                date_label = f"📅 {start_date.strftime('%Y-%m-%d')} ~ {end_date.strftime('%Y-%m-%d')}"
+
+            # ========== 应用分类筛选 ==========
+            if is_filter_active:
+                filtered_records = []
+                for t in base_records:
+                    if t.type == "income":
+                        if filter_income_categories and t.category in filter_income_categories:
+                            filtered_records.append(t)
+                    else:
+                        if filter_expense_categories and t.category in filter_expense_categories:
+                            filtered_records.append(t)
+                base_records = filtered_records
             
             # 计算总收支
             total_income = sum(t.amount for t in transactions if t.type == "income")
@@ -4180,7 +4181,7 @@ def main(page: ft.Page):
                 ft.Container(
                     content=ft.Column([
                         ft.Divider(height=1),
-                        ft.Text(f"📅 {current_year}年{current_month}月", size=14, weight=ft.FontWeight.BOLD),
+                        ft.Text(date_label, size=14, weight=ft.FontWeight.BOLD),
                         ft.Row([
                             ft.Column([
                                 ft.Text("收入", size=12, color=ft.Colors.GREY_600),
@@ -4206,33 +4207,271 @@ def main(page: ft.Page):
                 )
             )
             page.update()
+
+        def update_filter_button():
+            """更新筛选按钮显示"""
+            if is_filter_active:
+                total = len(filter_income_categories) + len(filter_expense_categories)
+                filter_btn.text = f"🔽 筛选 ({total})"
+                filter_btn.style = ft.ButtonStyle(color=ft.Colors.BLUE_700, text_style=ft.TextStyle(size=11, weight=ft.FontWeight.BOLD))
+            else:
+                filter_btn.text = "🔽 筛选"
+                filter_btn.style = ft.ButtonStyle(color=ft.Colors.GREY_600, text_style=ft.TextStyle(size=11))
+            filter_btn.update()
         
+        def show_filter_dialog(e):
+            """显示分类筛选对话框（支持多选）"""
+            
+            # 当前选中的分类（使用集合方便操作）
+            selected_income = set(filter_income_categories)
+            selected_expense = set(filter_expense_categories)
+            
+            # 创建收入分类复选框列表
+            income_checkboxes = []
+            for cat in INCOME_CATEGORIES:
+                cb = ft.Checkbox(
+                    label=cat,
+                    value=cat in selected_income,
+                    active_color=ft.Colors.GREEN_700,
+                )
+                income_checkboxes.append(cb)
+            
+            # 创建支出分类复选框列表
+            expense_checkboxes = []
+            for cat in EXPENSE_CATEGORIES:
+                cb = ft.Checkbox(
+                    label=cat,
+                    value=cat in selected_expense,
+                    active_color=ft.Colors.RED_700,
+                )
+                expense_checkboxes.append(cb)
+            
+            # 全选/取消全选功能
+            def select_all_income(e):
+                for cb in income_checkboxes:
+                    cb.value = True
+                dialog_container.update()
+                page.update()
+            
+            def deselect_all_income(e):
+                for cb in income_checkboxes:
+                    cb.value = False
+                dialog_container.update()
+                page.update()
+            
+            def select_all_expense(e):
+                for cb in expense_checkboxes:
+                    cb.value = True
+                dialog_container.update()
+                page.update()
+            
+            def deselect_all_expense(e):
+                for cb in expense_checkboxes:
+                    cb.value = False
+                dialog_container.update()
+                page.update()
+            
+            # 确认筛选
+            def apply_filter(e):
+                nonlocal filter_income_categories, filter_expense_categories, is_filter_active
+                
+                # 收集选中的分类
+                filter_income_categories = [cb.label for cb in income_checkboxes if cb.value]
+                filter_expense_categories = [cb.label for cb in expense_checkboxes if cb.value]
+                
+                is_filter_active = True
+                
+                # 关闭对话框
+                close_filter_dialog()
+                
+                # 刷新列表
+                refresh_records_list()
+                refresh_summary()
+                
+                # 更新筛选按钮文字
+                update_filter_button()
+                
+                total_selected = len(filter_income_categories) + len(filter_expense_categories)
+                show_bottom_message(f"已筛选 {total_selected} 个分类")
+            
+            # 清除筛选
+            def clear_filter(e):
+                nonlocal filter_income_categories, filter_expense_categories, is_filter_active
+                filter_income_categories = []
+                filter_expense_categories = []
+                is_filter_active = False
+                close_filter_dialog()
+                refresh_records_list()
+                refresh_summary()
+                update_filter_button()
+                show_bottom_message("已清除筛选")
+            
+            # 关闭对话框
+            def close_filter_dialog():
+                if dialog_container in page.overlay:
+                    page.overlay.remove(dialog_container)
+                    page.update()
+            
+            # 创建对话框内容
+            filter_content = ft.Column([
+                ft.Container(
+                    content=ft.Row([
+                        ft.IconButton(
+                            ft.Icons.CLOSE,
+                            icon_size=24,
+                            icon_color=ft.Colors.RED_700,
+                            on_click=lambda e: close_filter_dialog(),
+                        ),
+                        ft.Text("选择筛选条件", size=20, weight=ft.FontWeight.BOLD, expand=True, text_align=ft.TextAlign.CENTER),
+                        ft.IconButton(
+                            ft.Icons.CHECK,
+                            icon_size=24,
+                            icon_color=ft.Colors.GREEN_700,
+                            on_click=apply_filter,
+                            tooltip="应用筛选",
+                        ),
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                ),
+                ft.Divider(),
+                ft.Container(
+                    content=ft.Column([
+                        ft.Row([
+                            ft.Text("💰 收入分类", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_700),
+                            ft.Container(expand=True),
+                            ft.TextButton("全选", on_click=select_all_income, style=ft.ButtonStyle(text_style=ft.TextStyle(size=11))),
+                            ft.TextButton("取消", on_click=deselect_all_income, style=ft.ButtonStyle(text_style=ft.TextStyle(size=11))),
+                        ], spacing=5),
+                        ft.Column(income_checkboxes, spacing=2),
+                        ft.Divider(height=10),
+                        ft.Row([
+                            ft.Text("💸 支出分类", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.RED_700),
+                            ft.Container(expand=True),
+                            ft.TextButton("全选", on_click=select_all_expense, style=ft.ButtonStyle(text_style=ft.TextStyle(size=11))),
+                            ft.TextButton("取消", on_click=deselect_all_expense, style=ft.ButtonStyle(text_style=ft.TextStyle(size=11))),
+                        ], spacing=5),
+                        ft.Column(expense_checkboxes, spacing=2),
+                    ], spacing=8, scroll=ft.ScrollMode.AUTO),
+                    height=400,
+                    padding=5,
+                ),
+                ft.Divider(),
+                ft.Row([
+                    ft.TextButton("清除筛选", on_click=clear_filter, style=ft.ButtonStyle(color=ft.Colors.RED_700)),
+                    ft.Container(expand=True),
+                    ft.ElevatedButton("取消", on_click=lambda e: close_filter_dialog()),
+                    ft.ElevatedButton(
+                        "完成",
+                        on_click=apply_filter,
+                        style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE),
+                    ),
+                ], spacing=10),
+            ], spacing=10)
+            
+            dialog_container = ft.Container(
+                content=ft.Container(
+                    content=filter_content,
+                    bgcolor=ft.Colors.WHITE,
+                    padding=20,
+                    border_radius=16,
+                    shadow=ft.BoxShadow(
+                        spread_radius=1,
+                        blur_radius=20,
+                        color=ft.Colors.BLACK12,
+                        offset=ft.Offset(0, 4),
+                    ),
+                    expand=True,
+                ),
+                left=20,
+                top=30,
+                right=20,
+                bottom=30,
+            )
+            
+            page.overlay.append(dialog_container)
+            page.update()
+
         def refresh_records_list():
             """刷新记录列表"""
             records_list.controls.clear()
             
-            # 筛选当月记录
-            month_str = f"{current_year}-{current_month:02d}"
-            month_records = [t for t in transactions if t.date.startswith(month_str)]
-            month_records.sort(key=lambda x: x.date, reverse=True)
+            # ========== 根据查询模式筛选记录 ==========
+            if query_mode == "month":
+                month_str = f"{current_year}-{current_month:02d}"
+                month_records = [t for t in transactions if t.date.startswith(month_str)]
+            else:
+                # 区间查询
+                start_str = start_date.strftime("%Y-%m-%d")
+                end_str = end_date.strftime("%Y-%m-%d")
+                month_records = [t for t in transactions if start_str <= t.date <= end_str]
             
-            if not month_records:
+
+            # ========== 应用分类筛选 ==========
+            filtered_records = month_records  # 默认使用全部
+            if is_filter_active:
+                filtered_records = []
+                for t in month_records:
+                    if t.type == "income":
+                        # 收入：检查是否在选中的收入分类中
+                        if filter_income_categories and t.category in filter_income_categories:
+                            filtered_records.append(t)
+                    else:
+                        # 支出：检查是否在选中的支出分类中
+                        if filter_expense_categories and t.category in filter_expense_categories:
+                            filtered_records.append(t)
+
+            filtered_records.sort(key=lambda x: x.date, reverse=True)
+
+            # ========== 计算统计信息 ==========
+            total_income = sum(t.amount for t in filtered_records if t.type == "income")
+            total_expense = sum(t.amount for t in filtered_records if t.type == "expense")
+            total_balance = total_income - total_expense
+            
+            if not filtered_records:
                 records_list.controls.append(
                     ft.Container(
                         content=ft.Text("暂无记录，点击 + 添加", size=14, color=ft.Colors.GREY_500),
                         padding=20,
                     )
                 )
+                # 即使没有记录，也显示统计信息
+                records_list.controls.append(
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Divider(height=1),
+                            ft.Row([
+                                ft.Text("📊 统计汇总", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
+                                ft.Container(expand=True),
+                                ft.Text(f"共 {len(filtered_records)} 条", size=11, color=ft.Colors.GREY_500),
+                            ]),
+                            ft.Row([
+                                ft.Column([
+                                    ft.Text("收入", size=12, color=ft.Colors.GREY_600),
+                                    ft.Text(f"¥ {total_income:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_700),
+                                ], expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                                ft.Column([
+                                    ft.Text("支出", size=12, color=ft.Colors.GREY_600),
+                                    ft.Text(f"¥ {total_expense:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.RED_700),
+                                ], expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                                ft.Column([
+                                    ft.Text("结余", size=12, color=ft.Colors.GREY_600),
+                                    ft.Text(f"¥ {total_balance:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
+                                ], expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                            ], spacing=5),
+                        ], spacing=8),
+                        padding=15,
+                        bgcolor=ft.Colors.TRANSPARENT,
+                        border_radius=10,
+                    )
+                )
                 page.update()
                 return
             
-            # 遍历记录，判断是否为最后一条
-            for index, t in enumerate(month_records):
+            # 显示记录卡片
+            for index, t in enumerate(filtered_records):
                 is_income = t.type == "income"
                 amount_color = ft.Colors.GREEN_700 if is_income else ft.Colors.RED_700
                 amount_prefix = "+" if is_income else "-"
                 
-                # 记录卡片
                 record_card = ft.Container(
                     content=ft.Row([
                         ft.Column([
@@ -4253,30 +4492,71 @@ def main(page: ft.Page):
                         ], spacing=0),
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                     padding=10,
-                    # 只有不是最后一条才添加底部分隔线
-                    border=ft.border.Border(bottom=ft.border.BorderSide(1, ft.Colors.GREY_200)) if index < len(month_records) - 1 else None,
+                    border=ft.border.Border(bottom=ft.border.BorderSide(1, ft.Colors.GREY_200)) if index < len(filtered_records) - 1 else None,
                     ink=True,
-                    # ========== 新增：点击卡片进入编辑模式 ==========
                     on_click=lambda e, tr=t: edit_transaction(tr),
                 )
                 records_list.controls.append(record_card)
+            
+            # ========== 添加底部统计汇总 ==========
+            records_list.controls.append(
+                ft.Container(
+                    content=ft.Column([
+                        ft.Divider(height=1),
+                        ft.Row([
+                            ft.Text("📊 统计汇总", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
+                            ft.Container(expand=True),
+                            ft.Text(f"共 {len(filtered_records)} 条", size=11, color=ft.Colors.GREY_500),
+                        ]),
+                        ft.Row([
+                            ft.Column([
+                                ft.Text("收入", size=12, color=ft.Colors.GREY_600),
+                                ft.Text(f"¥ {total_income:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_700),
+                            ], expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                            ft.Column([
+                                ft.Text("支出", size=12, color=ft.Colors.GREY_600),
+                                ft.Text(f"¥ {total_expense:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.RED_700),
+                            ], expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                            ft.Column([
+                                ft.Text("结余", size=12, color=ft.Colors.GREY_600),
+                                ft.Text(f"¥ {total_balance:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
+                            ], expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                        ], spacing=5),
+                    ], spacing=8),
+                    padding=15,
+                    bgcolor=ft.Colors.TRANSPARENT,
+                    border_radius=10,
+                )
+            )
 
             # ========== 关键：在底部添加内边距，防止被悬浮按钮遮挡 ==========
             # 计算悬浮按钮的高度（50px按钮 + 12px间距 + 50px添加按钮 = 112px + 额外安全边距）
             records_list.controls.append(ft.Container(height=130))
 
-            # 刷新后重置滚动位置到顶部
+            # ========== 安全地重置滚动位置 ==========
             async def reset_scroll():
-                if hasattr(scroll_container, 'scroll_to'):
-                    await scroll_container.scroll_to(offset=0, duration=0)
+                try:
+                    # 检查 scroll_container 是否还存在且有效
+                    if scroll_container and hasattr(scroll_container, 'page') and scroll_container.page is not None:
+                        if hasattr(scroll_container, 'scroll_to'):
+                            await scroll_container.scroll_to(offset=0, duration=0)
+                except Exception as e:
+                    # 忽略错误，控件可能已被销毁
+                    print(f"滚动重置失败: {e}")
+                    pass
             
-            asyncio.create_task(reset_scroll())
+            # 使用 asyncio.create_task 并忽略错误
+            try:
+                asyncio.create_task(reset_scroll())
+            except:
+                pass
             
             page.update()
                 
         def change_month_acct(delta):
             """切换月份"""
-            nonlocal current_year, current_month, selected_date
+            nonlocal current_year, current_month, selected_date, query_mode
+            query_mode = "month"
             current_month += delta
             if current_month > 12:
                 current_month = 1
@@ -4292,7 +4572,34 @@ def main(page: ft.Page):
             
             # 控制回到本月按钮的显示
             back_to_today_btn.visible = not is_current_month
+
+            # 更新查询模式显示
+            update_query_mode_display()
             
+            refresh_summary()
+            refresh_records_list()
+            month_text.value = f"{current_year}年{current_month}月"
+            page.update()
+
+        # ========== 年份切换函数 ==========
+        def change_year_acct(delta):
+            """切换年份（记账本）"""
+            nonlocal current_year, current_month, selected_date, query_mode
+            query_mode = "month"
+            current_year += delta
+            # 限制年份范围
+            if current_year < 2000:
+                current_year = 2000
+            elif current_year > 2100:
+                current_year = 2100
+            
+            selected_date = datetime(current_year, current_month, 1)
+            
+            now = datetime.now()
+            is_current_month = (current_year == now.year and current_month == now.month)
+            back_to_today_btn.visible = not is_current_month
+            
+            update_query_mode_display()
             refresh_summary()
             refresh_records_list()
             month_text.value = f"{current_year}年{current_month}月"
@@ -4300,7 +4607,8 @@ def main(page: ft.Page):
         
         def go_to_current_month(e):
             """回到当前月份"""
-            nonlocal current_year, current_month, selected_date
+            nonlocal current_year, current_month, selected_date, query_mode
+            query_mode = "month"
             now = datetime.now()
             current_year = now.year
             current_month = now.month
@@ -4308,12 +4616,339 @@ def main(page: ft.Page):
             
             # 隐藏回到本月按钮
             back_to_today_btn.visible = False
+
+            update_query_mode_display()
             
             refresh_summary()
             refresh_records_list()
             month_text.value = f"{current_year}年{current_month}月"
             page.update()
             show_bottom_message("已回到本月")
+
+        def show_query_mode_menu(e):
+            """显示查询模式切换菜单"""
+            menu_container = None
+
+            def close_menu():
+                nonlocal menu_container
+                if menu_container and menu_container in page.overlay:
+                    page.overlay.remove(menu_container)
+                    menu_container = None
+                    page.update()
+
+            menu_content = ft.Container(
+                content=ft.Column([
+                    ft.Container(
+                        content=ft.Icon(ft.Icons.SEARCH, size=48, color=ft.Colors.BLUE_700),
+                        padding=10,
+                        bgcolor=ft.Colors.BLUE_50,
+                        border_radius=50,
+                    ),
+                    ft.Text("查询模式", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_800),
+                    ft.Text("请选择查询方式", size=12, color=ft.Colors.GREY_500),
+                    ft.Divider(height=1, color=ft.Colors.GREY_200),
+                    ft.ElevatedButton(
+                        "📆 按月查询", 
+                        on_click=lambda e: [close_menu(), switch_to_month_mode(e)], 
+                        icon=ft.Icons.CALENDAR_MONTH,
+                        style=ft.ButtonStyle(
+                            bgcolor=ft.Colors.BLUE_700 if query_mode == "month" else ft.Colors.GREY_100,
+                            color=ft.Colors.WHITE if query_mode == "month" else ft.Colors.GREY_700,
+                            shape=ft.RoundedRectangleBorder(radius=8),
+                        ),
+                        expand=True,
+                    ),
+                    ft.ElevatedButton(
+                        "📅 区间查询", 
+                        on_click=lambda e: [close_menu(), switch_to_range_mode(e)], 
+                        icon=ft.Icons.DATE_RANGE,
+                        style=ft.ButtonStyle(
+                            bgcolor=ft.Colors.PURPLE_700 if query_mode == "range" else ft.Colors.GREY_100,
+                            color=ft.Colors.WHITE if query_mode == "range" else ft.Colors.GREY_700,
+                            shape=ft.RoundedRectangleBorder(radius=8),
+                        ),
+                        expand=True,
+                    ),
+                    ft.Divider(height=1, color=ft.Colors.GREY_200),
+                    ft.TextButton(
+                        "取消", 
+                        on_click=lambda e: close_menu(),
+                        style=ft.ButtonStyle(color=ft.Colors.GREY_600),
+                        expand=True,
+                    ),
+                ], spacing=12, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                width=320,
+                padding=20,
+                bgcolor=ft.Colors.WHITE,
+                border_radius=20,
+                shadow=ft.BoxShadow(
+                    spread_radius=1,
+                    blur_radius=15,
+                    color=ft.Colors.BLACK12,
+                    offset=ft.Offset(0, 4),
+                ),
+            )
+            menu_container = ft.Container(
+                content=ft.Column([ft.Container(expand=True), ft.Row([ft.Container(expand=True), menu_content, ft.Container(expand=True)]), ft.Container(expand=True)]),
+                expand=True, bgcolor=ft.Colors.BLACK26, on_click=lambda e: close_menu(),
+            )
+            page.overlay.append(menu_container)
+            page.update()
+
+        # ========== 创建查询模式显示（使用 Text） ==========
+        query_mode_display = ft.Text("📅 按月查询", size=11, color=ft.Colors.BLUE_700)
+
+        # 点击时弹出菜单
+        query_mode_display_container = ft.Container(
+            content=query_mode_display,
+            on_click=show_query_mode_menu,
+            ink=True,
+            padding=5,
+            border_radius=4,
+        )
+
+        # ========== 新增：区间查询相关函数 ==========
+        def update_query_mode_display():
+            """更新查询模式显示"""
+            if query_mode == "month":
+                range_row.visible = False
+                month_row.visible = True
+                query_mode_display.value = "📅 按月查询"
+                query_mode_display.color = ft.Colors.BLUE_700
+
+            else:
+                range_row.visible = True
+                month_row.visible = False
+                query_mode_display.value = "📅 区间查询"
+                query_mode_display.color = ft.Colors.PURPLE_700
+            # 更新所有控件
+            try:
+                range_row.update()
+                month_row.update()
+                query_mode_display.update()
+                page.update()
+            except:
+                pass
+
+        def switch_to_month_mode(e):
+            """切换到按月查询"""
+            nonlocal query_mode
+            query_mode = "month"
+            update_query_mode_display()
+            refresh_summary()
+            refresh_records_list()
+            show_bottom_message("已切换到按月查询")
+
+        def switch_to_range_mode(e):
+            """切换到区间查询"""
+            nonlocal query_mode
+            query_mode = "range"
+            update_query_mode_display()
+            refresh_summary()
+            refresh_records_list()
+
+            # ========== 自动触发区间查询（使用 asyncio） ==========
+            async def auto_query():
+                await asyncio.sleep(0.1)  # 等待界面更新
+                try:
+                    start = datetime.strptime(start_date_field.value, "%Y-%m-%d").date()
+                    end = datetime.strptime(end_date_field.value, "%Y-%m-%d").date()
+                    if start <= end:
+                        # 直接调用查询逻辑，不通过 apply_range_query（避免模式切换问题）
+                        nonlocal start_date, end_date, query_mode
+                        start_date = start
+                        end_date = end
+                        query_mode = "range"
+                        refresh_summary()
+                        refresh_records_list()
+                        update_query_mode_display()
+                        show_bottom_message(f"已查询 {start.strftime('%Y-%m-%d')} ~ {end.strftime('%Y-%m-%d')}")
+                    else:
+                        show_bottom_message("开始日期不能大于结束日期", is_error=True)
+                except Exception as ex:
+                    print(f"自动查询失败: {ex}")
+            
+            asyncio.create_task(auto_query())
+
+            show_bottom_message("已切换到区间查询")
+
+        def apply_range_query(e):
+            """应用区间查询"""
+            nonlocal start_date, end_date, query_mode
+            query_mode = "range"
+            
+            # 从日期字段获取值
+            try:
+                start_date = datetime.strptime(start_date_field.value, "%Y-%m-%d").date()
+                end_date = datetime.strptime(end_date_field.value, "%Y-%m-%d").date()
+                
+                if start_date > end_date:
+                    show_bottom_message("开始日期不能大于结束日期", is_error=True)
+                    return
+                
+                refresh_summary()
+                refresh_records_list()
+                update_query_mode_display()
+                show_bottom_message(f"已查询 {start_date.strftime('%Y-%m-%d')} ~ {end_date.strftime('%Y-%m-%d')}")
+            except ValueError:
+                show_bottom_message("日期格式错误，请选择有效日期", is_error=True)
+
+        # ========== 区间查询控件 ==========
+        start_date_field = ft.TextField(
+            label="开始日期",
+            value=datetime.now().replace(day=1).strftime("%Y-%m-%d"),
+            read_only=True,
+            expand=True,
+            on_click=lambda e: page.show_dialog(start_date_picker),
+        )
+
+        end_date_field = ft.TextField(
+            label="结束日期",
+            value=datetime.now().strftime("%Y-%m-%d"),
+            read_only=True,
+            expand=True,
+            on_click=lambda e: page.show_dialog(end_date_picker),
+        )
+
+        range_row = ft.Row([
+            start_date_field,
+            ft.Text("~", size=16, color=ft.Colors.GREY_700),
+            end_date_field,
+            ft.IconButton(
+                ft.Icons.SEARCH,
+                icon_size=24,
+                icon_color=ft.Colors.BLUE_700,
+                on_click=apply_range_query,
+                tooltip="查询区间",
+            ),
+        ], spacing=5, visible=False)
+
+        # ========== 构建界面 ==========
+        month_text = ft.Text(f"{current_year}年{current_month}月", size=18, weight=ft.FontWeight.BOLD)
+        month_row = ft.Row(
+            [
+                # 年份减按钮
+                ft.IconButton(
+                    icon=ft.Icons.KEYBOARD_DOUBLE_ARROW_LEFT,
+                    icon_size=20,
+                    icon_color=ft.Colors.GREY_700,
+                    on_click=lambda e: change_year_acct(-1),
+                    tooltip="上一年",
+                ),
+                # 月份减按钮
+                ft.IconButton(
+                    icon=ft.Icons.KEYBOARD_ARROW_LEFT,
+                    icon_size=24,
+                    icon_color=ft.Colors.GREY_700,
+                    on_click=lambda e: change_month_acct(-1),
+                    tooltip="上个月",
+                ),
+                # 月份文本
+                ft.Container(
+                    content=month_text,
+                    padding=10,  # 简单的整数值
+                ),
+                # 月份加按钮
+                ft.IconButton(
+                    icon=ft.Icons.KEYBOARD_ARROW_RIGHT,
+                    icon_size=24,
+                    icon_color=ft.Colors.GREY_700,
+                    on_click=lambda e: change_month_acct(1),
+                    tooltip="下个月",
+                ),
+                # 年份加按钮
+                ft.IconButton(
+                    icon=ft.Icons.KEYBOARD_DOUBLE_ARROW_RIGHT,
+                    icon_size=20,
+                    icon_color=ft.Colors.GREY_700,
+                    on_click=lambda e: change_year_acct(1),
+                    tooltip="下一年",
+                ),
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            spacing=8,
+        )
+        
+        # ========== 区间查询控件 ==========
+        start_date_picker = ft.DatePicker(
+            first_date=datetime(2020, 1, 1),
+            last_date=datetime(2030, 12, 31),
+            value=datetime.now(),
+            on_change=lambda e: on_start_date_selected(e),
+        )
+
+        end_date_picker = ft.DatePicker(
+            first_date=datetime(2020, 1, 1),
+            last_date=datetime(2030, 12, 31),
+            value=datetime.now(),
+            on_change=lambda e: on_end_date_selected(e),
+        )
+
+        def on_start_date_selected(e):
+            if start_date_picker.value:
+                local_date = start_date_picker.value + timedelta(days=1)
+                start_date_field.value = local_date.strftime("%Y-%m-%d")
+                start_date_field.update()
+                page.update()
+
+        def on_end_date_selected(e):
+            if end_date_picker.value:
+                local_date = end_date_picker.value + timedelta(days=1)
+                end_date_field.value = local_date.strftime("%Y-%m-%d")
+                end_date_field.update()
+                page.update()
+
+                # ========== 自动触发区间查询（使用 asyncio） ==========
+                async def auto_query():
+                    await asyncio.sleep(0.1)  # 等待界面更新
+                    try:
+                        start = datetime.strptime(start_date_field.value, "%Y-%m-%d").date()
+                        end = datetime.strptime(end_date_field.value, "%Y-%m-%d").date()
+                        if start <= end:
+                            # 直接调用查询逻辑，不通过 apply_range_query（避免模式切换问题）
+                            nonlocal start_date, end_date, query_mode
+                            start_date = start
+                            end_date = end
+                            query_mode = "range"
+                            refresh_summary()
+                            refresh_records_list()
+                            update_query_mode_display()
+                            show_bottom_message(f"已查询 {start.strftime('%Y-%m-%d')} ~ {end.strftime('%Y-%m-%d')}")
+                        else:
+                            show_bottom_message("开始日期不能大于结束日期", is_error=True)
+                    except Exception as ex:
+                        print(f"自动查询失败: {ex}")
+                
+                asyncio.create_task(auto_query())
+
+        start_date_field = ft.TextField(
+            label="开始日期",
+            value=datetime.now().replace(day=1).strftime("%Y-%m-%d"),
+            read_only=True,
+            expand=True,
+            on_click=lambda e: page.show_dialog(start_date_picker),
+        )
+
+        end_date_field = ft.TextField(
+            label="结束日期",
+            value=datetime.now().strftime("%Y-%m-%d"),
+            read_only=True,
+            expand=True,
+            on_click=lambda e: page.show_dialog(end_date_picker),
+        )
+
+        range_row = ft.Row([
+            start_date_field,
+            ft.Text("~", size=16, color=ft.Colors.GREY_700),
+            end_date_field,
+            ft.IconButton(
+                ft.Icons.SEARCH,
+                icon_size=24,
+                icon_color=ft.Colors.BLUE_700,
+                on_click=apply_range_query,
+                tooltip="查询区间",
+            ),
+        ], spacing=5, visible=False)
 
         # ========== 添加收支记录对话框 ==========
         def show_add_transaction_dialog(transaction_type="expense"):
@@ -4345,15 +4980,6 @@ def main(page: ft.Page):
             
             # 根据收支类型显示不同的分类列表
             categories = INCOME_CATEGORIES if transaction_type == "income" else EXPENSE_CATEGORIES
-            
-            """ 
-            category_field = ft.Dropdown(
-                label="分类",
-                options=[ft.dropdown.Option(c, c) for c in categories],
-                expand=True,
-                value=categories[0] if categories else None,
-            )
-            """
 
             category_field = SearchableDropdown(
                 label="分类",
@@ -4558,22 +5184,6 @@ def main(page: ft.Page):
             )
             page.overlay.append(menu_container)
             page.update()
-
-        # ========== 初始化界面 ==========
-        load_accounting_data()
-        
-        # 月份选择栏
-        month_text = ft.Text(f"{current_year}年{current_month}月", size=18, weight=ft.FontWeight.BOLD)
-        month_row = ft.Row([
-            ft.IconButton(ft.Icons.CHEVRON_LEFT, on_click=lambda e: change_month_acct(-1), icon_size=28),
-            month_text,
-            ft.IconButton(ft.Icons.CHEVRON_RIGHT, on_click=lambda e: change_month_acct(1), icon_size=28),
-        ], alignment=ft.MainAxisAlignment.CENTER, spacing=10)
-        
-        # 统计卡片容器
-        summary_container = ft.Column(spacing=10)
-        
-        back_btn = ft.IconButton(ft.Icons.ARROW_BACK, on_click=lambda e: back_to_main())
     
         def back_to_main():
             global current_page
@@ -4623,10 +5233,25 @@ def main(page: ft.Page):
                 marquee_text.color = ft.Colors.GREY_600
 
             page.update()
+
+        # ========== 初始化界面 ==========
+        load_accounting_data()
+        
+        # 统计卡片容器
+        summary_container = ft.Column(spacing=10)
+        
+        back_btn = ft.IconButton(ft.Icons.ARROW_BACK, on_click=lambda e: back_to_main())
         
         refresh_summary()
         refresh_records_list()
         
+        # ========== 创建筛选按钮 ==========
+        filter_btn = ft.TextButton(
+            "🔽 筛选",
+            on_click=show_filter_dialog,
+            style=ft.ButtonStyle(color=ft.Colors.GREY_600, text_style=ft.TextStyle(size=11)),
+        )
+
         # ========== 关键修改：使用 Stack + Column 固定标题，内容滚动 ==========
         # 固定标题区域
         fixed_header = ft.Container(
@@ -4642,15 +5267,20 @@ def main(page: ft.Page):
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                 ft.Divider(),
                 month_row,
+                range_row,
                 summary_container,
                 ft.Divider(),
                 ft.Row([
                     ft.Icon(ft.Icons.LIST, size=18, color=ft.Colors.BLUE_700),
                     ft.Text("记录列表", size=16, weight=ft.FontWeight.BOLD),
+                    ft.Container(expand=True),
+                    filter_btn,  # 添加筛选按钮
+                    # ========== 添加查询方式标签和按钮 ==========
+                    ft.Text("🔍 查询方式:", size=12, color=ft.Colors.GREY_600),
+                    query_mode_display_container,  # 使用可点击的容器
                 ], spacing=5),
                 ft.Divider(),
             ], spacing=8),
-            #padding=ft.padding.only(left=5, right=5),
             bgcolor=ft.Colors.WHITE,
         )
 
@@ -4718,6 +5348,10 @@ def main(page: ft.Page):
         
         page.clean()
         page.add(accounting_stack)
+
+        # 初始化查询模式显示
+        update_query_mode_display()
+
         page.update()
 
 
