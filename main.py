@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.68"
-APP_VERSION_CODE = 68
+APP_VERSION = "1.0.69"
+APP_VERSION_CODE = 69
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -4268,7 +4268,7 @@ def main(page: ft.Page):
                 on_select=lambda e: on_year_change(int(e.control.value)),
                 #width=100,
                 expand=True,
-                height=40,
+                #height=40,
             )
             
             def on_year_change(year):
@@ -4279,8 +4279,7 @@ def main(page: ft.Page):
                 page.update()
             
             # ========== 月份选择（下拉框） ==========
-            month_names = ['1月', '2月', '3月', '4月', '5月', '6月', 
-                        '7月', '8月', '9月', '10月', '11月', '12月']
+            month_names = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
             
             month_dropdown = ft.Dropdown(
                 value=str(selected_month),
@@ -4288,7 +4287,7 @@ def main(page: ft.Page):
                 on_select=lambda e: select_month(selected_year, int(e.control.value)),
                 #width=100,
                 expand=True,
-                height=40,
+                #height=40,
             )
             
             # ========== 按月查询内容 ==========
