@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.69"
-APP_VERSION_CODE = 69
+APP_VERSION = "1.0.70"
+APP_VERSION_CODE = 70
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -4346,7 +4346,7 @@ def main(page: ft.Page):
                         content=ft.Row([
                             ft.Text("年份:", size=14, color=ft.Colors.GREY_700),
                             year_dropdown,
-                            ft.Container(width=20),
+                            #ft.Container(width=20),
                             ft.Text("月份:", size=14, color=ft.Colors.GREY_700),
                             month_dropdown,
                         ], spacing=5, alignment=ft.MainAxisAlignment.CENTER),
@@ -4713,23 +4713,23 @@ def main(page: ft.Page):
                 # 判断是否是上月、本月等
                 now = datetime.now()
                 if current_year == now.year and current_month == now.month:
-                    date_label_text = "📅 本月"
+                    date_label_text = "本月 ▾"
                 elif current_year == now.year and current_month == now.month - 1:
-                    date_label_text = "📅 上月"
+                    date_label_text = "上月 ▾"
                 elif current_year == now.year and current_month == now.month + 1:
-                    date_label_text = "📅 下月"
+                    date_label_text = "下月 ▾"
                 else:
-                    date_label_text = f"📅 {current_year}年{current_month}月"
+                    date_label_text = f"{current_year}年{current_month}月 ▾"
             else:
                 # 区间查询
                 if (end_date - start_date).days <= 35:  # 约1个月
-                    date_label_text = f"📅 近一月"
+                    date_label_text = f"近一月 ▾"
                 elif (end_date - start_date).days <= 95:  # 约3个月
-                    date_label_text = f"📅 近三月"
+                    date_label_text = f"近三月 ▾"
                 elif (end_date - start_date).days <= 370:  # 约1年
-                    date_label_text = f"📅 近一年"
+                    date_label_text = f"近一年 ▾"
                 else:
-                    date_label_text = f"📅 {start_date.strftime('%Y-%m-%d')} ~ {end_date.strftime('%Y-%m-%d')}"
+                    date_label_text = f"{start_date.strftime('%Y-%m-%d')} ~ {end_date.strftime('%Y-%m-%d')} ▾"
 
             # ========== 可点击的日期标题 ==========
             date_label = ft.Text(date_label_text, size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700)
@@ -4779,10 +4779,10 @@ def main(page: ft.Page):
             """更新筛选按钮显示"""
             if is_filter_active:
                 total = len(filter_income_categories) + len(filter_expense_categories)
-                filter_btn.text = f"🔽 筛选 ({total})"
+                filter_btn.text = f"筛选 ▾ ({total})"
                 filter_btn.style = ft.ButtonStyle(color=ft.Colors.BLUE_700, text_style=ft.TextStyle(size=11, weight=ft.FontWeight.BOLD))
             else:
-                filter_btn.text = "🔽 筛选"
+                filter_btn.text = "筛选 ▾"
                 filter_btn.style = ft.ButtonStyle(color=ft.Colors.GREY_600, text_style=ft.TextStyle(size=11))
             filter_btn.update()
         
@@ -5684,9 +5684,10 @@ def main(page: ft.Page):
         
         # ========== 创建筛选按钮 ==========
         filter_btn = ft.TextButton(
-            "🔽 筛选",
+            "筛选 ▾",
             on_click=show_filter_dialog,
-            style=ft.ButtonStyle(color=ft.Colors.GREY_600, text_style=ft.TextStyle(size=11)),
+            style=ft.ButtonStyle(color=ft.Colors.BLUE_700, text_style=ft.TextStyle(size=11)),
+            #icon=ft.Icons.FILTER_LIST,  # 使用 Flet 内置图标
         )
         
         # ========== 创建导出按钮 ==========
