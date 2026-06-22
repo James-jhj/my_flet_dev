@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.70"
-APP_VERSION_CODE = 70
+APP_VERSION = "1.0.71"
+APP_VERSION_CODE = 71
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -322,18 +322,27 @@ class SearchableDropdown(ft.Column):
             return
         
         self.dropdown_container.content.controls.clear()
-        for opt in options:
-            btn = ft.TextButton(
-                opt,
-                on_click=lambda e, val=opt: self.select_option(val),
-                style=ft.ButtonStyle(
-                    color=ft.Colors.BLACK,
-                    bgcolor=ft.Colors.TRANSPARENT,
-                    overlay_color=ft.Colors.BLUE_50,
+        for i, opt in enumerate(options):
+            # 添加选项按钮
+            btn = ft.Container(
+                content=ft.TextButton(
+                    opt,
+                    on_click=lambda e, val=opt: self.select_option(val),
+                    style=ft.ButtonStyle(
+                        color=ft.Colors.BLACK,
+                        bgcolor=ft.Colors.TRANSPARENT,
+                        overlay_color=ft.Colors.BLUE_50,
+                    ),
                 ),
-                width=float("inf"),  # 宽度填满
+                expand=True,
+                #padding=ft.padding.only(left=12, right=12, top=4, bottom=4),
             )
             self.dropdown_container.content.controls.append(btn)
+            
+            # ========== 在选项之间添加分割线（最后一个不加） ==========
+            if i < len(options) - 1:
+                divider = ft.Divider(height=1, color=ft.Colors.GREY_200)
+                self.dropdown_container.content.controls.append(divider)
         
         self.dropdown_container.visible = True
         self.dropdown_container.update()
@@ -4257,39 +4266,164 @@ def main(page: ft.Page):
             
             # 当前选中的页签：0=按月查询，1=自定义区间
             current_tab = 0
-            
-            # 年份列表（往前5年，往后1年）
-            year_options = list(range(current_year - 5, current_year + 2))
-            
-            # ========== 年份选择（下拉框） ==========
-            year_dropdown = ft.Dropdown(
-                value=str(selected_year),
-                options=[ft.dropdown.Option(str(y), f"{y}年") for y in year_options],
-                on_select=lambda e: on_year_change(int(e.control.value)),
-                #width=100,
-                expand=True,
-                #height=40,
+
+
+            # ========== 月份选择（自定义下拉菜单，带分割线） ==========
+            month_names = ['1月', '2月', '3月', '4月', '5月', '6月', 
+                        '7月', '8月', '9月', '10月', '11月', '12月']
+
+            # ========== 创建月份选项列表（带分割线） ==========
+            month_menu_items = []
+            for i, name in enumerate(month_names):
+                month_num = i + 1
+                month_menu_items.append(
+                    ft.Container(
+                        content=ft.Text(name, size=14),
+                        padding=10,
+                        on_click=lambda e, month=month_num: select_month_item(month),
+                        ink=True,
+                        width=120,
+                    )
+                )
+                if i < len(month_names) - 1:
+                    month_menu_items.append(
+                        ft.Divider(height=1, color=ft.Colors.GREY_200)
+                    )
+
+            month_display_btn = ft.Container(
+                content=ft.Row([
+                    ft.Text(f"{selected_month}月", size=15, weight=ft.FontWeight.BOLD, color=ft.Colors.BLACK),
+                    ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18, color=ft.Colors.GREY_700),
+                ], spacing=5, alignment=ft.MainAxisAlignment.CENTER),
+                #padding=ft.padding.symmetric(horizontal=10, vertical=6),  # 统一内边距
+                border_radius=8,
+                ink=True,
+                on_click=lambda e: toggle_month_menu(),
+                bgcolor=ft.Colors.WHITE,
+                #border=ft.border.all(1, ft.Colors.GREY_300),
             )
+
+            month_menu_container = ft.Container(
+                content=ft.Column(
+                    month_menu_items,
+                    spacing=0,
+                    scroll=ft.ScrollMode.AUTO,
+                ),
+                width=120,
+                height=180,
+                bgcolor=ft.Colors.WHITE,
+                border_radius=8,
+                shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.BLACK12),
+                visible=False,
+            )
+
+            month_dropdown_stack = ft.Stack([
+                month_display_btn,
+                ft.Container(
+                    content=month_menu_container,
+                    left=0,
+                    top=0,
+                ),
+            ], height=180, width=120)
+
+            def toggle_month_menu():
+                month_menu_container.visible = not month_menu_container.visible
+                page.update()
+
+            def select_month_item(month):
+                nonlocal selected_month
+                selected_month = month
+                month_display_btn.content.controls[0].value = f"{month}月"
+                month_menu_container.visible = False
+                page.update()
             
+            # ========== 先定义 on_year_change 函数 ==========
             def on_year_change(year):
                 nonlocal selected_year
                 selected_year = year
-                month_dropdown.value = str(selected_month)
-                month_dropdown.update()
+                # 更新月份显示按钮的文字
+                month_display_btn.content.controls[0].value = f"{selected_month}月"
+                month_display_btn.update()
                 page.update()
+
             
-            # ========== 月份选择（下拉框） ==========
-            month_names = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
-            
-            month_dropdown = ft.Dropdown(
-                value=str(selected_month),
-                options=[ft.dropdown.Option(str(i+1), name) for i, name in enumerate(month_names)],
-                on_select=lambda e: select_month(selected_year, int(e.control.value)),
-                #width=100,
-                expand=True,
-                #height=40,
+            # ========== 年份选择（自定义下拉菜单，带分割线） ==========
+            year_options = list(range(current_year - 5, current_year + 2))
+
+            # 年份显示按钮
+            year_display_btn = ft.Container(
+                content=ft.Row([
+                    ft.Text(f"{selected_year}年", size=15, weight=ft.FontWeight.BOLD, color=ft.Colors.BLACK),
+                    ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18, color=ft.Colors.GREY_700),
+                ], spacing=5, alignment=ft.MainAxisAlignment.CENTER),
+                #padding=ft.padding.symmetric(horizontal=10, vertical=6),  # 统一内边距
+                border_radius=8,
+                ink=True,
+                on_click=lambda e: toggle_year_menu(),
+                bgcolor=ft.Colors.WHITE,
+                #border=ft.border.all(1, ft.Colors.GREY_300),
             )
-            
+
+            # ========== 创建年份选项列表（带分割线） ==========
+            year_menu_items = []
+            for i, y in enumerate(year_options):
+                # 添加年份选项
+                year_menu_items.append(
+                    ft.Container(
+                        content=ft.Text(f"{y}年", size=14),
+                        padding=10,
+                        on_click=lambda e, year=y: select_year(year),
+                        ink=True,
+                        width=120,
+                    )
+                )
+                # 在选项之间添加分割线（最后一个不加）
+                if i < len(year_options) - 1:
+                    year_menu_items.append(
+                        ft.Divider(height=1, color=ft.Colors.GREY_200)
+                    )
+
+            # 年份下拉菜单（带分割线）
+            year_menu_container = ft.Container(
+                content=ft.Column(
+                    year_menu_items,
+                    spacing=0,
+                    scroll=ft.ScrollMode.AUTO,
+                ),
+                width=120,
+                height=180,  # 增大高度以显示所有选项
+                bgcolor=ft.Colors.WHITE,
+                border_radius=8,
+                shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.BLACK12),
+                visible=False,
+            )
+
+            # ========== 使用 Container 的 left/top 属性定位 ==========
+            year_dropdown_stack = ft.Stack([
+                year_display_btn,
+                ft.Container(
+                    content=year_menu_container,
+                    left=0,
+                    top=0,
+                ),
+            ], height=180, width=120)  # 增大高度
+
+            # 切换菜单显示
+            def toggle_year_menu():
+                year_menu_container.visible = not year_menu_container.visible
+                page.update()
+
+            # 选择年份
+            def select_year(year):
+                nonlocal selected_year
+                selected_year = year
+                year_display_btn.content.controls[0].value = f"{year}年"
+                year_menu_container.visible = False
+                page.update()
+                on_year_change(year)
+
+
+
             # ========== 按月查询内容 ==========
             monthly_content = ft.Container(
                 content=ft.Stack([
@@ -4344,11 +4478,9 @@ def main(page: ft.Page):
                     # 第二行：年份和月份下拉框
                     ft.Container(
                         content=ft.Row([
-                            ft.Text("年份:", size=14, color=ft.Colors.GREY_700),
-                            year_dropdown,
-                            #ft.Container(width=20),
-                            ft.Text("月份:", size=14, color=ft.Colors.GREY_700),
-                            month_dropdown,
+                            year_dropdown_stack ,
+                            #ft.Container(width=10),
+                            month_dropdown_stack ,
                         ], spacing=5, alignment=ft.MainAxisAlignment.CENTER),
                         padding=10,
                         top=55,
@@ -4635,7 +4767,7 @@ def main(page: ft.Page):
                         expand=True,
                     ),
                 ], spacing=10, expand=True),  # 整个 Column expand
-                padding=20,
+                padding=10,
                 bgcolor=ft.Colors.WHITE,
             )
             
@@ -4644,7 +4776,7 @@ def main(page: ft.Page):
                 left=0,
                 right=0,
                 bottom=0,
-                height=350,
+                height=400,
                 bgcolor=ft.Colors.WHITE,
                 shadow=ft.BoxShadow(
                     spread_radius=1,
@@ -4713,26 +4845,29 @@ def main(page: ft.Page):
                 # 判断是否是上月、本月等
                 now = datetime.now()
                 if current_year == now.year and current_month == now.month:
-                    date_label_text = "本月 ▾"
+                    date_label_text = "本月"
                 elif current_year == now.year and current_month == now.month - 1:
-                    date_label_text = "上月 ▾"
+                    date_label_text = "上月"
                 elif current_year == now.year and current_month == now.month + 1:
-                    date_label_text = "下月 ▾"
+                    date_label_text = "下月"
                 else:
-                    date_label_text = f"{current_year}年{current_month}月 ▾"
+                    date_label_text = f"{current_year}年{current_month}月"
             else:
                 # 区间查询
                 if (end_date - start_date).days <= 35:  # 约1个月
-                    date_label_text = f"近一月 ▾"
+                    date_label_text = f"近一月"
                 elif (end_date - start_date).days <= 95:  # 约3个月
-                    date_label_text = f"近三月 ▾"
+                    date_label_text = f"近三月"
                 elif (end_date - start_date).days <= 370:  # 约1年
-                    date_label_text = f"近一年 ▾"
+                    date_label_text = f"近一年"
                 else:
-                    date_label_text = f"{start_date.strftime('%Y-%m-%d')} ~ {end_date.strftime('%Y-%m-%d')} ▾"
+                    date_label_text = f"{start_date.strftime('%Y-%m-%d')} ~ {end_date.strftime('%Y-%m-%d')}"
 
             # ========== 可点击的日期标题 ==========
-            date_label = ft.Text(date_label_text, size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700)
+            date_label = ft.Row([
+                ft.Text(date_label_text, size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
+                ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=20, color=ft.Colors.BLUE_700),  # 使用图标
+            ], spacing=2, alignment=ft.MainAxisAlignment.START)
 
             # 让月份文本可点击
             date_label_container = ft.Container(
@@ -4793,26 +4928,16 @@ def main(page: ft.Page):
             selected_income = set(filter_income_categories)
             selected_expense = set(filter_expense_categories)
             
-            # 创建收入分类复选框列表
+            # ========== 创建收入分类复选框列表（带分割线） ==========
             income_checkboxes = []
-            for cat in INCOME_CATEGORIES:
+            for i, cat in enumerate(INCOME_CATEGORIES):
                 cb = ft.Checkbox(
                     label=cat,
                     value=cat in selected_income,
                     active_color=ft.Colors.GREEN_700,
                 )
                 income_checkboxes.append(cb)
-            
-            # 创建支出分类复选框列表
-            expense_checkboxes = []
-            for cat in EXPENSE_CATEGORIES:
-                cb = ft.Checkbox(
-                    label=cat,
-                    value=cat in selected_expense,
-                    active_color=ft.Colors.RED_700,
-                )
-                expense_checkboxes.append(cb)
-            
+
             # 全选/取消全选功能
             def select_all_income(e):
                 for cb in income_checkboxes:
@@ -4837,6 +4962,52 @@ def main(page: ft.Page):
                     cb.value = False
                 dialog_container.update()
                 page.update()
+            
+            # 创建收入分类容器（带分割线）
+            income_container = ft.Column([
+                ft.Row([
+                    ft.Text("💰 收入分类", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_700),
+                    ft.Container(expand=True),
+                    ft.TextButton("全选", on_click=select_all_income, style=ft.ButtonStyle(text_style=ft.TextStyle(size=11))),
+                    ft.TextButton("取消", on_click=deselect_all_income, style=ft.ButtonStyle(text_style=ft.TextStyle(size=11))),
+                ], spacing=5),
+            ], spacing=2)
+            
+            # 添加收入分类选项（带分割线）
+            for i, cb in enumerate(income_checkboxes):
+                income_container.controls.append(cb)
+                # 在选项之间添加分割线（最后一个不加）
+                if i < len(income_checkboxes) - 1:
+                    income_container.controls.append(ft.Divider(height=1, color=ft.Colors.GREY_200))
+            
+            # ========== 创建支出分类复选框列表（带分割线） ==========
+            expense_checkboxes = []
+            for i, cat in enumerate(EXPENSE_CATEGORIES):
+                cb = ft.Checkbox(
+                    label=cat,
+                    value=cat in selected_expense,
+                    active_color=ft.Colors.RED_700,
+                )
+                expense_checkboxes.append(cb)
+            
+            # 创建支出分类容器（带分割线）
+            expense_container = ft.Column([
+                ft.Row([
+                    ft.Text("💸 支出分类", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.RED_700),
+                    ft.Container(expand=True),
+                    ft.TextButton("全选", on_click=select_all_expense, style=ft.ButtonStyle(text_style=ft.TextStyle(size=11))),
+                    ft.TextButton("取消", on_click=deselect_all_expense, style=ft.ButtonStyle(text_style=ft.TextStyle(size=11))),
+                ], spacing=5),
+            ], spacing=2)
+            
+            # 添加支出分类选项（带分割线）
+            for i, cb in enumerate(expense_checkboxes):
+                expense_container.controls.append(cb)
+                # 在选项之间添加分割线（最后一个不加）
+                if i < len(expense_checkboxes) - 1:
+                    expense_container.controls.append(ft.Divider(height=1, color=ft.Colors.GREY_200))
+            
+            
             
             # 确认筛选
             def apply_filter(e):
@@ -4902,21 +5073,9 @@ def main(page: ft.Page):
                 ft.Divider(),
                 ft.Container(
                     content=ft.Column([
-                        ft.Row([
-                            ft.Text("💰 收入分类", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_700),
-                            ft.Container(expand=True),
-                            ft.TextButton("全选", on_click=select_all_income, style=ft.ButtonStyle(text_style=ft.TextStyle(size=11))),
-                            ft.TextButton("取消", on_click=deselect_all_income, style=ft.ButtonStyle(text_style=ft.TextStyle(size=11))),
-                        ], spacing=5),
-                        ft.Column(income_checkboxes, spacing=2),
+                        income_container,
                         ft.Divider(height=10),
-                        ft.Row([
-                            ft.Text("💸 支出分类", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.RED_700),
-                            ft.Container(expand=True),
-                            ft.TextButton("全选", on_click=select_all_expense, style=ft.ButtonStyle(text_style=ft.TextStyle(size=11))),
-                            ft.TextButton("取消", on_click=deselect_all_expense, style=ft.ButtonStyle(text_style=ft.TextStyle(size=11))),
-                        ], spacing=5),
-                        ft.Column(expense_checkboxes, spacing=2),
+                        expense_container,
                     ], spacing=8, scroll=ft.ScrollMode.AUTO),
                     height=400,
                     padding=5,
@@ -5684,17 +5843,22 @@ def main(page: ft.Page):
         
         # ========== 创建筛选按钮 ==========
         filter_btn = ft.TextButton(
-            "筛选 ▾",
+            content=ft.Row([
+                ft.Text("筛选", size=14, color=ft.Colors.BLUE_700),
+                ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=20, color=ft.Colors.BLUE_700),
+            ], spacing=2, alignment=ft.MainAxisAlignment.CENTER),
             on_click=show_filter_dialog,
-            style=ft.ButtonStyle(color=ft.Colors.BLUE_700, text_style=ft.TextStyle(size=11)),
-            #icon=ft.Icons.FILTER_LIST,  # 使用 Flet 内置图标
+            style=ft.ButtonStyle(
+                color=ft.Colors.BLUE_700,
+                #padding=(8, 4, 8, 4),  # (左, 上, 右, 下)
+            ),
         )
         
         # ========== 创建导出按钮 ==========
         export_btn = ft.TextButton(
-            "📤 导出",
+            "导出 📤",
             on_click=lambda e: asyncio.create_task(export_filtered_accounting(e)),
-            style=ft.ButtonStyle(color=ft.Colors.GREEN_700, text_style=ft.TextStyle(size=11)),
+            style=ft.ButtonStyle(color=ft.Colors.GREEN_700, text_style=ft.TextStyle(14)),
         )
 
         # ========== 关键修改：使用 Stack + Column 固定标题，内容滚动 ==========
