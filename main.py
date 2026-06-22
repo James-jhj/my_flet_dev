@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.67"
-APP_VERSION_CODE = 67
+APP_VERSION = "1.0.68"
+APP_VERSION_CODE = 68
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -1771,24 +1771,20 @@ def main(page: ft.Page):
         "兼职收入",
         "投资收入",
         "红包收入",
+        "退款",
         "其他收入",
     ]
     
     # 支出分类（预设）
     EXPENSE_CATEGORIES = [
         "餐饮",
-        "水电费-老家",
-        "水电费-泉州",
         "水电费",
-        "电话费-18575793589",
-        "电话费-13003731229",
-        "电话费-15767837692",
         "电话费",
         "房贷",
         "车贷",
-        "中国银行信用卡还贷",
-        "招商银行闪电贷还贷",
-        "书仪生活费",
+        "网贷",
+        "零食",
+        "母婴用品",
         "购物",
         "娱乐",
         "交通",
@@ -4139,6 +4135,542 @@ def main(page: ft.Page):
             page.overlay.append(edit_dialog_container)
             page.update()
 
+        async def export_filtered_accounting(e):
+            """导出当前筛选后的记账数据到Excel"""
+            global transactions
+            
+            # ========== 获取当前列表的数据（与 refresh_records_list 相同的筛选逻辑） ==========
+            # 根据查询模式筛选记录
+            if query_mode == "month":
+                month_str = f"{current_year}-{current_month:02d}"
+                base_records = [t for t in transactions if t.date.startswith(month_str)]
+            else:
+                start_str = start_date.strftime("%Y-%m-%d")
+                end_str = end_date.strftime("%Y-%m-%d")
+                base_records = [t for t in transactions if start_str <= t.date <= end_str]
+            
+            # 应用分类筛选
+            if is_filter_active:
+                filtered_records = []
+                for t in base_records:
+                    if t.type == "income":
+                        if filter_income_categories and t.category in filter_income_categories:
+                            filtered_records.append(t)
+                    else:
+                        if filter_expense_categories and t.category in filter_expense_categories:
+                            filtered_records.append(t)
+                base_records = filtered_records
+            
+            if not base_records:
+                show_bottom_message("当前没有可导出的记录", is_error=True)
+                return
+            
+            # ========== 创建Excel文件 ==========
+            try:
+                temp_dir = get_data_file_path("")
+                temp_file = os.path.join(temp_dir, f"accounting_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
+                
+                wb = Workbook()
+                ws = wb.active
+                ws.title = "记账明细"
+                
+                # 写入表头
+                headers = ["日期", "类型", "分类", "金额", "备注"]
+                ws.append(headers)
+                
+                # 设置表头样式
+                for col in range(1, len(headers) + 1):
+                    cell = ws.cell(row=1, column=col)
+                    cell.font = openpyxl.styles.Font(bold=True)
+                    cell.fill = openpyxl.styles.PatternFill(start_color="CCE6FF", end_color="CCE6FF", fill_type="solid")
+                
+                # 写入数据
+                for t in base_records:
+                    type_str = "收入" if t.type == "income" else "支出"
+                    ws.append([
+                        t.date,
+                        type_str,
+                        t.category,
+                        t.amount,
+                        t.note,
+                    ])
+                
+                # 调整列宽
+                ws.column_dimensions['A'].width = 12
+                ws.column_dimensions['B'].width = 8
+                ws.column_dimensions['C'].width = 15
+                ws.column_dimensions['D'].width = 12
+                ws.column_dimensions['E'].width = 30
+                
+                # 保存临时文件
+                wb.save(temp_file)
+                
+                # 读取文件内容
+                with open(temp_file, 'rb') as f:
+                    file_bytes = f.read()
+                
+                # 创建 FilePicker
+                file_picker = ft.FilePicker()
+                page.services.append(file_picker)
+                page.update()
+                
+                # 选择保存位置
+                result = await file_picker.save_file(
+                    file_name=f"记账明细_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                    src_bytes=file_bytes,
+                    dialog_title="保存记账明细"
+                )
+                
+                # 移除 FilePicker
+                page.services.remove(file_picker)
+                page.update()
+                
+                # 删除临时文件
+                os.remove(temp_file)
+                
+                if result:
+                    # 显示导出的记录数量
+                    total_income = sum(t.amount for t in base_records if t.type == "income")
+                    total_expense = sum(t.amount for t in base_records if t.type == "expense")
+                    show_bottom_message(f"✅ 成功导出 {len(base_records)} 条记录 (收入: ¥{total_income:,.2f}, 支出: ¥{total_expense:,.2f})")
+                else:
+                    show_bottom_message("已取消导出")
+                
+                page.update()
+                
+            except Exception as ex:
+                show_bottom_message(f"导出失败: {str(ex)}", is_error=True)
+                print(f"导出错误: {ex}")
+                import traceback
+                traceback.print_exc()
+
+        def show_date_picker_bottom_sheet():
+            """显示底部日期选择器"""
+            
+            # 当前选中的年份和月份
+            selected_year = current_year
+            selected_month = current_month
+            
+            # 自定义区间日期
+            custom_start = start_date.strftime("%Y-%m-%d")
+            custom_end = end_date.strftime("%Y-%m-%d")
+            
+            # 当前选中的页签：0=按月查询，1=自定义区间
+            current_tab = 0
+            
+            # 年份列表（往前5年，往后1年）
+            year_options = list(range(current_year - 5, current_year + 2))
+            
+            # ========== 年份选择（下拉框） ==========
+            year_dropdown = ft.Dropdown(
+                value=str(selected_year),
+                options=[ft.dropdown.Option(str(y), f"{y}年") for y in year_options],
+                on_select=lambda e: on_year_change(int(e.control.value)),
+                #width=100,
+                expand=True,
+                height=40,
+            )
+            
+            def on_year_change(year):
+                nonlocal selected_year
+                selected_year = year
+                month_dropdown.value = str(selected_month)
+                month_dropdown.update()
+                page.update()
+            
+            # ========== 月份选择（下拉框） ==========
+            month_names = ['1月', '2月', '3月', '4月', '5月', '6月', 
+                        '7月', '8月', '9月', '10月', '11月', '12月']
+            
+            month_dropdown = ft.Dropdown(
+                value=str(selected_month),
+                options=[ft.dropdown.Option(str(i+1), name) for i, name in enumerate(month_names)],
+                on_select=lambda e: select_month(selected_year, int(e.control.value)),
+                #width=100,
+                expand=True,
+                height=40,
+            )
+            
+            # ========== 按月查询内容 ==========
+            monthly_content = ft.Container(
+                content=ft.Stack([
+                    # 顶部：快捷按钮行
+                    ft.Container(
+                        content=ft.Row([
+                            ft.TextButton(
+                                "上月",
+                                on_click=lambda e: select_month(
+                                    current_year if current_month > 1 else current_year - 1,
+                                    current_month - 1 if current_month > 1 else 12
+                                ),
+                                style=ft.ButtonStyle(
+                                    color=ft.Colors.BLUE_700,
+                                    #bgcolor=ft.Colors.BLUE_50,
+                                    shape=ft.RoundedRectangleBorder(radius=8),
+                                ),
+                            ),
+                            ft.TextButton(
+                                "本月",
+                                on_click=lambda e: [select_month(current_year, datetime.now().month)],
+                                style=ft.ButtonStyle(
+                                    color=ft.Colors.BLUE_700,
+                                    #bgcolor=ft.Colors.BLUE_700,
+                                    shape=ft.RoundedRectangleBorder(radius=8),
+                                ),
+                            ),
+                            ft.TextButton(
+                                "近三月",
+                                on_click=lambda e: select_near_months(3),
+                                style=ft.ButtonStyle(
+                                    color=ft.Colors.BLUE_700,
+                                    #bgcolor=ft.Colors.BLUE_50,
+                                    shape=ft.RoundedRectangleBorder(radius=8),
+                                ),
+                            ),
+                            ft.TextButton(
+                                "近一年",
+                                on_click=lambda e: select_near_months(12),
+                                style=ft.ButtonStyle(
+                                    color=ft.Colors.BLUE_700,
+                                    #bgcolor=ft.Colors.BLUE_50,
+                                    shape=ft.RoundedRectangleBorder(radius=8),
+                                ),
+                            ),
+                        ], spacing=8, alignment=ft.MainAxisAlignment.CENTER),
+                        padding=20,
+                        top=0,
+                        left=0,
+                        right=0,
+                    ),
+                    # 第二行：年份和月份下拉框
+                    ft.Container(
+                        content=ft.Row([
+                            ft.Text("年份:", size=14, color=ft.Colors.GREY_700),
+                            year_dropdown,
+                            ft.Container(width=20),
+                            ft.Text("月份:", size=14, color=ft.Colors.GREY_700),
+                            month_dropdown,
+                        ], spacing=5, alignment=ft.MainAxisAlignment.CENTER),
+                        padding=10,
+                        top=55,
+                        left=0,
+                        right=0,
+                    ),
+                    # 确定按钮（在底部）
+                    ft.Container(
+                        content=ft.ElevatedButton(
+                            "确定",
+                            on_click=lambda e: select_month(selected_year, selected_month),
+                            expand=True,
+                            style=ft.ButtonStyle(
+                                bgcolor=ft.Colors.BLUE_700,
+                                color=ft.Colors.WHITE,
+                                shape=ft.RoundedRectangleBorder(radius=8),
+                            ),
+                        ),
+                        padding=10,
+                        bottom=0,
+                        left=0,
+                        right=0,
+                    ),
+                ]),
+                expand=True,
+            )
+
+            def select_near_months(n):
+                """查询最近 n 个月的收支明细（区间查询）"""
+                nonlocal start_date, end_date, query_mode
+                
+                now = datetime.now()
+                start = now - timedelta(days=30 * n)
+                end = now
+                
+                start_date = start.date()
+                end_date = end.date()
+                query_mode = "range"
+                
+                # 根据 n 值显示不同的标签
+                if n == 3:
+                    label = "近三月"
+                elif n == 12:
+                    label = "近一年"
+                else:
+                    label = f"近{n}个月"
+                
+                refresh_summary()
+                refresh_records_list()
+                update_query_mode_display()
+                close_bottom_sheet()
+                show_bottom_message(f"已查询 {label} ({start_date.strftime('%Y-%m-%d')} ~ {end_date.strftime('%Y-%m-%d')})")
+            
+            def apply_custom_range(e):
+                """应用自定义区间"""
+                try:
+                    start = datetime.strptime(start_date_field_bottom.value, "%Y-%m-%d").date()
+                    end = datetime.strptime(end_date_field_bottom.value, "%Y-%m-%d").date()
+                    if start > end:
+                        show_bottom_message("开始日期不能大于结束日期", is_error=True)
+                        return
+                    nonlocal start_date, end_date, query_mode
+                    start_date = start
+                    end_date = end
+                    query_mode = "range"
+                    refresh_summary()
+                    refresh_records_list()
+                    update_query_mode_display()
+                    close_bottom_sheet()
+                    show_bottom_message(f"已查询 {start.strftime('%Y-%m-%d')} ~ {end.strftime('%Y-%m-%d')}")
+                except ValueError:
+                    show_bottom_message("日期格式错误", is_error=True)
+            
+            # ========== 选择月份函数 ==========
+            def select_month(year, month):
+                """选择月份"""
+                nonlocal selected_year, selected_month
+                selected_year = year
+                selected_month = month
+                
+                # 判断是上月、本月还是其他月份
+                now = datetime.now()
+                if year == now.year and month == now.month:
+                    month_label = "本月"
+                elif year == now.year and month == now.month - 1:
+                    month_label = "上月"
+                elif year == now.year and month == now.month + 1:
+                    month_label = "下月"
+                else:
+                    month_label = f"{year}年{month}月"
+                
+                # 切换到按月查询
+                switch_to_month_mode(None)
+                # 更新日期
+                nonlocal current_year, current_month
+                current_year = year
+                current_month = month
+                month_text.value = f"{year}年{month}月"
+                refresh_summary()
+                refresh_records_list()
+                update_query_mode_display()
+                close_bottom_sheet()
+                show_bottom_message(f"已切换到 {month_label}")
+            
+            # ========== 自定义区间 ==========
+            start_date_field_bottom = ft.TextField(
+                label="开始日期",
+                value=custom_start,
+                read_only=True,
+                expand=True,
+                height=45,
+                on_click=lambda e: show_date_picker("start"),
+            )
+            
+            end_date_field_bottom = ft.TextField(
+                label="结束日期",
+                value=custom_end,
+                read_only=True,
+                expand=True,
+                height=45,
+                on_click=lambda e: show_date_picker("end"),
+            )
+
+             # ========== 自定义区间内容 ==========
+            range_content = ft.Container(
+                content=ft.Stack([
+                    # 日期选择行（在顶部）
+                    ft.Container(
+                        content=ft.Row([
+                            start_date_field_bottom,
+                            ft.Text("~", size=14, color=ft.Colors.GREY_700),
+                            end_date_field_bottom,
+                        ], spacing=5),
+                        padding=10,
+                        top=0,
+                        left=0,
+                        right=0,
+                    ),
+                    # 确定按钮（在底部）
+                    ft.Container(
+                        content=ft.ElevatedButton(
+                            "确定",
+                            on_click=apply_custom_range,
+                            expand=True,
+                            style=ft.ButtonStyle(
+                                bgcolor=ft.Colors.BLUE_700,
+                                color=ft.Colors.WHITE,
+                                shape=ft.RoundedRectangleBorder(radius=8),
+                                #padding=(0, 12, 0, 12),
+                            ),
+                        ),
+                        padding=10,
+                        bottom=0,
+                        left=0,
+                        right=0,
+                    ),
+                ]),
+                expand=True,
+                visible=False,
+            )
+            
+            # 日期选择器（用于区间选择）
+            temp_date_picker = ft.DatePicker(
+                first_date=datetime(2020, 1, 1),
+                last_date=datetime(2030, 12, 31),
+                on_change=lambda e: on_temp_date_selected(e),
+            )
+            page.overlay.append(temp_date_picker)
+            
+            picker_target = {"type": "start"}
+            
+            def show_date_picker(target_type):
+                picker_target["type"] = target_type
+                page.show_dialog(temp_date_picker)
+            
+            def on_temp_date_selected(e):
+                if temp_date_picker.value:
+                    local_date = temp_date_picker.value + timedelta(days=1)
+                    date_str = local_date.strftime("%Y-%m-%d")
+                    if picker_target["type"] == "start":
+                        start_date_field_bottom.value = date_str
+                    else:
+                        end_date_field_bottom.value = date_str
+                    start_date_field_bottom.update()
+                    end_date_field_bottom.update()
+                    page.update()
+            
+            def close_bottom_sheet():
+                if overlay_container in page.overlay:
+                    page.overlay.remove(overlay_container)
+                    page.update()
+            
+            # ========== 切换页签 ==========
+            def switch_tab(index):
+                nonlocal current_tab
+                current_tab = index
+                
+                # ========== 更新页签样式 ==========
+                if index == 0:
+                    # 按月查询选中
+                    tab_month.content = ft.Text("按月查询", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700)
+                    tab_month.bgcolor = ft.Colors.TRANSPARENT
+                    # 加下划线：在下方添加一个容器
+                    tab_month.border = ft.border.Border(
+                        bottom=ft.border.BorderSide(2, ft.Colors.BLUE_700)
+                    )
+                    tab_month.border_radius = 0
+                    
+                    tab_range.content = ft.Text("自定义区间", size=14, weight=ft.FontWeight.NORMAL, color=ft.Colors.GREY_600)
+                    tab_range.bgcolor = ft.Colors.TRANSPARENT
+                    tab_range.border = None
+                    tab_range.border_radius = 0
+                    
+                    monthly_content.visible = True
+                    range_content.visible = False
+                    
+                else:
+                    # 自定义区间选中
+                    tab_range.content = ft.Text("自定义区间", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700)
+                    tab_range.bgcolor = ft.Colors.TRANSPARENT
+                    tab_range.border = ft.border.Border(
+                        bottom=ft.border.BorderSide(2, ft.Colors.BLUE_700)
+                    )
+                    tab_range.border_radius = 0
+                    
+                    tab_month.content = ft.Text("按月查询", size=14, weight=ft.FontWeight.NORMAL, color=ft.Colors.GREY_600)
+                    tab_month.bgcolor = ft.Colors.TRANSPARENT
+                    tab_month.border = None
+                    tab_month.border_radius = 0
+                    
+                    monthly_content.visible = False
+                    range_content.visible = True
+                
+                page.update()
+            
+            # ========== 页签 ==========
+            tab_month = ft.Container(
+                content=ft.Text("按月查询", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
+                bgcolor=ft.Colors.TRANSPARENT,
+                border=ft.border.Border(
+                    bottom=ft.border.BorderSide(2, ft.Colors.BLUE_700)
+                ),
+                border_radius=0,
+                ink=True,
+                on_click=lambda e: switch_tab(0),
+            )
+            
+            tab_range = ft.Container(
+                content=ft.Text("自定义区间", size=14, weight=ft.FontWeight.NORMAL, color=ft.Colors.GREY_600),
+                bgcolor=ft.Colors.TRANSPARENT,
+                border=None,
+                border_radius=0,
+                ink=True,
+                on_click=lambda e: switch_tab(1),
+            )
+            
+            # ========== 创建底部弹出内容 ==========
+            bottom_content = ft.Container(
+                content=ft.Column([
+                    # 顶部手柄
+                    ft.Container(
+                        content=ft.Container(
+                            width=40,
+                            height=4,
+                            bgcolor=ft.Colors.GREY_300,
+                            border_radius=2,
+                        ),
+                        alignment=ft.Alignment(0, 0),
+                        padding=10,
+                    ),
+                    # 页签
+                    ft.Row([
+                        tab_month,
+                        ft.Container(width=80),
+                        tab_range,
+                    ], spacing=0, alignment=ft.MainAxisAlignment.START),
+                    ft.Divider(height=1),
+                    # 内容区域（expand=True 让内容占满剩余空间）
+                    ft.Container(
+                        content=ft.Column([
+                            monthly_content,
+                            range_content,
+                        ], spacing=0, expand=True),
+                        expand=True,
+                    ),
+                ], spacing=10, expand=True),  # 整个 Column expand
+                padding=20,
+                bgcolor=ft.Colors.WHITE,
+            )
+            
+            sheet_container = ft.Container(
+                content=bottom_content,
+                left=0,
+                right=0,
+                bottom=0,
+                height=350,
+                bgcolor=ft.Colors.WHITE,
+                shadow=ft.BoxShadow(
+                    spread_radius=1,
+                    blur_radius=20,
+                    color=ft.Colors.BLACK26,
+                    offset=ft.Offset(0, -4),
+                ),
+            )
+            
+            # 背景遮罩和底部弹出（使用 Stack）
+            overlay_container = ft.Container(
+                content=ft.Stack([
+                    ft.Container(
+                        expand=True,
+                        bgcolor=ft.Colors.BLACK26,
+                        on_click=lambda e: close_bottom_sheet(),
+                    ),
+                    sheet_container,
+                ]),
+                expand=True,
+            )
+            
+            page.overlay.append(overlay_container)
+            page.update()
+
         def refresh_summary():
             """刷新统计卡片"""
             summary_container.controls.clear()
@@ -4177,11 +4709,47 @@ def main(page: ft.Page):
             total_expense = sum(t.amount for t in transactions if t.type == "expense")
             total_balance = total_income - total_expense
             
+            # ========== 日期标题（可点击，弹出日期选择器） ==========
+            if query_mode == "month":
+                # 判断是否是上月、本月等
+                now = datetime.now()
+                if current_year == now.year and current_month == now.month:
+                    date_label_text = "📅 本月"
+                elif current_year == now.year and current_month == now.month - 1:
+                    date_label_text = "📅 上月"
+                elif current_year == now.year and current_month == now.month + 1:
+                    date_label_text = "📅 下月"
+                else:
+                    date_label_text = f"📅 {current_year}年{current_month}月"
+            else:
+                # 区间查询
+                if (end_date - start_date).days <= 35:  # 约1个月
+                    date_label_text = f"📅 近一月"
+                elif (end_date - start_date).days <= 95:  # 约3个月
+                    date_label_text = f"📅 近三月"
+                elif (end_date - start_date).days <= 370:  # 约1年
+                    date_label_text = f"📅 近一年"
+                else:
+                    date_label_text = f"📅 {start_date.strftime('%Y-%m-%d')} ~ {end_date.strftime('%Y-%m-%d')}"
+
+            # ========== 可点击的日期标题 ==========
+            date_label = ft.Text(date_label_text, size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700)
+
+            # 让月份文本可点击
+            date_label_container = ft.Container(
+                content=date_label,
+                on_click=lambda e: show_date_picker_bottom_sheet(),
+                ink=True,
+                padding=5,
+                border_radius=4,
+            )
+
             summary_container.controls.append(
                 ft.Container(
                     content=ft.Column([
                         ft.Divider(height=1),
-                        ft.Text(date_label, size=14, weight=ft.FontWeight.BOLD),
+
+                        date_label_container,
                         ft.Row([
                             ft.Column([
                                 ft.Text("收入", size=12, color=ft.Colors.GREY_600),
@@ -4358,12 +4926,6 @@ def main(page: ft.Page):
                 ft.Row([
                     ft.TextButton("清除筛选", on_click=clear_filter, style=ft.ButtonStyle(color=ft.Colors.RED_700)),
                     ft.Container(expand=True),
-                    ft.ElevatedButton("取消", on_click=lambda e: close_filter_dialog()),
-                    ft.ElevatedButton(
-                        "完成",
-                        on_click=apply_filter,
-                        style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE),
-                    ),
                 ], spacing=10),
             ], spacing=10)
             
@@ -4441,7 +5003,7 @@ def main(page: ft.Page):
                             ft.Row([
                                 ft.Text("📊 统计汇总", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
                                 ft.Container(expand=True),
-                                ft.Text(f"共 {len(filtered_records)} 条", size=11, color=ft.Colors.GREY_500),
+                                ft.Text(f"共 {len(filtered_records)} 笔交易", size=11, color=ft.Colors.GREY_500),
                             ]),
                             ft.Row([
                                 ft.Column([
@@ -4506,7 +5068,7 @@ def main(page: ft.Page):
                         ft.Row([
                             ft.Text("📊 统计汇总", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
                             ft.Container(expand=True),
-                            ft.Text(f"共 {len(filtered_records)} 条", size=11, color=ft.Colors.GREY_500),
+                            ft.Text(f"共 {len(filtered_records)} 笔交易", size=11, color=ft.Colors.GREY_500),
                         ]),
                         ft.Row([
                             ft.Column([
@@ -4625,107 +5187,19 @@ def main(page: ft.Page):
             page.update()
             show_bottom_message("已回到本月")
 
-        def show_query_mode_menu(e):
-            """显示查询模式切换菜单"""
-            menu_container = None
-
-            def close_menu():
-                nonlocal menu_container
-                if menu_container and menu_container in page.overlay:
-                    page.overlay.remove(menu_container)
-                    menu_container = None
-                    page.update()
-
-            menu_content = ft.Container(
-                content=ft.Column([
-                    ft.Container(
-                        content=ft.Icon(ft.Icons.SEARCH, size=48, color=ft.Colors.BLUE_700),
-                        padding=10,
-                        bgcolor=ft.Colors.BLUE_50,
-                        border_radius=50,
-                    ),
-                    ft.Text("查询模式", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_800),
-                    ft.Text("请选择查询方式", size=12, color=ft.Colors.GREY_500),
-                    ft.Divider(height=1, color=ft.Colors.GREY_200),
-                    ft.ElevatedButton(
-                        "📆 按月查询", 
-                        on_click=lambda e: [close_menu(), switch_to_month_mode(e)], 
-                        icon=ft.Icons.CALENDAR_MONTH,
-                        style=ft.ButtonStyle(
-                            bgcolor=ft.Colors.BLUE_700 if query_mode == "month" else ft.Colors.GREY_100,
-                            color=ft.Colors.WHITE if query_mode == "month" else ft.Colors.GREY_700,
-                            shape=ft.RoundedRectangleBorder(radius=8),
-                        ),
-                        expand=True,
-                    ),
-                    ft.ElevatedButton(
-                        "📅 区间查询", 
-                        on_click=lambda e: [close_menu(), switch_to_range_mode(e)], 
-                        icon=ft.Icons.DATE_RANGE,
-                        style=ft.ButtonStyle(
-                            bgcolor=ft.Colors.PURPLE_700 if query_mode == "range" else ft.Colors.GREY_100,
-                            color=ft.Colors.WHITE if query_mode == "range" else ft.Colors.GREY_700,
-                            shape=ft.RoundedRectangleBorder(radius=8),
-                        ),
-                        expand=True,
-                    ),
-                    ft.Divider(height=1, color=ft.Colors.GREY_200),
-                    ft.TextButton(
-                        "取消", 
-                        on_click=lambda e: close_menu(),
-                        style=ft.ButtonStyle(color=ft.Colors.GREY_600),
-                        expand=True,
-                    ),
-                ], spacing=12, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                width=320,
-                padding=20,
-                bgcolor=ft.Colors.WHITE,
-                border_radius=20,
-                shadow=ft.BoxShadow(
-                    spread_radius=1,
-                    blur_radius=15,
-                    color=ft.Colors.BLACK12,
-                    offset=ft.Offset(0, 4),
-                ),
-            )
-            menu_container = ft.Container(
-                content=ft.Column([ft.Container(expand=True), ft.Row([ft.Container(expand=True), menu_content, ft.Container(expand=True)]), ft.Container(expand=True)]),
-                expand=True, bgcolor=ft.Colors.BLACK26, on_click=lambda e: close_menu(),
-            )
-            page.overlay.append(menu_container)
-            page.update()
-
-        # ========== 创建查询模式显示（使用 Text） ==========
-        query_mode_display = ft.Text("📅 按月查询", size=11, color=ft.Colors.BLUE_700)
-
-        # 点击时弹出菜单
-        query_mode_display_container = ft.Container(
-            content=query_mode_display,
-            on_click=show_query_mode_menu,
-            ink=True,
-            padding=5,
-            border_radius=4,
-        )
-
         # ========== 新增：区间查询相关函数 ==========
         def update_query_mode_display():
             """更新查询模式显示"""
             if query_mode == "month":
                 range_row.visible = False
                 month_row.visible = True
-                query_mode_display.value = "📅 按月查询"
-                query_mode_display.color = ft.Colors.BLUE_700
-
             else:
-                range_row.visible = True
-                month_row.visible = False
-                query_mode_display.value = "📅 区间查询"
-                query_mode_display.color = ft.Colors.PURPLE_700
+                range_row.visible = False
+                month_row.visible = True
             # 更新所有控件
             try:
                 range_row.update()
                 month_row.update()
-                query_mode_display.update()
                 page.update()
             except:
                 pass
@@ -4814,13 +5288,6 @@ def main(page: ft.Page):
             start_date_field,
             ft.Text("~", size=16, color=ft.Colors.GREY_700),
             end_date_field,
-            ft.IconButton(
-                ft.Icons.SEARCH,
-                icon_size=24,
-                icon_color=ft.Colors.BLUE_700,
-                on_click=apply_range_query,
-                tooltip="查询区间",
-            ),
         ], spacing=5, visible=False)
 
         # ========== 构建界面 ==========
@@ -4920,35 +5387,6 @@ def main(page: ft.Page):
                         print(f"自动查询失败: {ex}")
                 
                 asyncio.create_task(auto_query())
-
-        start_date_field = ft.TextField(
-            label="开始日期",
-            value=datetime.now().replace(day=1).strftime("%Y-%m-%d"),
-            read_only=True,
-            expand=True,
-            on_click=lambda e: page.show_dialog(start_date_picker),
-        )
-
-        end_date_field = ft.TextField(
-            label="结束日期",
-            value=datetime.now().strftime("%Y-%m-%d"),
-            read_only=True,
-            expand=True,
-            on_click=lambda e: page.show_dialog(end_date_picker),
-        )
-
-        range_row = ft.Row([
-            start_date_field,
-            ft.Text("~", size=16, color=ft.Colors.GREY_700),
-            end_date_field,
-            ft.IconButton(
-                ft.Icons.SEARCH,
-                icon_size=24,
-                icon_color=ft.Colors.BLUE_700,
-                on_click=apply_range_query,
-                tooltip="查询区间",
-            ),
-        ], spacing=5, visible=False)
 
         # ========== 添加收支记录对话框 ==========
         def show_add_transaction_dialog(transaction_type="expense"):
@@ -5251,6 +5689,13 @@ def main(page: ft.Page):
             on_click=show_filter_dialog,
             style=ft.ButtonStyle(color=ft.Colors.GREY_600, text_style=ft.TextStyle(size=11)),
         )
+        
+        # ========== 创建导出按钮 ==========
+        export_btn = ft.TextButton(
+            "📤 导出",
+            on_click=lambda e: asyncio.create_task(export_filtered_accounting(e)),
+            style=ft.ButtonStyle(color=ft.Colors.GREEN_700, text_style=ft.TextStyle(size=11)),
+        )
 
         # ========== 关键修改：使用 Stack + Column 固定标题，内容滚动 ==========
         # 固定标题区域
@@ -5267,7 +5712,7 @@ def main(page: ft.Page):
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                 ft.Divider(),
                 month_row,
-                range_row,
+                #range_row,
                 summary_container,
                 ft.Divider(),
                 ft.Row([
@@ -5275,9 +5720,7 @@ def main(page: ft.Page):
                     ft.Text("记录列表", size=16, weight=ft.FontWeight.BOLD),
                     ft.Container(expand=True),
                     filter_btn,  # 添加筛选按钮
-                    # ========== 添加查询方式标签和按钮 ==========
-                    ft.Text("🔍 查询方式:", size=12, color=ft.Colors.GREY_600),
-                    query_mode_display_container,  # 使用可点击的容器
+                    export_btn,  # 添加导出按钮
                 ], spacing=5),
                 ft.Divider(),
             ], spacing=8),
@@ -11114,7 +11557,7 @@ def main(page: ft.Page):
                     padding=15,
                     bgcolor=ft.Colors.BLUE_50,
                     border_radius=50,
-                    #alignment=ft.alignment.center,  # 图标居中
+                    #alignment=ft.Alignment(0, 0),  # 图标居中
                 ),
                 ft.Text("导入记账数据", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, text_align=ft.TextAlign.CENTER),
                 ft.Divider(),
@@ -11185,7 +11628,7 @@ def main(page: ft.Page):
                     padding=10,
                     bgcolor=ft.Colors.BLUE_50,
                     border_radius=50,
-                    #alignment=ft.alignment.center,  # 图标居中
+                    #alignment=ft.Alignment(0, 0),  # 图标居中
                 ),
                 ft.Text("导出数据", size=20, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
                 ft.Text("请选择要导出的数据类型", size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
@@ -11261,7 +11704,7 @@ def main(page: ft.Page):
                     padding=10,
                     bgcolor=ft.Colors.BLUE_50,
                     border_radius=50,
-                    #alignment=ft.alignment.center,  # 图标居中
+                    #alignment=ft.Alignment(0, 0),  # 图标居中
                 ),
                 ft.Text("导入数据", size=20, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
                 ft.Text("请选择要导入的数据类型", size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
