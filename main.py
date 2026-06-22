@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.71"
-APP_VERSION_CODE = 71
+APP_VERSION = "1.0.72"
+APP_VERSION_CODE = 72
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -334,8 +334,7 @@ class SearchableDropdown(ft.Column):
                         overlay_color=ft.Colors.BLUE_50,
                     ),
                 ),
-                expand=True,
-                #padding=ft.padding.only(left=12, right=12, top=4, bottom=4),
+                width=float("inf"),  # 宽度填满
             )
             self.dropdown_container.content.controls.append(btn)
             
@@ -1789,6 +1788,7 @@ def main(page: ft.Page):
         "餐饮",
         "水电费",
         "电话费",
+        "生活费",
         "房贷",
         "车贷",
         "网贷",
