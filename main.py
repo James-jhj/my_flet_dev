@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.75"
-APP_VERSION_CODE = 75
+APP_VERSION = "1.0.76"
+APP_VERSION_CODE = 76
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -8540,7 +8540,7 @@ def main(page: ft.Page):
         # 创建事件类型下拉框
         event_type = ft.Dropdown(
             label="事件类型",
-            width=float("inf"),  # 占满宽度
+            expand=True,
             options=get_event_type_options(),
             value=selected_event.event_type if selected_event else "birthday",
             on_select=on_event_type_select,  # 使用 on_select 而不是 on_change
