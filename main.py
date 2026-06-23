@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.72"
-APP_VERSION_CODE = 72
+APP_VERSION = "1.0.73"
+APP_VERSION_CODE = 73
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -2332,12 +2332,25 @@ def main(page: ft.Page):
         
         # ========== 计算可视区域高度 ==========
         try:
-            if hasattr(page, 'window_height'):
-                list_view_height = page.window_height - 180
+            if hasattr(page, 'window_height') and page.window_height:
+                #import platform
+                is_android = platform.system() == "Linux"
+                
+                if is_android:
+                    # 手机：屏幕高度 - 状态栏(约35px) - 顶部栏(约80px) + 微调
+                    # 手机状态栏占用了屏幕高度，所以需要少减一些
+                    list_view_height = page.window_height - 240  # 从180改为240
+                else:
+                    # Windows：窗口高度 - 顶部栏
+                    list_view_height = page.window_height - 180
             else:
                 list_view_height = 500
         except:
             list_view_height = 500
+
+        print(f"[全屏歌词] 平台: {platform.system()}")
+        print(f"[全屏歌词] 窗口高度: {page.window_height if hasattr(page, 'window_height') else '未知'}")
+        print(f"[全屏歌词] ListView 高度: {list_view_height}")
         
         item_height = 50
         padding_count = int((list_view_height / 2) / item_height) + 2
@@ -11961,21 +11974,41 @@ def main(page: ft.Page):
     set_music_state_update_callback()
 
     date_display = ft.Text(value=current_date.strftime("%Y年%m月%d日"), size=24, weight=ft.FontWeight.BOLD)
+
+    # 3. 滚动时暂停字幕动画
+    def on_events_list_scroll(e):
+        """事件列表滚动时暂停字幕动画"""
+        if hasattr(e, 'pixels') and e.pixels is not None:
+            if marquee_text._is_playing:
+                marquee_text.stop()
+        else:
+            if not marquee_text._is_playing and current_music_state in ["playing", "paused"]:
+                import threading
+                def restart_marquee():
+                    import time
+                    time.sleep(0.5)
+                    if not marquee_text._is_playing and current_music_state in ["playing", "paused"]:
+                        marquee_text.start()
+                threading.Thread(target=restart_marquee, daemon=True).start()
+
     #events_list = ft.Column(spacing=12, scroll=ft.ScrollMode.AUTO, height=400)
     #events_list = ft.Column(spacing=12)
     events_list = ft.ListView(
         spacing=12,
         padding=10,
         auto_scroll=False,
+        on_scroll=on_events_list_scroll,  # 滚动时暂停字幕
     )
     
+    is_android = platform.system() == "Linux"
+
     # 添加新的平滑滚动字幕
     marquee_text = SmoothMarqueeText(
         text="🎵 未播放",
         #width=280,
         height=60,
-        speed=0.8,  # 可以适当降低速度
-        fps=30,     # 降低帧率
+        speed=0.5 if is_android else 0.8,  # 可以适当降低速度
+        fps=24 if is_android else 60,     # 降低帧率
         gap=None,  # None 表示自动计算，间隙 = 文本宽度
         font_size=15,
         font_weight=ft.FontWeight.BOLD,
