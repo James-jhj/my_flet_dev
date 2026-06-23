@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.76"
-APP_VERSION_CODE = 76
+APP_VERSION = "1.0.77"
+APP_VERSION_CODE = 77
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -7590,24 +7590,6 @@ def main(page: ft.Page):
                     if v == value:
                         return text
                 return "📋 全部事件"
-            
-            # ========== 使用 PopupMenuButton（悬浮，不占空间） ==========
-            view_popup = ft.PopupMenuButton(
-                content=ft.Row([
-                    ft.Text(get_view_display_text(current_view), size=14, weight=ft.FontWeight.BOLD),
-                    ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18),
-                ], spacing=5, alignment=ft.MainAxisAlignment.CENTER),
-                items=[
-                    ft.PopupMenuItem(
-                        content=ft.Container(
-                            content=ft.Text(text, size=14),
-                            width=150,
-                        ),
-                        on_click=lambda e, val=value: select_view_popup(val),
-                    )
-                    for value, text in view_options
-                ],
-            )
 
             # ========== 重新构建 items，在选项之间添加分割线 ==========
             popup_items = []
@@ -7620,17 +7602,16 @@ def main(page: ft.Page):
                             width=150,
                         ),
                         on_click=lambda e, val=value: select_view_popup(val),
+                        height=40,  # 控制选项高度
                     )
                 )
                 # 在选项之间添加分割线（最后一个不加）
                 if i < len(view_options) - 1:
                     popup_items.append(
                         ft.PopupMenuItem(
-                            content=ft.Container(
-                                content=ft.Divider(height=1, color=ft.Colors.GREY_300),
-                                height=1,
-                            ),
+                            content=ft.Divider(height=1, color=ft.Colors.GREY_300),
                             disabled=True,
+                            height=2,  # 分割线高度
                         )
                     )
 
