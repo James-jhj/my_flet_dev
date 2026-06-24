@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.77"
-APP_VERSION_CODE = 77
+APP_VERSION = "1.0.78"
+APP_VERSION_CODE = 78
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -7621,6 +7621,7 @@ def main(page: ft.Page):
                     ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18),
                 ], spacing=5, alignment=ft.MainAxisAlignment.CENTER),
                 items=popup_items,
+                bgcolor=ft.Colors.WHITE,  # 下拉框背景设置为白色，默认是银色
             )
 
             def select_view_popup(value):
@@ -8148,6 +8149,10 @@ def main(page: ft.Page):
         nonlocal dialog_container, selected_event
         close_dialog()
 
+        # 在函数开头定义变量存储当前选中的事件类型
+        event_type_selected = selected_event.event_type if selected_event else "birthday"
+        calendar_selected = selected_event.calendar_type if selected_event else "solar"
+
         # Android 平台检查存储权限
         if platform.system() == "Linux":
             def check_storage_permission():
@@ -8227,8 +8232,6 @@ def main(page: ft.Page):
             on_click=lambda e: page.show_dialog(date_picker),  # 使用 show_dialog
             visible=True,  # 默认可见，但会根据事件类型动态调整
         )
-
-        
         
         # 添加多个时间提醒的按钮和列表
         reminders_list = ft.Column(spacing=5)
@@ -8349,8 +8352,8 @@ def main(page: ft.Page):
                 day = local_date.day
                 
                 # 增加判断，如果是每月事件，只需要显示一个日
-                print(f'打印事件类型测试：{event_type.value}')
-                if event_type.value == "monthly":
+                print(f'打印事件类型测试：{event_type_selected}')
+                if event_type_selected == "monthly":
                     date_display_field.value = f"{day:02d}"
                 else:
                     date_display_field.value = f"{year:04d}-{month:02d}-{day:02d}"
@@ -8364,40 +8367,40 @@ def main(page: ft.Page):
             import traceback
             """根据事件类型切换显示不同的日期输入控件"""
             #print(f"[调试] ========== update_date_visibility 被调用 ==========")
-            #print(f"[调试] event_type.value = {event_type.value}")
+            #print(f"[调试] event_type_selected = {event_type_selected}")
             #print(f"[调试] 调用栈: {traceback.extract_stack()[-2].name}")
             
-            if event_type.value == "daily":
+            if event_type_selected == "daily":
                 # 每天提醒：隐藏所有日期控件，显示工作日选项
                 weekday_row.visible = False
-                calendar_type.visible = False
+                calendar_container.visible = False
                 repeat_type.visible = False
                 date_display_field.visible = False   # 隐藏日期选择器显示字段
                 #workday_only_checkbox.visible = True # 显示工作日选项
                 hint_text.value = "💡 提示: 每天提醒，可设置具体时间。开启「仅在法定工作日提醒」后，只在工作日触发提醒"
                 
-            elif event_type.value == "weekly":
+            elif event_type_selected == "weekly":
                 # 每周提醒：隐藏日期选择器，隐藏工作日选项
                 weekday_row.visible = True      # 显示星期选择
-                calendar_type.visible = False   # 隐藏历法选择
+                calendar_container.visible = False   # 隐藏历法选择
                 repeat_type.visible = False
                 date_display_field.visible = False     # 隐藏日期选择器显示字段
                 #workday_only_checkbox.visible = False  # 隐藏工作日选项
                 hint_text.value = "💡 提示: 每周提醒，选择日期后每周同一天提醒"
                 
-            elif event_type.value == "monthly":
+            elif event_type_selected == "monthly":
                 # 每月提醒：只显示日，隐藏工作日选项
                 weekday_row.visible = False
-                calendar_type.visible = False
+                calendar_container.visible = False
                 repeat_type.visible = False
                 date_display_field.visible = True      # 显示日期选择器
                 #workday_only_checkbox.visible = False  # 隐藏工作日选项
                 hint_text.value = "💡 提示: 每月固定日期提醒，只需选择每月几号"
                 
-            elif event_type.value == "once":
+            elif event_type_selected == "once":
                 # 一次性事件：显示完整日期和日期选择器，隐藏工作日选项
                 weekday_row.visible = False
-                calendar_type.visible = True
+                calendar_container.visible = True
                 repeat_type.visible = False
                 date_display_field.visible = True      # 显示日期选择器
                 #workday_only_checkbox.visible = False  # 隐藏工作日选项
@@ -8406,11 +8409,11 @@ def main(page: ft.Page):
             else:
                 # 生日/纪念日：显示完整日期和日期选择器，隐藏工作日选项
                 weekday_row.visible = False
-                calendar_type.visible = True
+                calendar_container.visible = True
                 repeat_type.visible = True
                 date_display_field.visible = True      # 显示日期选择器
                 #workday_only_checkbox.visible = False  # 隐藏工作日选项
-                if event_type.value == "birthday":
+                if event_type_selected == "birthday":
                     hint_text.value = "💡 提示: 农历生日会自动计算每年对应的阳历日期"
                 else:
                     hint_text.value = "💡 提示: 纪念日每年重复提醒，可设置农历或阳历"
@@ -8419,113 +8422,213 @@ def main(page: ft.Page):
             #print(f"[调试] monthly_day_row.visible = {monthly_day_row.visible}")
             page.update()
 
-        # ========== 事件类型下拉框（使用正确的 on_select 事件） ==========
-        def get_event_type_options():
-            return [
-                ft.dropdown.Option(
-                    key="birthday", 
-                    text="🎂 生日",
-                    leading_icon=ft.Icon(ft.Icons.CAKE, color=ft.Colors.RED_700, size=20)
-                ),
-                ft.dropdown.Option(
-                    key="event", 
-                    text="📅 纪念日/事件",
-                    leading_icon=ft.Icon(ft.Icons.EVENT, color=ft.Colors.BLUE_700, size=20)
-                ),
-                ft.dropdown.Option(
-                    key="monthly", 
-                    text="💰 每月提醒",
-                    leading_icon=ft.Icon(ft.Icons.REPEAT, color=ft.Colors.GREEN_700, size=20)
-                ),
-                ft.dropdown.Option(
-                    key="once", 
-                    text="⏰ 一次性事件",
-                    leading_icon=ft.Icon(ft.Icons.TIMER, color=ft.Colors.ORANGE_700, size=20)
-                ),
-                # ========== 新增事件类型 ==========
-                ft.dropdown.Option(
-                    key="daily", 
-                    text="📆 每天提醒",
-                    leading_icon=ft.Icon(ft.Icons.TODAY, color=ft.Colors.PURPLE_700, size=20)
-                ),
-                ft.dropdown.Option(
-                    key="weekly", 
-                    text="📅 每周提醒",
-                    leading_icon=ft.Icon(ft.Icons.WEEKEND, color=ft.Colors.TEAL_700, size=20)
-                ),
-            ]
 
-        def on_event_type_select(e):
-            """下拉框选择事件类型时的回调"""
-            selected_key = e.control.value
-            print(f"[调试] 下拉框选择事件类型: {selected_key}")
-            
-            if selected_key == "birthday":
+        # ========== 事件类型和历法类型的下拉框自定义，新增分割线 ===================
+        # ========== 事件类型自定义下拉菜单（PopupMenuButton + 矩形方框） ==========
+        event_type_list = [
+            ("birthday", "🎂 生日"),
+            ("event", "📅 纪念日/事件"),
+            ("monthly", "💰 每月提醒"),
+            ("once", "⏰ 一次性事件"),
+            ("daily", "📆 每天提醒"),
+            ("weekly", "📅 每周提醒"),
+        ]
+
+        def get_event_type_display_text(value):
+            for v, text in event_type_list:
+                if v == value:
+                    return text
+            return "🎂 生日"
+
+        # 获取页面宽度
+        page_width = page.window_width if hasattr(page, 'window_width') else 400
+
+        # 构建 PopupMenuButton 的 items
+        event_type_popup_items = []
+        for i, (value, text) in enumerate(event_type_list):
+            is_selected = (value == (selected_event.event_type if selected_event else "birthday"))
+            event_type_popup_items.append(
+                ft.PopupMenuItem(
+                    content=ft.Container(
+                        content=ft.Text(text, size=14, color=ft.Colors.BLUE_700 if is_selected else ft.Colors.BLACK),
+                        ink=True,
+                        bgcolor=ft.Colors.BLUE_50 if is_selected else ft.Colors.TRANSPARENT,
+                        width=page_width, 
+                    ),
+                    on_click=lambda e, val=value: select_event_type_popup(val),
+                    height=40,
+                )
+            )
+            if i < len(event_type_list) - 1:
+                event_type_popup_items.append(
+                    ft.PopupMenuItem(
+                        content=ft.Divider(height=1, color=ft.Colors.GREY_300),
+                        disabled=True,
+                        height=2,
+                    )
+                )
+
+        # 事件类型 PopupMenuButton
+        event_type_popup = ft.PopupMenuButton(
+            content=ft.Row([
+                ft.Text(get_event_type_display_text(selected_event.event_type if selected_event else "birthday"), 
+                        size=14, weight=ft.FontWeight.BOLD),
+                ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18),
+            ], spacing=5, alignment=ft.MainAxisAlignment.START),
+            items=event_type_popup_items,
+            bgcolor=ft.Colors.WHITE,
+            height=56,  # 设置高度为56
+            width=page_width ,
+        )
+
+        # 事件类型矩形方框
+        from flet import Border, BorderSide
+        event_type_container = ft.Container(
+            content=event_type_popup,
+            border=Border(
+                left=BorderSide(1, ft.Colors.BLACK),
+                top=BorderSide(1, ft.Colors.BLACK),
+                right=BorderSide(1, ft.Colors.BLACK),
+                bottom=BorderSide(1, ft.Colors.BLACK),
+            ),
+            border_radius=6,
+            bgcolor=ft.Colors.WHITE,
+            width=float("inf"),  # 宽度填满, 这个是正确的，只是下拉框的宽度
+        )
+
+        def select_event_type_popup(value):
+            # 更新显示文本
+            event_type_popup.content.controls[0].value = get_event_type_display_text(value)
+            # 触发事件类型选择逻辑
+            on_event_type_select(value)
+            page.update()
+
+
+        # ========== 历法自定义下拉菜单（PopupMenuButton + 矩形方框） ==========
+        calendar_list = [
+            ("solar", "☀️ 阳历"),
+            ("lunar", "🌙 农历"),
+        ]
+
+        def get_calendar_display_text(value):
+            for v, text in calendar_list:
+                if v == value:
+                    return text
+            return "☀️ 阳历"
+
+        # 构建 PopupMenuButton 的 items
+        calendar_popup_items = []
+        for i, (value, text) in enumerate(calendar_list):
+            is_selected = (value == (selected_event.calendar_type if selected_event else "solar"))
+            calendar_popup_items.append(
+                ft.PopupMenuItem(
+                    content=ft.Container(
+                        content=ft.Text(text, size=14, color=ft.Colors.BLUE_700 if is_selected else ft.Colors.BLACK),
+                        ink=True,
+                        bgcolor=ft.Colors.BLUE_50 if is_selected else ft.Colors.TRANSPARENT,
+                        width=page_width,
+                    ),
+                    on_click=lambda e, val=value: select_calendar_popup(val),
+                    height=40,
+                )
+            )
+            if i < len(calendar_list) - 1:
+                calendar_popup_items.append(
+                    ft.PopupMenuItem(
+                        content=ft.Divider(height=1, color=ft.Colors.GREY_300),
+                        disabled=True,
+                        height=2,
+                    )
+                )
+
+        # 历法 PopupMenuButton
+        calendar_popup = ft.PopupMenuButton(
+            content=ft.Row([
+                ft.Text(get_calendar_display_text(selected_event.calendar_type if selected_event else "solar"), 
+                        size=14, weight=ft.FontWeight.BOLD),
+                ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18),
+            ], spacing=5, alignment=ft.MainAxisAlignment.START),
+            items=calendar_popup_items,
+            bgcolor=ft.Colors.WHITE,
+            height=56,  # 设置高度为56
+            expand=True,  # PopupMenuButton 填满容器
+        )
+
+        # 历法矩形方框
+        calendar_container = ft.Container(
+            content=calendar_popup,
+            border=Border(
+                left=BorderSide(1, ft.Colors.BLACK),
+                top=BorderSide(1, ft.Colors.BLACK),
+                right=BorderSide(1, ft.Colors.BLACK),
+                bottom=BorderSide(1, ft.Colors.BLACK),
+            ),
+            border_radius=6,
+            bgcolor=ft.Colors.WHITE,
+            expand=True,
+        )
+
+        def select_calendar_popup(value):
+            # 更新显示文本
+            calendar_popup.content.controls[0].value = get_calendar_display_text(value)
+            # 更新历法值供保存使用
+            calendar_selected = value
+            page.update()
+
+        # ========== 事件类型选择回调函数 ==========
+        def on_event_type_select(value):
+            # 更新名称字段标签
+            if value == "birthday":
                 name_field.label = "姓名"
-                calendar_type.visible = True
-                weekday_row.visible = False  # 隐藏星期选择行
-                repeat_type.visible = True
-                repeat_type.value = "yearly"
-                date_display_field.visible = True  # 显示日期选择器
-                hint_text.value = "💡 提示: 农历生日会自动计算每年对应的阳历日期"
-                
-            elif selected_key == "event":
-                name_field.label = "事件名称"
-                calendar_type.visible = True
+                calendar_container.visible = True
                 weekday_row.visible = False
                 repeat_type.visible = True
-                date_display_field.visible = True  # 显示日期选择器
-                hint_text.value = "💡 提示: 纪念日每年重复提醒，可设置农历或阳历"
-                
-            elif selected_key == "monthly":
+                repeat_type.value = "yearly"
+                date_display_field.visible = True
+                hint_text.value = "💡 提示: 农历生日会自动计算每年对应的阳历日期"
+            elif value == "event":
                 name_field.label = "事件名称"
-                calendar_type.visible = False
+                calendar_container.visible = True
+                weekday_row.visible = False
+                repeat_type.visible = True
+                date_display_field.visible = True
+                hint_text.value = "💡 提示: 纪念日每年重复提醒，可设置农历或阳历"
+            elif value == "monthly":
+                name_field.label = "事件名称"
+                calendar_container.visible = False
                 weekday_row.visible = False
                 repeat_type.visible = False
                 repeat_type.value = "monthly"
-                date_display_field.visible = True  # 显示日期选择器
+                date_display_field.visible = True
                 hint_text.value = "💡 提示: 每月固定日期提醒，只需选择每月几号（如：15号）"
-                
-            elif selected_key == "once":
+            elif value == "once":
                 name_field.label = "事件名称"
-                calendar_type.visible = True
+                calendar_container.visible = True
                 weekday_row.visible = False
                 repeat_type.visible = False
                 repeat_type.value = "once"
-                date_display_field.visible = True  # 显示日期选择器
+                date_display_field.visible = True
                 hint_text.value = "💡 提示: 一次性事件只在指定日期提醒一次，提醒后会自动标记为已完成"
-                
-            # ========== 每天提醒 ==========
-            elif selected_key == "daily":
+            elif value == "daily":
                 name_field.label = "事件名称"
-                calendar_type.visible = False
-                weekday_row.visible = False  # 隐藏星期选择行
+                calendar_container.visible = False
+                weekday_row.visible = False
                 repeat_type.visible = False
                 repeat_type.value = "daily"
-                date_display_field.visible = False  # 每日提醒隐藏日期选择器
+                date_display_field.visible = False
                 hint_text.value = "💡 提示: 每天提醒，可设置具体时间（如：08:30、18:30）"
-                
-            # ========== 每周提醒 ==========
-            elif selected_key == "weekly":
+            elif value == "weekly":
                 name_field.label = "事件名称"
-                calendar_type.visible = False   # 每周提醒不需要历法
-                weekday_row.visible = True      # 显示星期选择
+                calendar_container.visible = False
+                weekday_row.visible = True
                 repeat_type.visible = False
                 repeat_type.value = "weekly"
-                date_display_field.visible = False  # 每月提醒隐藏日期选择器
+                date_display_field.visible = False
                 hint_text.value = "💡 提示: 每周固定日期提醒，选择星期几"
-                
+            
             update_date_visibility()
             page.update()
 
-        # 创建事件类型下拉框
-        event_type = ft.Dropdown(
-            label="事件类型",
-            expand=True,
-            options=get_event_type_options(),
-            value=selected_event.event_type if selected_event else "birthday",
-            on_select=on_event_type_select,  # 使用 on_select 而不是 on_change
-        )
 
         # 在事件类型选择之后添加重复类型选择
         repeat_type = ft.Dropdown(
@@ -9134,13 +9237,6 @@ def main(page: ft.Page):
             visible=False,  # 默认隐藏
         )
         
-        calendar_type = ft.Dropdown(
-            label="历法",
-            options=[ft.dropdown.Option("solar", "阳历"), ft.dropdown.Option("lunar", "农历")],
-            value=selected_event.calendar_type if selected_event else "solar",
-            expand=True,
-        )
-        
         music_field = ft.TextField(
             label="音乐文件路径", 
             value=selected_event.sound_file if selected_event else "", 
@@ -9479,14 +9575,14 @@ def main(page: ft.Page):
         # ========== 如果是编辑模式，覆盖默认值 ==========
         if is_edit and selected_event:
             # 设置事件类型（这会触发 on_event_type_select）
-            event_type.value = selected_event.event_type
+            event_type_selected = selected_event.event_type
             
             # 设置名称
             name_field.value = selected_event.name
             name_field.label = "姓名" if selected_event.event_type == "birthday" else "事件名称"
             
             # 设置历法
-            calendar_type.value = selected_event.calendar_type
+            calendar_selected = selected_event.calendar_type
             
             # 设置重复类型
             if hasattr(selected_event, 'repeat_type'):
@@ -9587,7 +9683,7 @@ def main(page: ft.Page):
             
             print(f"[保存] 总共收集到 {len(reminders)} 个提醒时间")
 
-            repeat = repeat_type.value if event_type.value != "monthly" else "monthly"
+            repeat = repeat_type.value if event_type_selected != "monthly" else "monthly"
 
             # ========== 从 date_display_field 获取日期 ==========
             year = 1990
@@ -9596,7 +9692,7 @@ def main(page: ft.Page):
             
             if date_display_field.value and date_display_field.value != "点击选择日期":
                 try:
-                    if event_type.value == "monthly":
+                    if event_type_selected == "monthly":
                         day = date_display_field.value
                     else:
                         date_parts = date_display_field.value.split("-")
@@ -9608,13 +9704,13 @@ def main(page: ft.Page):
                     print(f"[保存] 解析日期失败，使用默认值")
             
             # ========== 根据事件类型处理日期 ==========
-            if event_type.value == "daily":
+            if event_type_selected == "daily":
                 # 每天提醒：不需要日期，设置为空字符串或默认值
                 birth_date = ""  # 设置为空，表示不需要日期
                 calendar_type_value = "solar"
                 repeat_type_value = "daily"
                 
-            elif event_type.value == "weekly":
+            elif event_type_selected == "weekly":
                 # 每周提醒：保存星期几
                 weekday = weekday_field.value
                 if not weekday:
@@ -9624,13 +9720,13 @@ def main(page: ft.Page):
                 calendar_type_value = "solar"
                 repeat_type_value = "weekly"
                 
-            elif event_type.value == "monthly":
+            elif event_type_selected == "monthly":
                 # 每月提醒：使用 day
                 birth_date = day
                 calendar_type_value = "solar"
                 repeat_type_value = "monthly"
 
-            elif event_type.value == "once":
+            elif event_type_selected == "once":
                 # 一次性事件：使用完整的年月日
                 event_date = datetime(year, month, day).date()
                 today = datetime.now().date()
@@ -9639,17 +9735,17 @@ def main(page: ft.Page):
                     show_snack_bar("一次性事件的日期不能早于今天")
                     return
                 birth_date = f"{year:04d}-{month:02d}-{day:02d}"
-                calendar_type_value = calendar_type.value
+                calendar_type_value = calendar_selected
                 repeat_type_value = "once"
                 
-            elif event_type.value == "birthday":
+            elif event_type_selected == "birthday":
                 birth_date = f"{year}-{month:02d}-{day:02d}"
-                calendar_type_value = calendar_type.value
+                calendar_type_value = calendar_selected
                 repeat_type_value = "yearly"
                 
             else:  # event
                 birth_date = f"{year}-{month:02d}-{day:02d}"
-                calendar_type_value = calendar_type.value
+                calendar_type_value = calendar_selected
                 repeat_type_value = "yearly"
 
             # 收集提醒时间
@@ -9671,7 +9767,7 @@ def main(page: ft.Page):
                     selected_event.name = name
                     selected_event.birth_date = birth_date
                     selected_event.calendar_type = calendar_type_value
-                    selected_event.event_type = event_type.value
+                    selected_event.event_type = event_type_selected
                     selected_event.repeat_type = repeat_type_value
                     selected_event.sound_file = music_field.value.strip()
                     selected_event.reminders = reminders
@@ -9711,7 +9807,7 @@ def main(page: ft.Page):
                     event_id = str(int(datetime.now().timestamp()))
                     new_event = Event(
                         event_id, name, birth_date, calendar_type_value, 
-                        event_type.value, music_field.value.strip(), repeat_type_value,
+                        event_type_selected, music_field.value.strip(), repeat_type_value,
                         reminders=reminders
                     )
                     new_event.workday_only = workday_only
@@ -9756,10 +9852,26 @@ def main(page: ft.Page):
 
         # ========== 在创建 dialog_content 之前添加这段代码 ==========
         # 设置事件类型初始值
-        if selected_event:
-            event_type.value = selected_event.event_type
-        else:
-            event_type.value = "birthday"  # 新增事件默认选择生日
+        event_type_popup.content.controls[0].value = get_event_type_display_text(event_type_selected)
+        calendar_popup.content.controls[0].value = get_calendar_display_text(calendar_selected)
+
+        # ========== 在 select_event_type_popup 中更新值 ==========
+        def select_event_type_popup(value):
+            nonlocal event_type_selected
+            event_type_selected = value
+            # 更新显示文本
+            event_type_popup.content.controls[0].value = get_event_type_display_text(value)
+            # 触发事件类型选择逻辑
+            on_event_type_select(value)
+            page.update()
+
+        # ========== 在 select_calendar_popup 中更新值 ==========
+        def select_calendar_popup(value):
+            nonlocal calendar_selected
+            calendar_selected = value
+            # 更新显示文本
+            calendar_popup.content.controls[0].value = get_calendar_display_text(value)
+            page.update()
 
         # 先确定初始值(法定工作日)
         initial_workday_only = False
@@ -9842,11 +9954,11 @@ def main(page: ft.Page):
         # ========== 创建可滚动的内容区域 ==========
         scrollable_content = ft.Column([
             ft.Container(height=1),
-            event_type,
+            event_type_container,  # 替换原来的 event_type
             name_field,
             ft.Row([date_display_field], alignment=ft.MainAxisAlignment.CENTER),
             weekday_row,        # 星期选择（每周提醒使用）
-            calendar_type,      # 历法选择（生日/纪念日/一次性使用）
+            calendar_container,  # 替换原来的 calendar_type
             ft.Divider(height=5),
             ft.Text("⏰ 提醒设置", size=14, weight=ft.FontWeight.BOLD),
             reminders_container,  # 确保这一行存在
