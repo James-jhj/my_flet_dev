@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.78"
-APP_VERSION_CODE = 78
+APP_VERSION = "1.0.79"
+APP_VERSION_CODE = 79
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -279,9 +279,8 @@ class SearchableDropdown(ft.Column):
         # 下拉列表容器（初始隐藏）
         self.dropdown_container = ft.Container(
             content=ft.Column([], spacing=2, scroll=ft.ScrollMode.AUTO),
-            #width=300,
             expand=True,
-            height=300,
+            height=50,
             bgcolor=ft.Colors.WHITE,
             border=border,
             border_radius=4,
@@ -336,6 +335,16 @@ class SearchableDropdown(ft.Column):
                 ),
                 width=float("inf"),  # 宽度填满
             )
+            # ========== 修改：让 TextButton 的内容左对齐 ==========
+            btn.content.style = ft.ButtonStyle(
+                color=ft.Colors.BLACK,
+                bgcolor=ft.Colors.TRANSPARENT,
+                overlay_color=ft.Colors.BLUE_50,
+            )
+            btn.content.content = ft.Row([
+                ft.Text(opt, size=14),
+            ], alignment=ft.MainAxisAlignment.START)  # 左对齐
+
             self.dropdown_container.content.controls.append(btn)
             
             # ========== 在选项之间添加分割线（最后一个不加） ==========
@@ -343,6 +352,30 @@ class SearchableDropdown(ft.Column):
                 divider = ft.Divider(height=1, color=ft.Colors.GREY_200)
                 self.dropdown_container.content.controls.append(divider)
         
+        # ========== 根据选项数量动态调整高度 ==========
+        # 计算内容高度：每个选项约40px + 分割线1px
+        item_height = 35
+        divider_height = 1
+        total_items = len(options)
+        # 总高度 = 选项数 * 选项高度 + (选项数-1) * 分割线高度
+        content_height = total_items * item_height + (total_items - 1) * divider_height
+        # 加上上下内边距
+        content_height += 20
+
+        print(f"选项数: {total_items}, 计算高度: {content_height}")
+
+        # 设置容器高度：最小80px，最大300px
+        if content_height < 100:
+            self.dropdown_container.height = 70
+        elif content_height < 250:
+            self.dropdown_container.height = content_height - 10
+        elif content_height < 280:
+            self.dropdown_container.height = content_height - 10
+        else:
+            self.dropdown_container.height = 300
+        
+        print(f"实际设置高度: {self.dropdown_container.height}")
+
         self.dropdown_container.visible = True
         self.dropdown_container.update()
     
@@ -8150,6 +8183,7 @@ def main(page: ft.Page):
         close_dialog()
 
         # 在函数开头定义变量存储当前选中的事件类型
+        
         event_type_selected = selected_event.event_type if selected_event else "birthday"
         calendar_selected = selected_event.calendar_type if selected_event else "solar"
 
@@ -8169,9 +8203,6 @@ def main(page: ft.Page):
                     print("[Android] 已请求存储权限")
                 except Exception as e:
                     print(f"[Android] 权限请求失败: {e}")
-
-        # 检测是否为 Windows 平台
-        #IS_WINDOWS = platform.system() == "Windows"
         
         # 创建 FilePicker 并添加到页面服务
         file_picker = ft.FilePicker()
@@ -8373,7 +8404,7 @@ def main(page: ft.Page):
             if event_type_selected == "daily":
                 # 每天提醒：隐藏所有日期控件，显示工作日选项
                 weekday_row.visible = False
-                calendar_container.visible = False
+                calendar_dropdown.visible = False
                 repeat_type.visible = False
                 date_display_field.visible = False   # 隐藏日期选择器显示字段
                 #workday_only_checkbox.visible = True # 显示工作日选项
@@ -8382,7 +8413,7 @@ def main(page: ft.Page):
             elif event_type_selected == "weekly":
                 # 每周提醒：隐藏日期选择器，隐藏工作日选项
                 weekday_row.visible = True      # 显示星期选择
-                calendar_container.visible = False   # 隐藏历法选择
+                calendar_dropdown.visible = False   # 隐藏历法选择
                 repeat_type.visible = False
                 date_display_field.visible = False     # 隐藏日期选择器显示字段
                 #workday_only_checkbox.visible = False  # 隐藏工作日选项
@@ -8391,7 +8422,7 @@ def main(page: ft.Page):
             elif event_type_selected == "monthly":
                 # 每月提醒：只显示日，隐藏工作日选项
                 weekday_row.visible = False
-                calendar_container.visible = False
+                calendar_dropdown.visible = False
                 repeat_type.visible = False
                 date_display_field.visible = True      # 显示日期选择器
                 #workday_only_checkbox.visible = False  # 隐藏工作日选项
@@ -8400,7 +8431,7 @@ def main(page: ft.Page):
             elif event_type_selected == "once":
                 # 一次性事件：显示完整日期和日期选择器，隐藏工作日选项
                 weekday_row.visible = False
-                calendar_container.visible = True
+                calendar_dropdown.visible = True
                 repeat_type.visible = False
                 date_display_field.visible = True      # 显示日期选择器
                 #workday_only_checkbox.visible = False  # 隐藏工作日选项
@@ -8409,7 +8440,7 @@ def main(page: ft.Page):
             else:
                 # 生日/纪念日：显示完整日期和日期选择器，隐藏工作日选项
                 weekday_row.visible = False
-                calendar_container.visible = True
+                calendar_dropdown.visible = True
                 repeat_type.visible = True
                 date_display_field.visible = True      # 显示日期选择器
                 #workday_only_checkbox.visible = False  # 隐藏工作日选项
@@ -8422,205 +8453,82 @@ def main(page: ft.Page):
             #print(f"[调试] monthly_day_row.visible = {monthly_day_row.visible}")
             page.update()
 
+        
+        # 事件类型选项
+        event_type_options = ["🎂 生日", "📅 纪念日/事件", "💰 每月提醒", "⏰ 一次性事件", "📆 每天提醒", "📅 每周提醒"]
+        event_type_keys = ["birthday", "event", "monthly", "once", "daily", "weekly"]
 
-        # ========== 事件类型和历法类型的下拉框自定义，新增分割线 ===================
-        # ========== 事件类型自定义下拉菜单（PopupMenuButton + 矩形方框） ==========
-        event_type_list = [
-            ("birthday", "🎂 生日"),
-            ("event", "📅 纪念日/事件"),
-            ("monthly", "💰 每月提醒"),
-            ("once", "⏰ 一次性事件"),
-            ("daily", "📆 每天提醒"),
-            ("weekly", "📅 每周提醒"),
-        ]
+        def get_event_type_key(text):
+            for i, t in enumerate(event_type_options):
+                if t == text:
+                    return event_type_keys[i]
+            return "birthday"
 
-        def get_event_type_display_text(value):
-            for v, text in event_type_list:
-                if v == value:
-                    return text
-            return "🎂 生日"
+        def get_event_type_text(key):
+            for i, k in enumerate(event_type_keys):
+                if k == key:
+                    return event_type_options[i]
+            return event_type_options[0]
 
-        # 获取页面宽度
-        page_width = page.window_width if hasattr(page, 'window_width') else 400
+        # 获取初始值
+        initial_event_type = selected_event.event_type if selected_event else "birthday"
+        initial_event_type_text = get_event_type_text(initial_event_type)
+        
+        event_type_selected = initial_event_type
 
-        # 构建 PopupMenuButton 的 items
-        event_type_popup_items = []
-        for i, (value, text) in enumerate(event_type_list):
-            is_selected = (value == (selected_event.event_type if selected_event else "birthday"))
-            event_type_popup_items.append(
-                ft.PopupMenuItem(
-                    content=ft.Container(
-                        content=ft.Text(text, size=14, color=ft.Colors.BLUE_700 if is_selected else ft.Colors.BLACK),
-                        ink=True,
-                        bgcolor=ft.Colors.BLUE_50 if is_selected else ft.Colors.TRANSPARENT,
-                        width=page_width, 
-                    ),
-                    on_click=lambda e, val=value: select_event_type_popup(val),
-                    height=40,
-                )
-            )
-            if i < len(event_type_list) - 1:
-                event_type_popup_items.append(
-                    ft.PopupMenuItem(
-                        content=ft.Divider(height=1, color=ft.Colors.GREY_300),
-                        disabled=True,
-                        height=2,
-                    )
-                )
-
-        # 事件类型 PopupMenuButton
-        event_type_popup = ft.PopupMenuButton(
-            content=ft.Row([
-                ft.Text(get_event_type_display_text(selected_event.event_type if selected_event else "birthday"), 
-                        size=14, weight=ft.FontWeight.BOLD),
-                ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18),
-            ], spacing=5, alignment=ft.MainAxisAlignment.START),
-            items=event_type_popup_items,
-            bgcolor=ft.Colors.WHITE,
-            height=56,  # 设置高度为56
-            width=page_width ,
-        )
-
-        # 事件类型矩形方框
-        from flet import Border, BorderSide
-        event_type_container = ft.Container(
-            content=event_type_popup,
-            border=Border(
-                left=BorderSide(1, ft.Colors.BLACK),
-                top=BorderSide(1, ft.Colors.BLACK),
-                right=BorderSide(1, ft.Colors.BLACK),
-                bottom=BorderSide(1, ft.Colors.BLACK),
-            ),
-            border_radius=6,
-            bgcolor=ft.Colors.WHITE,
-            width=float("inf"),  # 宽度填满, 这个是正确的，只是下拉框的宽度
-        )
-
-        def select_event_type_popup(value):
-            # 更新显示文本
-            event_type_popup.content.controls[0].value = get_event_type_display_text(value)
-            # 触发事件类型选择逻辑
-            on_event_type_select(value)
-            page.update()
-
-
-        # ========== 历法自定义下拉菜单（PopupMenuButton + 矩形方框） ==========
-        calendar_list = [
-            ("solar", "☀️ 阳历"),
-            ("lunar", "🌙 农历"),
-        ]
-
-        def get_calendar_display_text(value):
-            for v, text in calendar_list:
-                if v == value:
-                    return text
-            return "☀️ 阳历"
-
-        # 构建 PopupMenuButton 的 items
-        calendar_popup_items = []
-        for i, (value, text) in enumerate(calendar_list):
-            is_selected = (value == (selected_event.calendar_type if selected_event else "solar"))
-            calendar_popup_items.append(
-                ft.PopupMenuItem(
-                    content=ft.Container(
-                        content=ft.Text(text, size=14, color=ft.Colors.BLUE_700 if is_selected else ft.Colors.BLACK),
-                        ink=True,
-                        bgcolor=ft.Colors.BLUE_50 if is_selected else ft.Colors.TRANSPARENT,
-                        width=page_width,
-                    ),
-                    on_click=lambda e, val=value: select_calendar_popup(val),
-                    height=40,
-                )
-            )
-            if i < len(calendar_list) - 1:
-                calendar_popup_items.append(
-                    ft.PopupMenuItem(
-                        content=ft.Divider(height=1, color=ft.Colors.GREY_300),
-                        disabled=True,
-                        height=2,
-                    )
-                )
-
-        # 历法 PopupMenuButton
-        calendar_popup = ft.PopupMenuButton(
-            content=ft.Row([
-                ft.Text(get_calendar_display_text(selected_event.calendar_type if selected_event else "solar"), 
-                        size=14, weight=ft.FontWeight.BOLD),
-                ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18),
-            ], spacing=5, alignment=ft.MainAxisAlignment.START),
-            items=calendar_popup_items,
-            bgcolor=ft.Colors.WHITE,
-            height=56,  # 设置高度为56
-            expand=True,  # PopupMenuButton 填满容器
-        )
-
-        # 历法矩形方框
-        calendar_container = ft.Container(
-            content=calendar_popup,
-            border=Border(
-                left=BorderSide(1, ft.Colors.BLACK),
-                top=BorderSide(1, ft.Colors.BLACK),
-                right=BorderSide(1, ft.Colors.BLACK),
-                bottom=BorderSide(1, ft.Colors.BLACK),
-            ),
-            border_radius=6,
-            bgcolor=ft.Colors.WHITE,
-            expand=True,
-        )
-
-        def select_calendar_popup(value):
-            # 更新显示文本
-            calendar_popup.content.controls[0].value = get_calendar_display_text(value)
-            # 更新历法值供保存使用
-            calendar_selected = value
-            page.update()
-
-        # ========== 事件类型选择回调函数 ==========
-        def on_event_type_select(value):
+        def on_event_type_change(e):
+            """事件类型改变回调"""
+            nonlocal event_type_selected  # 重要：使用 nonlocal 修改外部变量
+            value = e.control.value if hasattr(e, 'control') else e
+            event_type_selected = get_event_type_key(value)
+            
+            print(f"[事件类型变化] 选中文本: {value}, key: {event_type_selected}")
+            print(f"[调试] 选择的事件类型是: {event_type_selected}")  # 添加调试
+            
             # 更新名称字段标签
-            if value == "birthday":
+            if event_type_selected == "birthday":
                 name_field.label = "姓名"
-                calendar_container.visible = True
-                weekday_row.visible = False
+                calendar_dropdown.visible = True
+                weekday_dropdown.visible = False
                 repeat_type.visible = True
                 repeat_type.value = "yearly"
                 date_display_field.visible = True
                 hint_text.value = "💡 提示: 农历生日会自动计算每年对应的阳历日期"
-            elif value == "event":
+            elif event_type_selected == "event":
                 name_field.label = "事件名称"
-                calendar_container.visible = True
-                weekday_row.visible = False
+                calendar_dropdown.visible = True
+                weekday_dropdown.visible = False
                 repeat_type.visible = True
                 date_display_field.visible = True
                 hint_text.value = "💡 提示: 纪念日每年重复提醒，可设置农历或阳历"
-            elif value == "monthly":
+            elif event_type_selected == "monthly":
                 name_field.label = "事件名称"
-                calendar_container.visible = False
-                weekday_row.visible = False
+                calendar_dropdown.visible = False
+                weekday_dropdown.visible = False
                 repeat_type.visible = False
                 repeat_type.value = "monthly"
                 date_display_field.visible = True
                 hint_text.value = "💡 提示: 每月固定日期提醒，只需选择每月几号（如：15号）"
-            elif value == "once":
+            elif event_type_selected == "once":
                 name_field.label = "事件名称"
-                calendar_container.visible = True
-                weekday_row.visible = False
+                calendar_dropdown.visible = True
+                weekday_dropdown.visible = False
                 repeat_type.visible = False
                 repeat_type.value = "once"
                 date_display_field.visible = True
                 hint_text.value = "💡 提示: 一次性事件只在指定日期提醒一次，提醒后会自动标记为已完成"
-            elif value == "daily":
+            elif event_type_selected == "daily":
                 name_field.label = "事件名称"
-                calendar_container.visible = False
-                weekday_row.visible = False
+                calendar_dropdown.visible = False
+                weekday_dropdown.visible = False
                 repeat_type.visible = False
                 repeat_type.value = "daily"
                 date_display_field.visible = False
                 hint_text.value = "💡 提示: 每天提醒，可设置具体时间（如：08:30、18:30）"
-            elif value == "weekly":
+            elif event_type_selected == "weekly":
                 name_field.label = "事件名称"
-                calendar_container.visible = False
-                weekday_row.visible = True
+                calendar_dropdown.visible = False
+                weekday_dropdown.visible = True
                 repeat_type.visible = False
                 repeat_type.value = "weekly"
                 date_display_field.visible = False
@@ -8629,6 +8537,90 @@ def main(page: ft.Page):
             update_date_visibility()
             page.update()
 
+        # 创建事件类型下拉框
+        event_type_dropdown = SearchableDropdown(
+            label="事件类型",
+            options=event_type_options,
+            value=initial_event_type_text,
+            on_change=on_event_type_change,
+        )
+
+        # ========== 历法下拉框 ==========
+        calendar_options = ["☀️ 阳历", "🌙 农历"]
+        calendar_keys = ["solar", "lunar"]
+
+        def get_calendar_key(text):
+            for i, t in enumerate(calendar_options):
+                if t == text:
+                    return calendar_keys[i]
+            return "solar"
+
+        def get_calendar_text(key):
+            for i, k in enumerate(calendar_keys):
+                if k == key:
+                    return calendar_options[i]
+            return calendar_options[0]
+
+        initial_calendar = selected_event.calendar_type if selected_event else "solar"
+        initial_calendar_text = get_calendar_text(initial_calendar)
+
+        calendar_dropdown = SearchableDropdown(
+            label="历法",
+            options=calendar_options,
+            value=initial_calendar_text,
+            on_change=lambda e: None,  # 不需要特殊处理
+        )
+        
+        print(f"[调试] 初始事件类型: {initial_event_type}")  # 添加调试
+
+        # ========== 星期下拉框 ==========
+        weekday_options = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+        weekday_keys = ["1", "2", "3", "4", "5", "6", "7"]
+
+        def get_weekday_key(text):
+            for i, t in enumerate(weekday_options):
+                if t == text:
+                    return weekday_keys[i]
+            return "1"
+
+        def get_weekday_text(key):
+            for i, k in enumerate(weekday_keys):
+                if k == key:
+                    return weekday_options[i]
+            return weekday_options[0]
+        
+        # 获取当前星期
+        current_weekday = datetime.now().isoweekday()  # 返回 1-7，1=周一，7=周日
+
+        # 获取初始星期值
+        if selected_event and selected_event.event_type == "weekly" and selected_event.birth_date:
+            initial_weekday = selected_event.birth_date
+        else:
+            initial_weekday = str(current_weekday)  # 确保是字符串
+        initial_weekday_text = get_weekday_text(initial_weekday)
+
+        # ========== 根据初始事件类型设置可见性 ==========
+        weekday_row_visible = (initial_event_type == "weekly")
+
+        print(f"[调试] weekday_row_visible: {weekday_row_visible}")  # 添加调试
+
+        weekday_dropdown = SearchableDropdown(
+            label="星期",
+            options=weekday_options,
+            value=initial_weekday_text,
+            on_change=lambda e: None,
+        )
+
+        # 星期行
+        weekday_row = ft.Row(
+            [weekday_dropdown],
+            alignment=ft.MainAxisAlignment.CENTER,
+            visible=weekday_row_visible,  # 根据初始事件类型设置
+        )
+
+        # 如果 weekday_row 隐藏，也隐藏内部的 dropdown
+        if not weekday_row_visible:
+            weekday_dropdown.visible = False
 
         # 在事件类型选择之后添加重复类型选择
         repeat_type = ft.Dropdown(
@@ -9188,55 +9180,6 @@ def main(page: ft.Page):
             expand=True
         )
         
-        # 年份输入框（每月提醒时隐藏）
-        if selected_event and selected_event.event_type == "monthly":
-            year_default = "1990"
-        elif selected_event and selected_event.event_type == "daily":
-            year_default = "1990"
-        elif selected_event and selected_event.event_type == "weekly":
-            year_default = "1990"
-        elif selected_event and selected_event.birth_date:
-            parts = selected_event.birth_date.split("-")
-            if len(parts) >= 1:
-                year_default = parts[0]
-            else:
-                year_default = "1990"
-        else:
-            year_default = "1990"
-
-        # ========== 每周提醒专用的星期选择行 ==========
-        # 获取当前星期几（1-7，周一为1，周日为7）
-        current_weekday = datetime.now().isoweekday()  # 返回 1-7，1=周一，7=周日
-
-        # 每周提醒的星期选择
-        if selected_event and selected_event.event_type == "weekly":
-            weekday_value = selected_event.birth_date if selected_event.birth_date else str(current_weekday)
-        else:
-            weekday_value = str(current_weekday)
-            
-        weekday_field = ft.Dropdown(
-            label="星期",
-            options=[
-                ft.dropdown.Option("1", "周一"),
-                ft.dropdown.Option("2", "周二"),
-                ft.dropdown.Option("3", "周三"),
-                ft.dropdown.Option("4", "周四"),
-                ft.dropdown.Option("5", "周五"),
-                ft.dropdown.Option("6", "周六"),
-                ft.dropdown.Option("7", "周日"),
-            ],
-            value=weekday_value,
-            expand=True,  # 让 Dropdown 自适应宽度
-        )
-
-        weekday_row = ft.Row(
-            [
-                weekday_field,  # 直接使用 Dropdown，不包裹 Container
-            ],
-            alignment=ft.MainAxisAlignment.CENTER,
-            visible=False,  # 默认隐藏
-        )
-        
         music_field = ft.TextField(
             label="音乐文件路径", 
             value=selected_event.sound_file if selected_event else "", 
@@ -9602,9 +9545,10 @@ def main(page: ft.Page):
             elif selected_event.event_type == "weekly":
                 date_display_field.visible = False
                 date_display_field.value = ""
-                # 设置星期
-                if selected_event.birth_date:
-                    weekday_field.value = selected_event.birth_date
+                # 设置星期 添加安全检查，放在后面更新，因为这时候控件还没定义
+                #if selected_event.birth_date:
+                    #weekday_text = get_weekday_text(selected_event.birth_date)
+                    #weekday_dropdown.value = weekday_text
             
             # 每月事件
             elif selected_event.event_type == "monthly":
@@ -9657,12 +9601,15 @@ def main(page: ft.Page):
         
         # 在保存时使用 event_type
         def save_click(e):
+            nonlocal event_type_selected
             name = name_field.value.strip()
             if not name:
                 show_snack_bar("请输入名称")
                 #show_snack_bar_new(page, "⚠️ 请输入名称", is_error=True)
                 return
             
+            print(f"[保存] 事件类型: {event_type_selected}")
+
             # 获取工作日选项的值（使用专门保存的 Switch 变量）
             workday_only = False
             if hasattr(open_add_dialog, 'workday_only_switch'):
@@ -9711,8 +9658,9 @@ def main(page: ft.Page):
                 repeat_type_value = "daily"
                 
             elif event_type_selected == "weekly":
+                weekday_text = weekday_dropdown.value  # 获取显示文本
                 # 每周提醒：保存星期几
-                weekday = weekday_field.value
+                weekday = get_weekday_key(weekday_text)
                 if not weekday:
                     show_snack_bar("请选择星期几")
                     return
@@ -9850,28 +9798,6 @@ def main(page: ft.Page):
             
             asyncio.create_task(delayed_check())
 
-        # ========== 在创建 dialog_content 之前添加这段代码 ==========
-        # 设置事件类型初始值
-        event_type_popup.content.controls[0].value = get_event_type_display_text(event_type_selected)
-        calendar_popup.content.controls[0].value = get_calendar_display_text(calendar_selected)
-
-        # ========== 在 select_event_type_popup 中更新值 ==========
-        def select_event_type_popup(value):
-            nonlocal event_type_selected
-            event_type_selected = value
-            # 更新显示文本
-            event_type_popup.content.controls[0].value = get_event_type_display_text(value)
-            # 触发事件类型选择逻辑
-            on_event_type_select(value)
-            page.update()
-
-        # ========== 在 select_calendar_popup 中更新值 ==========
-        def select_calendar_popup(value):
-            nonlocal calendar_selected
-            calendar_selected = value
-            # 更新显示文本
-            calendar_popup.content.controls[0].value = get_calendar_display_text(value)
-            page.update()
 
         # 先确定初始值(法定工作日)
         initial_workday_only = False
@@ -9954,11 +9880,11 @@ def main(page: ft.Page):
         # ========== 创建可滚动的内容区域 ==========
         scrollable_content = ft.Column([
             ft.Container(height=1),
-            event_type_container,  # 替换原来的 event_type
+            event_type_dropdown,  # 替换原来的 event_type_container
             name_field,
             ft.Row([date_display_field], alignment=ft.MainAxisAlignment.CENTER),
-            weekday_row,        # 星期选择（每周提醒使用）
-            calendar_container,  # 替换原来的 calendar_type
+            weekday_dropdown,     # 替换原来的 weekday_row
+            calendar_dropdown,    # 替换原来的 calendar_container
             ft.Divider(height=5),
             ft.Text("⏰ 提醒设置", size=14, weight=ft.FontWeight.BOLD),
             reminders_container,  # 确保这一行存在
@@ -10011,6 +9937,17 @@ def main(page: ft.Page):
         page.overlay.append(dialog_container)
         update_date_visibility()
         page.update()
+
+        # 然后再设置值 安全检查
+        if is_edit and selected_event:
+            # 设置事件类型
+            event_type_dropdown.value = get_event_type_text(selected_event.event_type)
+            # 设置历法
+            calendar_dropdown.value = get_calendar_text(selected_event.calendar_type)
+            # 设置星期
+            if selected_event.event_type == "weekly" and selected_event.birth_date:
+                weekday_dropdown.value = get_weekday_text(selected_event.birth_date)
+            page.update()
     
     def group_events_by_date(events_list):
         """将同一天的事件分组"""
