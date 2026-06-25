@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.85"
-APP_VERSION_CODE = 85
+APP_VERSION = "1.0.86"
+APP_VERSION_CODE = 86
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -13134,26 +13134,26 @@ def main(page: ft.Page):
                 weekday_str = weekdays[now.weekday()]
                 
                 # 更新显示
-                current_datetime_text.value = f"📅 当前时间: {now.strftime('%Y年%m月%d日 %H:%M:%S')}"
+                #current_datetime_text.value = f"📅 当前时间: {now.strftime('%Y年%m月%d日 %H:%M:%S')}"
                 
                 # 更新运行时间
-                elapsed = datetime.now() - start_time
-                total_seconds = int(elapsed.total_seconds())
-                hours = total_seconds // 3600
-                minutes = (total_seconds % 3600) // 60
-                seconds = total_seconds % 60
-                run_time_text.value = f"⏱️ 运行时间: {hours:02d}:{minutes:02d}:{seconds:02d}"
+                #elapsed = datetime.now() - start_time
+                #total_seconds = int(elapsed.total_seconds())
+                #hours = total_seconds // 3600
+                #minutes = (total_seconds % 3600) // 60
+                #seconds = total_seconds % 60
+                #run_time_text.value = f"⏱️ 运行时间: {hours:02d}:{minutes:02d}:{seconds:02d}"
                 
                 # 更新日期文字
                 #date_text.value = f"{now.year}年{now.month:02d}月{now.day:02d}日 {weekday_str} {lunar_str} {now.strftime('%H:%M:%S')}"
                 #date_text.update()
+                
+                # 同时更新两个控件
+                #current_datetime_text.update()
+                #run_time_text.update()
 
                 # 使用新函数更新
                 update_date_text_with_events(current_date_today, three_days_events)
-                
-                # 同时更新两个控件
-                current_datetime_text.update()
-                run_time_text.update()
                 
                 # 实时检查是否到时间触发事件提醒
                 check_time_reminders()
