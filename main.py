@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.79"
-APP_VERSION_CODE = 79
+APP_VERSION = "1.0.80"
+APP_VERSION_CODE = 80
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -366,7 +366,7 @@ class SearchableDropdown(ft.Column):
 
         # 设置容器高度：最小80px，最大300px
         if content_height < 100:
-            self.dropdown_container.height = 70
+            self.dropdown_container.height = 100
         elif content_height < 250:
             self.dropdown_container.height = content_height - 10
         elif content_height < 280:
@@ -8539,6 +8539,7 @@ def main(page: ft.Page):
 
         # 创建事件类型下拉框
         event_type_dropdown = SearchableDropdown(
+            #page=page,  # 传入 page
             label="事件类型",
             options=event_type_options,
             value=initial_event_type_text,
@@ -8565,6 +8566,7 @@ def main(page: ft.Page):
         initial_calendar_text = get_calendar_text(initial_calendar)
 
         calendar_dropdown = SearchableDropdown(
+            #page=page,  # 传入 page
             label="历法",
             options=calendar_options,
             value=initial_calendar_text,
@@ -8605,6 +8607,7 @@ def main(page: ft.Page):
         print(f"[调试] weekday_row_visible: {weekday_row_visible}")  # 添加调试
 
         weekday_dropdown = SearchableDropdown(
+            #page=page,  # 传入 page
             label="星期",
             options=weekday_options,
             value=initial_weekday_text,
