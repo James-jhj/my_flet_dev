@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.82"
-APP_VERSION_CODE = 82
+APP_VERSION = "1.0.83"
+APP_VERSION_CODE = 83
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -1696,7 +1696,8 @@ def main(page: ft.Page):
     global transactions  # 添加这行
     global current_page, floating_add_button,show_scroll_top_btn  # 添加这行，用于记录当前页面
     global auto_fullscreen_lyrics,hide_progress_timer,current_selected_lunar,last_card_update_time  # 添加这行
-    global SLIDER_WIDTH, progress_slider, progress_bubble, progress_bubble_container, slider_wrapper,card_duration_texts,sent_reminders
+    global SLIDER_WIDTH, progress_slider, progress_bubble, progress_bubble_container, slider_wrapper,card_duration_texts
+    global sent_reminders,sent_music_notifications
 
 
     page.window_icon = "icon.png"
@@ -1754,6 +1755,8 @@ def main(page: ft.Page):
     three_days_events = []  # 存储3日内事件列表
 
     sent_reminders = set()  # 记录已发送的提醒
+
+    sent_music_notifications = set()  # 记录已发送的音乐通知
 
     # ========== 在文件顶部添加全局变量 ==========
     current_selected_lunar = ""  # 存储当前选中的农历日期
@@ -1971,13 +1974,20 @@ def main(page: ft.Page):
 
 
     def update_music_notification(song_name: str, is_playing: bool = True):
-        """更新音乐播放通知"""
+        """更新音乐播放通知（带去重）"""
         # ========== Windows 平台直接返回 ==========
         if IS_WINDOWS:
             return
     
         if not is_playing:
             return
+        
+        # ========== 去重检查 ==========
+        notification_key = f"{song_name}_{datetime.now().strftime('%Y%m%d%H%M')}"
+        if notification_key in sent_music_notifications:
+            return  # 已发送过，跳过
+        
+        sent_music_notifications.add(notification_key)
         
         status = "▶️ 播放中" if is_playing else "⏸️ 已暂停"
         show_notification( page,"🎵 事件提醒助手", f"{status}: {song_name}",notification_id=MUSIC_NOTIFICATION_ID,)
@@ -3132,7 +3142,10 @@ def main(page: ft.Page):
 
                 if event_name:
                     music_name = get_music_name_from_file(sound_file) or os.path.basename(sound_file)
-                    update_music_notification(f"{event_name} - {music_name}", is_playing=True)
+                    # ========== 先检查是否已发送 ==========
+                    notification_key = f"{event_name}_{music_name}_{datetime.now().strftime('%Y%m%d%H%M')}"
+                    if notification_key not in sent_music_notifications:
+                        update_music_notification(f"{event_name} - {music_name}", is_playing=True)
 
                 # ========== 新增：如果 auto_fullscreen_lyrics 为 True，自动打开全屏歌词 ==========
                 if auto_fullscreen_lyrics:
@@ -3363,6 +3376,7 @@ def main(page: ft.Page):
     def stop_music():
         global current_audio, is_playing, current_music_file, current_lyrics
         global current_playing_event_id, current_music_state, music_section_container, playback_buttons,card_duration_texts
+        global sent_music_notifications
         
         print("停止音乐")
         
@@ -3495,6 +3509,8 @@ def main(page: ft.Page):
             
             # 注意：不要再调用 music_state_update_callback，因为我们已经手动设置了UI
             # 如果需要通知其他组件，可以考虑，但会导致重复更新
+
+            sent_music_notifications.clear()
             
         finally:
             stop_music._is_stopping = False
