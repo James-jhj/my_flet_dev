@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.83"
-APP_VERSION_CODE = 83
+APP_VERSION = "1.0.84"
+APP_VERSION_CODE = 84
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -12643,6 +12643,56 @@ def main(page: ft.Page):
     music_control_container.visible = True
     #playback_buttons.visible=True
 
+    # 创建一个变量记录日历是否显示
+    calendar_visible = True
+
+    def toggle_calendar(e):
+        """切换日历显示/隐藏"""
+        nonlocal calendar_visible
+        calendar_visible = not calendar_visible
+        calendar_widget.visible = calendar_visible
+        
+        # ========== 更新箭头按钮的图标 ==========
+        arrow_button.icon = ft.Icons.EXPAND_LESS if calendar_visible else ft.Icons.EXPAND_MORE
+        arrow_button.update()
+        calendar_widget.update()
+        page.update()
+
+    # 创建箭头按钮
+    arrow_button = ft.IconButton(
+        icon=ft.Icons.EXPAND_LESS,
+        icon_size=20,
+        icon_color=ft.Colors.BLUE_700,
+        on_click=toggle_calendar,
+        tooltip="切换日历显示",
+        padding=5,
+    )
+
+    # 箭头按钮（可点击）
+    arrow_button = ft.IconButton(
+        icon=ft.Icons.EXPAND_LESS,
+        icon_size=20,
+        icon_color=ft.Colors.BLUE_700,
+        on_click=toggle_calendar,
+        tooltip="切换日历显示",
+        padding=5,
+    )
+
+    # 修改日历和日期文本的组合
+    calendar_section = ft.Column([
+        calendar_widget,
+        ft.Row([
+            # 箭头靠左
+            arrow_button,
+            # 日期文本居中（使用 expand=True 占满剩余空间）
+            ft.Container(
+                content=date_text,
+                expand=True,
+                alignment=ft.Alignment(0, 0),
+            ),
+        ], alignment=ft.MainAxisAlignment.START, spacing=5),
+    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+
     # ========== 可滚动的内容区域（其他所有内容） ==========
     scrollable_content =ft.Column(
         [
@@ -12651,11 +12701,7 @@ def main(page: ft.Page):
             #ft.Container(height=5),
             
             # 日历和事件提醒组合
-            ft.Column([
-                calendar_widget,
-                #ft.Container(height=5),
-                date_text,
-            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+            calendar_section,
             
             ft.Divider(),  # 音乐区域上方的分割线
 
