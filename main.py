@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.87"
-APP_VERSION_CODE = 87
+APP_VERSION = "1.0.88"
+APP_VERSION_CODE = 88
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -3012,11 +3012,9 @@ def main(page: ft.Page):
             except:
                 current_duration = 180  # 默认3分钟
                 print(f"[播放] 无法获取时长，使用默认值: {current_duration} 秒")
-        
-        # 在开始播放时，显示通知
-        if event_name:
-            music_name = os.path.splitext(os.path.basename(sound_file))[0]
-            update_music_notification(music_name, is_playing=True)
+
+        # ========== 获取音乐显示名称 ==========
+        music_display_name = os.path.splitext(os.path.basename(sound_file))[0]
 
         #show_snack_bar(f"播放音乐: {sound_file}")
         current_music_file = sound_file
@@ -3144,9 +3142,9 @@ def main(page: ft.Page):
                 if event_name:
                     music_name = get_music_name_from_file(sound_file) or os.path.basename(sound_file)
                     # ========== 先检查是否已发送 ==========
-                    notification_key = f"{event_name}_{music_name}_{datetime.now().strftime('%Y%m%d%H%M')}"
+                    notification_key = f"{event_name}_{music_display_name}_{datetime.now().strftime('%Y%m%d%H%M')}"
                     if notification_key not in sent_music_notifications:
-                        update_music_notification(f"{event_name} - {music_name}", is_playing=True)
+                        update_music_notification(f"{event_name} - {music_display_name}", is_playing=True)
 
                 # ========== 新增：如果 auto_fullscreen_lyrics 为 True，自动打开全屏歌词 ==========
                 if auto_fullscreen_lyrics:
@@ -3260,8 +3258,8 @@ def main(page: ft.Page):
                     music_state_update_callback(current_playing_event_id, "paused")
 
                 if event_name:
-                    music_name = get_music_name_from_file(sound_file) or os.path.basename(sound_file)
-                    update_music_notification(f"{event_name} - {music_name}", is_playing=False)
+                    update_music_notification(f"{event_name} - {music_display_name}", is_playing=False)
+
             
             elif e.state == AudioState.STOPPED:
                 print("[播放状态] 音乐已停止")
