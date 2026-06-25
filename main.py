@@ -35,8 +35,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.80"
-APP_VERSION_CODE = 80
+APP_VERSION = "1.0.81"
+APP_VERSION_CODE = 81
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -364,9 +364,14 @@ class SearchableDropdown(ft.Column):
 
         print(f"选项数: {total_items}, 计算高度: {content_height}")
 
+        IS_WINDOWS = platform.system() == "Windows"
+
         # 设置容器高度：最小80px，最大300px
         if content_height < 100:
-            self.dropdown_container.height = 100
+            if IS_WINDOWS:
+                self.dropdown_container.height = 70
+            else:
+                self.dropdown_container.height = 110
         elif content_height < 250:
             self.dropdown_container.height = content_height - 10
         elif content_height < 280:
