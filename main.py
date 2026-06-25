@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.84"
-APP_VERSION_CODE = 84
+APP_VERSION = "1.0.85"
+APP_VERSION_CODE = 85
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -2786,6 +2786,7 @@ def main(page: ft.Page):
             border_radius=8,
             bgcolor=ft.Colors.TRANSPARENT,
             width=float("inf"),
+            height=78,  # 添加固定高度
         )
         
         return lyrics_text_container, (line1_text, line2_text)
@@ -12227,7 +12228,7 @@ def main(page: ft.Page):
         show_message=show_snack_bar,  # 传入显示消息的函数
     )
 
-    # 创建容器包裹字幕
+    # 歌曲名称滚动容器
     music_title_container = ft.Container(
         content=marquee_text,
         #width=280,
@@ -12474,7 +12475,8 @@ def main(page: ft.Page):
         top=2,
         left=0,
     )
-
+    
+    # 歌词显示容器
     lyrics_display_container, lyrics_display_widgets = create_lyrics_display()
 
     count_text = ft.Text(value=f"📊 事件总数: {len(events)}", size=12, color=ft.Colors.BLUE_700)
@@ -12684,11 +12686,17 @@ def main(page: ft.Page):
         ft.Row([
             # 箭头靠左
             arrow_button,
-            # 日期文本居中（使用 expand=True 占满剩余空间）
+            # 日期文本居中
             ft.Container(
                 content=date_text,
                 expand=True,
                 alignment=ft.Alignment(0, 0),
+            ),
+            # 右边添加空白占位，宽度与 arrow_button 相同
+            ft.Container(
+                width=arrow_button.width if hasattr(arrow_button, 'width') and arrow_button.width else 40,
+                height=1,
+                bgcolor=ft.Colors.TRANSPARENT,
             ),
         ], alignment=ft.MainAxisAlignment.START, spacing=5),
     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
@@ -12724,19 +12732,7 @@ def main(page: ft.Page):
             # 底部信息
             ft.Container(
                 content=ft.Column([
-                    ft.Row([
-                        ft.Text("", size=16),
-                        start_time_text,
-                    ], spacing=5),
-                    ft.Row([
-                        ft.Text("", size=16),
-                        run_time_text,
-                    ], spacing=5),
-                    ft.Row([
-                        ft.Text("", size=16),
-                        current_datetime_text,
-                    ], spacing=5),
-                    ft.Divider(height=5),
+                    #ft.Divider(height=5),
                     ft.Text("💡 使用说明", size=14, weight=ft.FontWeight.BOLD),
                     ft.Text("• 点击「+」添加事件\n• 点击 💰 记账本 进入记账本界面\n• 各类事件当天或提前3天预警自动弹框并播放音乐\n• 启动程序自动检查今日是否有事件发生", selectable=True),
                     # ========== 修改这里：提醒服务单独一行，count_text和版本在同一行 ==========
