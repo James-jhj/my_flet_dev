@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.86"
-APP_VERSION_CODE = 86
+APP_VERSION = "1.0.87"
+APP_VERSION_CODE = 87
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -3015,8 +3015,8 @@ def main(page: ft.Page):
         
         # 在开始播放时，显示通知
         if event_name:
-            music_name = get_music_name_from_file(sound_file) or os.path.basename(sound_file)
-            update_music_notification(f"{event_name} - {music_name}", is_playing=True)
+            music_name = os.path.splitext(os.path.basename(sound_file))[0]
+            update_music_notification(music_name, is_playing=True)
 
         #show_snack_bar(f"播放音乐: {sound_file}")
         current_music_file = sound_file
