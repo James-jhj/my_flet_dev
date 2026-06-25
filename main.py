@@ -27,7 +27,6 @@ import openpyxl
 from openpyxl import Workbook, load_workbook
 from datetime import timezone, timedelta
 from chinese_calendar import is_workday as cn_is_workday
-from android_notify import Notification
 
 import hashlib
 import subprocess
@@ -179,18 +178,43 @@ def show_unauthorized_page(page, device_id=None):
     page.update()
 # ==================   添加设备授权功能  ============================
 
-
-# 尝试导入 android_notify
-try:
-    from android_notify import Notification
-    ANDROID_NOTIFY_AVAILABLE = True
-    print("✅ android_notify 导入成功")
-except ImportError as e:
-    ANDROID_NOTIFY_AVAILABLE = False
-    print(f"❌ android_notify 导入失败: {e}")
-
 # ========== 平台检测（放在这里） ==========
 IS_WINDOWS = platform.system() == "Windows"
+
+if IS_WINDOWS:
+    ANDROID_NOTIFY_AVAILABLE = False
+    print("✅ Windows 平台，使用假通知模块")
+    
+    class Notification:
+        def __init__(self, title="", message="", notification_id=0, ongoing=False):
+            self.title = title
+            self.message = message
+        
+        def send(self):
+            print(f"[通知] {self.title}: {self.message}")
+            return False
+        
+        def cancel(self):
+            pass
+else:
+    try:
+        from android_notify import Notification
+        ANDROID_NOTIFY_AVAILABLE = True
+        print("✅ android_notify 导入成功")
+    except ImportError as e:
+        ANDROID_NOTIFY_AVAILABLE = False
+        print(f"❌ android_notify 导入失败: {e}")
+        
+        class Notification:
+            def __init__(self, title="", message="", notification_id=0, ongoing=False):
+                self.title = title
+                self.message = message
+            
+            def send(self):
+                return False
+            
+            def cancel(self):
+                pass
 
 # 根据平台决定是否启用网易云模块
 if not IS_WINDOWS:
@@ -371,7 +395,7 @@ class SearchableDropdown(ft.Column):
             if IS_WINDOWS:
                 self.dropdown_container.height = 70
             else:
-                self.dropdown_container.height = 110
+                self.dropdown_container.height = 105
         elif content_height < 250:
             self.dropdown_container.height = content_height - 10
         elif content_height < 280:
@@ -1672,7 +1696,7 @@ def main(page: ft.Page):
     global transactions  # 添加这行
     global current_page, floating_add_button,show_scroll_top_btn  # 添加这行，用于记录当前页面
     global auto_fullscreen_lyrics,hide_progress_timer,current_selected_lunar,last_card_update_time  # 添加这行
-    global SLIDER_WIDTH, progress_slider, progress_bubble, progress_bubble_container, slider_wrapper,card_duration_texts
+    global SLIDER_WIDTH, progress_slider, progress_bubble, progress_bubble_container, slider_wrapper,card_duration_texts,sent_reminders
 
 
     page.window_icon = "icon.png"
@@ -1728,6 +1752,8 @@ def main(page: ft.Page):
     card_duration_texts = {}  # {event_id: Text控件}
 
     three_days_events = []  # 存储3日内事件列表
+
+    sent_reminders = set()  # 记录已发送的提醒
 
     # ========== 在文件顶部添加全局变量 ==========
     current_selected_lunar = ""  # 存储当前选中的农历日期
@@ -1881,6 +1907,11 @@ def main(page: ft.Page):
             ongoing: 是否持续通知（保留参数，暂未使用）
         """
         print(f"[通知] 发送: {title} - {message}")
+
+        # ========== Windows 平台直接返回 ==========
+        if IS_WINDOWS:
+            print(f"[通知] Windows 平台，通知已跳过: {title}")
+            return False
         
         if not ANDROID_NOTIFY_AVAILABLE:
             print("[通知] ❌ android_notify 不可用")
@@ -1899,6 +1930,10 @@ def main(page: ft.Page):
     def cancel_notification(notification_id: int):
         """取消通知（使用 android-notify）"""
         print(f"[通知] 尝试取消通知 ID: {notification_id}")
+
+        # ========== Windows 平台静默返回 ==========
+        if IS_WINDOWS:
+            return
         
         if platform.system() != "Linux":
             print("[通知] 非 Android 平台，跳过取消")
@@ -1937,6 +1972,10 @@ def main(page: ft.Page):
 
     def update_music_notification(song_name: str, is_playing: bool = True):
         """更新音乐播放通知"""
+        # ========== Windows 平台直接返回 ==========
+        if IS_WINDOWS:
+            return
+    
         if not is_playing:
             return
         
@@ -1946,6 +1985,10 @@ def main(page: ft.Page):
 
     def show_event_notification(event_name: str, event_type: str, days_left: int = 0):
         """显示事件提醒通知"""
+        # ========== Windows 平台直接返回 ==========
+        if IS_WINDOWS:
+            return
+    
         if days_left == 0:
             title = "🎉 今日事件提醒"
             message = f"{event_name} 就在今天！"
@@ -1961,6 +2004,11 @@ def main(page: ft.Page):
 
     def show_background_notification():
         """显示后台运行通知（持久）"""
+        # ========== Windows 平台跳过 ==========
+        if IS_WINDOWS:
+            print("[通知] Windows 平台，后台通知已跳过")
+            return
+    
         show_notification(page,"🔔 事件提醒助手", "应用正在后台运行，监控您的提醒事件\n点击打开应用",notification_id=BACKGROUND_NOTIFICATION_ID,ongoing=True)
     # ========== 通知功能结束 ==========
 
@@ -9966,30 +10014,45 @@ def main(page: ft.Page):
                 grouped[key] = []
             grouped[key].append(event)
         return grouped
+    
+    def log_event_reminder(event_name, days_left, event_id=None):
+        """统一处理事件提醒日志（带去重）"""
+        if days_left == 0:
+            day_text = "今天"
+        elif days_left == 1:
+            day_text = "明天"
+        elif days_left == 2:
+            day_text = "后天"
+        else:
+            day_text = f"{days_left}天后"
+        
+        # ========== 去重检查 ==========
+        reminder_key = f"{event_id}_{days_left}_{datetime.now().strftime('%Y-%m-%d')}"
+        if reminder_key in sent_reminders:
+            return  # 已发送过，跳过
+        
+        sent_reminders.add(reminder_key)
+        
+        # 只在 Windows 平台打印日志
+        if IS_WINDOWS:
+            print(f"[事件提醒] {event_name} {day_text} 就到啦！")
+        else:
+            # 非 Windows 平台发送通知
+            show_event_notification(event_name, "事件", days_left)
 
     def show_combined_reminder(events_by_day, is_today=False):
         """显示合并后的提醒弹窗"""
         if not events_by_day:
             return
         
-        # ========== 发送通知（替代弹框或同时弹框） ==========
-        for days, events_list in events_by_day.items():
-            for event in events_list:
+        # ========== 发送通知（使用统一函数，带去重） ==========
+        for days, events in events_by_day.items():
+            for event in events:
                 if is_today:
-                    # 今日事件通知
-                    show_notification(
-                        page,
-                        f"🎉 今日提醒",
-                        f"{event.name} 就在今天！"
-                    )
+                    log_event_reminder(event.name, 0, event.id)
                 else:
-                    # 预告事件通知
-                    day_text = "明天" if days == 1 else f"{days}天后"
-                    show_notification(
-                        page,
-                        f"⏰ 事件预告",
-                        f"{event.name} {day_text} 就到啦！"
-                    )
+                    log_event_reminder(event.name, days, event.id)
+
         
         def close_combined_reminder():
             try:
@@ -9999,13 +10062,14 @@ def main(page: ft.Page):
             except:
                 pass
 
-        # 在显示弹框的同时，也发送通知
+        # ========== 发送通知（使用统一函数） ==========
         for days, events in events_by_day.items():
             for event in events:
+                # ========== 使用统一的日志函数 ==========
                 if is_today:
-                    show_event_notification(event.name, event.event_type, days_left=0)
+                    log_event_reminder(event.name, 0, event.id)
                 else:
-                    show_event_notification(event.name, event.event_type, days_left=days)
+                    log_event_reminder(event.name, days, event.id)
         
         if is_today:
             # 区分生日和事件
@@ -10401,6 +10465,12 @@ def main(page: ft.Page):
     def check_events():
         """检查是否有事件发生"""
         global reminder_flags
+
+        # ========== 添加防重复标志 ==========
+        if hasattr(check_events, '_running') and check_events._running:
+            return
+        check_events._running = True
+
         try:
             today = datetime.now().date()
             current_year = today.year
@@ -10584,7 +10654,12 @@ def main(page: ft.Page):
             """时间提醒循环 - 每10分钟检查"""
             while True:
                 try:
-                    show_notification(page, "🔔 保活通知", f"当前时间: {datetime.now().strftime('%H:%M:%S')}")      # 10分钟发个通知
+                    # ========== 只在非 Windows 平台发送保活通知 ==========
+                    if not IS_WINDOWS:
+                        show_notification(page, "🔔 保活通知", f"当前时间: {datetime.now().strftime('%H:%M:%S')}")      # 10分钟发个通知
+                    else:
+                        # Windows 平台只在控制台打印
+                        print(f"[保活] 当前时间: {datetime.now().strftime('%H:%M:%S')}")
                     time.sleep(600)           # 每10分钟检查一次
                 except Exception as e:
                     print(f"时间提醒循环出错: {e}")
@@ -11257,6 +11332,7 @@ def main(page: ft.Page):
                 import traceback
                 traceback.print_exc()
             finally:
+                check_events._running = False
                 if file_picker and file_picker in page.overlay:
                     page.overlay.remove(file_picker)
                 page.update()
@@ -12862,27 +12938,23 @@ def main(page: ft.Page):
         #print(f"[启动视图] 结果 - 今日事件: {has_today_event}, 预警事件: {has_warning_event}")
         
         # 根据检查结果设置初始视图
+        # ========== 更新视图 ==========
         if has_today_event:
             current_view = "today"
-            if hasattr(refresh_events_list, 'view_dropdown'):
-                refresh_events_list.view_dropdown.value = "today"
             show_today_events()
             show_bottom_message("📅 今日有事件，自动切换到今日事件视图")
         elif has_warning_event:
             current_view = "three_days"
-            if hasattr(refresh_events_list, 'view_dropdown'):
-                refresh_events_list.view_dropdown.value = "three_days"
             show_three_days_events()
             show_bottom_message("⏰ 未来3天有事件，自动切换到预警事件视图")
         else:
-            # 没有今日事件和预警事件时，切换到每日事件视图
             current_view = "daily"
-            if hasattr(refresh_events_list, 'view_dropdown'):
-                refresh_events_list.view_dropdown.value = "daily"
             show_daily_events()
             show_bottom_message("📆 切换到每日事件视图")
-
-        # 强制更新页面
+        
+        # ========== 新增：更新下拉框的显示文本 ==========
+        update_view_dropdown_display(current_view)
+        
         page.update()
 
     # ========== 设置页面关闭回调 ==========
