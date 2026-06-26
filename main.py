@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.89"
-APP_VERSION_CODE = 89
+APP_VERSION = "1.0.90"
+APP_VERSION_CODE = 90
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -3623,13 +3623,13 @@ def main(page: ft.Page):
             current_view = "today"
             #refresh_events_list.view_dropdown.value = "today"
             show_today_events()
-            show_bottom_message("📅 已切换到今日事件视图")
+            show_bottom_message("📌 已切换到今日事件视图")
         elif event_type == "three_days":
             # 显示3日内事件
             current_view = "three_days"
             #refresh_events_list.view_dropdown.value = "three_days"
             show_three_days_events()
-            show_bottom_message("⏰ 已切换到预警事件视图")
+            show_bottom_message("🔔 已切换到预警事件视图")
         elif event_type == "all":
             # 显示全部事件
             current_view = "all"
@@ -3640,12 +3640,12 @@ def main(page: ft.Page):
             current_view = "daily"
             #refresh_events_list.view_dropdown.value = "daily"
             show_daily_events()
-            show_bottom_message("📆 已切换到每日事件视图")
+            show_bottom_message("⏰  已切换到每日事件视图")
         elif event_type == "weekly":
             current_view = "weekly"
             #refresh_events_list.view_dropdown.value = "weekly"
             show_weekly_events()
-            show_bottom_message("📅 已切换到每周事件视图")
+            show_bottom_message("🔁 已切换到每周事件视图")
 
         page.update()
     
@@ -5985,7 +5985,7 @@ def main(page: ft.Page):
                         content=back_btn,
                         width=40,
                     ),
-                    ft.Text("📊 记账本", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, expand=True, text_align=ft.TextAlign.CENTER),
+                    ft.Text("💰 账单", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, expand=True, text_align=ft.TextAlign.CENTER),
                     ft.Container(width=40),
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                 ft.Divider(),
@@ -6149,7 +6149,7 @@ def main(page: ft.Page):
         if today_count > 0:
             menu_items_content.append(
                 ft.ElevatedButton(
-                    f"📅 今日事件 ({today_count})",
+                    f"📌 今日事件 ({today_count})",
                     on_click=create_callback("today"),
                     expand=True,
                     style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_50, color=ft.Colors.BLUE_700),
@@ -6160,7 +6160,7 @@ def main(page: ft.Page):
         if three_days_count > 0:
             menu_items_content.append(
                 ft.ElevatedButton(
-                    f"⏰ 预警事件 ({three_days_count})",
+                    f"🔔 预警事件 ({three_days_count})",
                     on_click=create_callback("three_days"),
                     expand=True,
                     style=ft.ButtonStyle(bgcolor=ft.Colors.ORANGE_50, color=ft.Colors.ORANGE_700),
@@ -6171,7 +6171,7 @@ def main(page: ft.Page):
         if daily_count > 0:
             menu_items_content.append(
                 ft.ElevatedButton(
-                    f"📆 每日事件 ({daily_count})",
+                    f"⏰ 每日事件 ({daily_count})",
                     on_click=create_callback("daily"),
                     expand=True,
                     style=ft.ButtonStyle(bgcolor=ft.Colors.PURPLE_50, color=ft.Colors.PURPLE_700),
@@ -6182,7 +6182,7 @@ def main(page: ft.Page):
         if weekly_count > 0:
             menu_items_content.append(
                 ft.ElevatedButton(
-                    f"📅 每周事件 ({weekly_count})",
+                    f"🔁 每周事件 ({weekly_count})",
                     on_click=create_callback("weekly"),
                     expand=True,
                     style=ft.ButtonStyle(bgcolor=ft.Colors.TEAL_50, color=ft.Colors.TEAL_700),
@@ -6427,13 +6427,13 @@ def main(page: ft.Page):
             # 计算年龄/年份显示
             if event.event_type == "birthday":
                 if base_year > 0 and base_year <= today.year:
-                    age_text = f"🎂 {today.year - base_year}岁"
+                    age_text = f"🎉 {today.year - base_year}岁"
                 else:
-                    age_text = "🎂 生日"
+                    age_text = "🎉 生日"
             elif event.event_type == "monthly":
-                age_text = "📆 每月提醒"
+                age_text = "🔄 每月提醒"
             elif event.event_type == "daily":
-                age_text = "📆 每天提醒"
+                age_text = "⏰ 每天提醒"
                 # 每日事件：获取最早的提醒时间用于排序
                 earliest_time = "23:59"
                 if event.reminders:
@@ -6442,15 +6442,15 @@ def main(page: ft.Page):
                         earliest_time = min(times)
                 days_until = earliest_time  # 字符串
             elif event.event_type == "weekly":
-                age_text = "📅 每周提醒"
+                age_text = "🔁 每周提醒"
             elif event.repeat_type == "once":
                 age_text = ""
             else:
                 if base_year > 0 and base_year <= today.year:
                     years_passed = today.year - base_year + 1
-                    age_text = f"📅 第{years_passed}年"
+                    age_text = f"💝 第{years_passed}年"
                 else:
-                    age_text = "📅 纪念日"
+                    age_text = "💝 纪念日"
             
             event_info = {
                 "event": event,
@@ -8245,7 +8245,7 @@ def main(page: ft.Page):
 
         
         # 事件类型选项
-        event_type_options = ["🎂 生日", "📅 纪念日/事件", "💰 每月提醒", "⏰ 一次性事件", "📆 每天提醒", "📅 每周提醒"]
+        event_type_options = ["🎉 生日", "💝 纪念日/事件", "🔄 每月提醒", "🎯 一次性事件", "⏰  每天提醒", "🔁 每周提醒"]
         event_type_keys = ["birthday", "event", "monthly", "once", "daily", "weekly"]
 
         def get_event_type_key(text):
@@ -10345,8 +10345,8 @@ def main(page: ft.Page):
         current_weekday = now.weekday() + 1
         is_workday_today = is_workday(now)
         
-        print(f"[时间提醒] ========== 开始检查 ==========")
-        print(f"[时间提醒] 当前时间: {current_time}, 当前星期: {current_weekday}")
+        #print(f"[时间提醒] ========== 开始检查 ==========")
+        #print(f"[时间提醒] 当前时间: {current_time}, 当前星期: {current_weekday}")
         
         for event in events.values():
             if not event.reminders:
@@ -10377,10 +10377,10 @@ def main(page: ft.Page):
                 today = now.date()
                 notification_key = f"{event.id}_{today.strftime('%Y-%m-%d')}"
                 if notification_key in sent_notifications:
-                    print(f"[时间提醒] {event.name} 今天已提醒过，跳过")
+                    #print(f"[时间提醒] {event.name} 今天已提醒过，跳过")
                     continue
                 
-                print(f"[时间提醒] 触发事件: {event.name} ({event.event_type})")
+                #print(f"[时间提醒] 触发事件: {event.name} ({event.event_type})")
                 sent_notifications.add(notification_key)
                 
                 # ========== 弹框 ==========
@@ -10395,12 +10395,12 @@ def main(page: ft.Page):
                     async def do_play(e=event):
                         with music_playing_lock:
                             if not is_playing:
-                                print(f"[时间提醒] 播放音乐: {os.path.basename(e.sound_file)}")
+                                #print(f"[时间提醒] 播放音乐: {os.path.basename(e.sound_file)}")
                                 play_music_with_lock(e.sound_file, loop=False, event_name=e.name, event_id=e.id)
                     page.run_task(do_play)
                 break
 
-        print(f"[时间提醒] ========== 检查完成 ==========")
+        #print(f"[时间提醒] ========== 检查完成 ==========")
 
     def is_event_today(event):
         """判断事件是否在今天发生"""
@@ -12468,7 +12468,7 @@ def main(page: ft.Page):
                     tag_color = ft.Colors.BLUE_700
                 
                 if current_music_state == "playing":
-                    full_text = f"播放中: {event_tag} {event_type_display}【{event.name}】: {music_name}"
+                    full_text = f"正在播放: {event_tag} {event_type_display}【{event.name}】: {music_name}"
                     marquee_text.color = tag_color
                     marquee_text.update_text(full_text)
                     page.run_task(async_start_marquee)
@@ -12551,9 +12551,9 @@ def main(page: ft.Page):
     # 创建导入导出按钮（始终显示）
     import_export_buttons = ft.Row([
         ft.TextButton(
-            "💰 记账本", 
+            "💰 账单", 
             on_click=lambda e: show_accounting_page(page), 
-            tooltip="记账本",
+            tooltip="账单",
             style=ft.ButtonStyle(color=ft.Colors.BLUE_700,text_style=ft.TextStyle(weight=ft.FontWeight.BOLD), ),
         ),
         ft.TextButton("📥 导入", on_click=show_import_menu, tooltip="从Excel导入事件"),
@@ -12661,7 +12661,7 @@ def main(page: ft.Page):
                 content=ft.Column([
                     #ft.Divider(height=5),
                     ft.Text("💡 使用说明", size=14, weight=ft.FontWeight.BOLD),
-                    ft.Text("• 点击「+」添加事件\n• 点击 💰 记账本 进入记账本界面\n• 各类事件当天或提前3天预警自动弹框并播放音乐\n• 启动程序自动检查今日是否有事件发生", selectable=True),
+                    ft.Text("• 点击「+」添加事件\n• 点击 💰 账单 进入账单界面\n• 各类事件当天或提前3天预警自动弹框并播放音乐\n• 启动程序自动检查今日是否有事件发生", selectable=True),
                     # ========== 修改这里：提醒服务单独一行，count_text和版本在同一行 ==========
                     ft.Row([
                         ft.Text("🔔 提醒服务运行中", size=12, color=ft.Colors.GREEN_700),
@@ -12690,7 +12690,7 @@ def main(page: ft.Page):
         ft.Container(
             content=ft.Column([
                 ft.Text(
-                    "📋 记事本", 
+                    "📋 事件提醒", 
                     size=20, 
                     weight=ft.FontWeight.BOLD, 
                     color=ft.Colors.BLUE_700, 
@@ -12895,15 +12895,15 @@ def main(page: ft.Page):
         if has_today_event:
             current_view = "today"
             show_today_events()
-            show_bottom_message("📅 今日有事件，自动切换到今日事件视图")
+            show_bottom_message("📌 今日有事件，自动切换到今日事件视图")
         elif has_warning_event:
             current_view = "three_days"
             show_three_days_events()
-            show_bottom_message("⏰ 未来3天有事件，自动切换到预警事件视图")
+            show_bottom_message("🔔 未来3天有事件，自动切换到预警事件视图")
         else:
             current_view = "daily"
             show_daily_events()
-            show_bottom_message("📆 切换到每日事件视图")
+            show_bottom_message("⏰ 切换到每日事件视图")
         
         # 更新下拉框的显示
         update_view_dropdown_display(current_view)
