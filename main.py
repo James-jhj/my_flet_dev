@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.88"
-APP_VERSION_CODE = 88
+APP_VERSION = "1.0.89"
+APP_VERSION_CODE = 89
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -99,7 +99,6 @@ def get_auth_file_path():
         return os.path.join(app_data_dir, "device_auth.json")
     return "device_auth.json"
 
-
 def is_device_authorized():
     """检查设备是否已授权（首次运行自动授权）"""
     current_device_id = get_device_id()
@@ -121,7 +120,6 @@ def is_device_authorized():
         return True
     except:
         return False
-
 
 def show_unauthorized_page(page, device_id=None):
     """显示未授权页面"""
@@ -1932,7 +1930,7 @@ def main(page: ft.Page):
 
     def cancel_notification(notification_id: int):
         """取消通知（使用 android-notify）"""
-        print(f"[通知] 尝试取消通知 ID: {notification_id}")
+        #print(f"[通知] 尝试取消通知 ID: {notification_id}")
 
         # ========== Windows 平台静默返回 ==========
         if IS_WINDOWS:
@@ -3689,7 +3687,7 @@ def main(page: ft.Page):
         
         # ========== 始终显示标题行和下拉框 ==========
         if hasattr(refresh_events_list, 'view_dropdown'):
-            title_text = f"📆 每日事件 {len(daily_events)} 个" if daily_events else "📆 每日事件 0 个"
+            title_text = f"⏰ 每日事件 {len(daily_events)} 个" if daily_events else "⏰ 每日事件 0 个"
             events_list.controls.append(ft.Row([
                 ft.Text(title_text, size=14, weight=ft.FontWeight.BOLD, expand=True),
                 refresh_events_list.view_dropdown,
@@ -3752,7 +3750,7 @@ def main(page: ft.Page):
 
         # ========== 始终显示标题行和下拉框 ==========
         if hasattr(refresh_events_list, 'view_dropdown'):
-            title_text = f"📆 每周事件 {len(weekly_events)} 个" if weekly_events else "📆 每周事件 0 个"
+            title_text = f"🔁 每周事件 {len(weekly_events)} 个" if weekly_events else "🔁 每周事件 0 个"
             events_list.controls.append(ft.Row([
                 ft.Text(title_text, size=14, weight=ft.FontWeight.BOLD, expand=True),
                 refresh_events_list.view_dropdown,
@@ -3836,7 +3834,7 @@ def main(page: ft.Page):
         
         # 添加标题行
         if hasattr(refresh_events_list, 'view_dropdown'):
-            title_text = f"⏰ 预警事件 {len(three_days_events)} 个" if three_days_events else "⏰ 预警事件 0 个"
+            title_text = f"🔔 预警事件 {len(three_days_events)} 个" if three_days_events else "🔔 预警事件 0 个"
             events_list.controls.append(ft.Row([
                 ft.Text(title_text, size=14, weight=ft.FontWeight.BOLD, expand=True),
                 refresh_events_list.view_dropdown,
@@ -6081,14 +6079,14 @@ def main(page: ft.Page):
         """更新视图下拉框的显示文本"""
         # 视图选项映射
         view_display_map = {
-            "today": "📅 今日事件",
-            "three_days": "⏰ 预警事件",
-            "daily": "📆 每日事件",
-            "weekly": "📅 每周事件",
-            "monthly": "💰 每月事件",
-            "birthday": "🎂 生日",
-            "event": "📖 纪念日",
-            "once": "⏰ 一次性事件",
+            "today": "📌 今日事件",
+            "three_days": "🔔 预警事件",
+            "daily": "⏰ 每日事件",
+            "weekly": "🔁 每周事件",
+            "monthly": "🔄 每月事件",
+            "birthday": "🎉 生日",
+            "event": "💝 纪念日",
+            "once": "🎯 一次性事件",
             "all": "📋 全部事件",
         }
         
@@ -6534,7 +6532,7 @@ def main(page: ft.Page):
         # 先添加标题行（包含下拉框），始终显示
         if hasattr(refresh_events_list, 'view_dropdown'):
             events_list.controls.append(ft.Row([
-                ft.Text(f"📅 今日事件 {len(today_events)} 个", size=14, weight=ft.FontWeight.BOLD, expand=True),
+                ft.Text(f"📌 今日事件 {len(today_events)} 个", size=14, weight=ft.FontWeight.BOLD, expand=True),
                 refresh_events_list.view_dropdown,
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN))
             events_list.controls.append(ft.Divider(height=10))
@@ -6545,7 +6543,7 @@ def main(page: ft.Page):
                 ft.Container(
                     content=ft.Column([
                         ft.Text("🎉 今日没有事件", size=14, color=ft.Colors.GREEN_700),
-                    ], spacing=8, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                    ], spacing=8, horizontal_alignment=ft.CrossAxisAlignment.START),
                     padding=20,
                 )
             )
@@ -6832,6 +6830,28 @@ def main(page: ft.Page):
         display_date = get_display_date(event)
         type_name = get_event_type_name(event)
         age_text = get_age_text(event, today, base_year)
+
+        # ========== 获取提醒时间 ==========
+        reminder_time_str = ""
+        if event.reminders:
+            time_list = [r.get("time", "") for r in event.reminders if r.get("enabled")]
+            if time_list:
+                reminder_time_str = " ⏰ " + " ".join(time_list)
+
+        # ========== 根据事件类型选择日期图标 ==========
+        date_icon_map = {
+            "birthday": "☀️" if event.calendar_type == "solar" else "🌙",  # 阳历生日/农历生日
+            "event": "☀️" if event.calendar_type == "solar" else "🌙",     # 阳历纪念日/农历纪念日
+            "daily": "⏰",    # 每日事件
+            "weekly": "🔁",   # 每周事件（星期）
+            "monthly": "🔄",  # 每月事件（日）
+            "once": "☀️" if event.calendar_type == "solar" else "🌙",     # 一次性事件
+        }
+        
+        date_icon = date_icon_map.get(event.event_type, "📅")
+        
+        # ========== 组合日期显示 ==========
+        date_display_text = f"{date_icon} {display_date}{reminder_time_str}"
         
         # ========== 获取音乐名称和状态 ==========
         music_name = None
@@ -6873,6 +6893,18 @@ def main(page: ft.Page):
                 music_status_color = ft.Colors.GREY_500
                 music_duration_str = total_duration if total_duration else ""
         
+        # ========== 根据事件类型选择标签图标 ==========
+        type_icon_map = {
+            "birthday": "🎉",
+            "event": "💝",
+            "daily": "⏰",
+            "weekly": "🔁",
+            "monthly": "🔄",
+            "once": "🎯",
+        }
+
+        type_icon = type_icon_map.get(event.event_type, "🏷️")
+
         # ========== 创建动态音乐显示Row ==========
         # ========== 创建时长文本控件（保存引用） ==========
         duration_display = f"⏱️ {music_duration_str}" if music_duration_str else ""
@@ -6887,8 +6919,9 @@ def main(page: ft.Page):
         # ========== 保存到全局字典中 ==========
         card_duration_texts[event.id] = duration_text
         
+        # 🏷️
         music_info_row = ft.Row([
-            ft.Text(f"🏷️ {type_name}", size=10, color=ft.Colors.BLUE_400),
+            ft.Text(f"{type_icon} {type_name}", size=10, color=ft.Colors.BLUE_400),
             ft.Container(width=8),
             ft.Text(music_status_icon, size=10),
             ft.Text(music_name if music_name else "无音乐", size=10, color=ft.Colors.GREY_600,
@@ -6942,7 +6975,7 @@ def main(page: ft.Page):
                 ft.Row([
                     ft.Column([
                         ft.Text(f"{calendar_icon} {event.name}", size=16, weight=ft.FontWeight.BOLD),
-                        ft.Text(f"📅 {display_date}", size=12, color=ft.Colors.GREY_600),
+                        ft.Text(f"{date_display_text}", size=12, color=ft.Colors.GREY_600),
                         ft.Text(age_text, size=11, color=ft.Colors.ORANGE_700) if age_text else ft.Container(),
                         music_info_row,
                     ], expand=True),
@@ -6971,17 +7004,17 @@ def main(page: ft.Page):
     def get_event_icon(event):
         """获取事件图标"""
         if event.event_type == "daily":
-            return "📆"
-        elif event.event_type == "weekly":
-            return "📅"
-        elif event.event_type == "birthday":
-            return "🎂" if event.calendar_type == "solar" else "🎋"
-        elif event.event_type == "monthly":
-            return "💰"
-        elif event.repeat_type == "once":
             return "⏰"
+        elif event.event_type == "weekly":
+            return "🔁"
+        elif event.event_type == "birthday":
+            return "🎉" if event.calendar_type == "solar" else "🎋"
+        elif event.event_type == "monthly":
+            return "🔄"
+        elif event.repeat_type == "once":
+            return "🎯"
         else:
-            return "📅" if event.calendar_type == "solar" else "📖"
+            return "💝" if event.calendar_type == "solar" else "💝"
         
     def get_event_type_name(event):
         """获取事件类型名称"""
@@ -6999,7 +7032,7 @@ def main(page: ft.Page):
         elif event.repeat_type == "once":
             return "一次性"
         else:
-            return "事件"
+            return "纪念日"
         
     def get_display_date(event):
         """获取事件显示日期"""
@@ -7062,19 +7095,19 @@ def main(page: ft.Page):
         """获取年龄或年份显示文本"""
         if event.event_type == "birthday":
             if base_year > 0 and base_year <= today.year:
-                return f"🎂 {today.year - base_year}岁"
+                return f"🎉 {today.year - base_year}岁"
             else:
-                return "🎂 生日"
+                return "🎉 生日"
         elif event.event_type == "monthly":
-            return "📆 每月提醒"
+            return "🔄 每月提醒"
         elif event.event_type == "daily":
             # 检查是否开启了法定工作日提醒
             if getattr(event, 'workday_only', False):
-                return "📆 工作日提醒"
+                return "⏰ 工作日提醒"
             else:
-                return "📆 每天提醒"
+                return "⏰ 每天提醒"
         elif event.event_type == "weekly":
-            return "📅 每周提醒"
+            return "🔁 每周提醒"
         elif event.repeat_type == "once":
             if event.completed:
                 date_parts = event.birth_date.split("-")
@@ -7094,9 +7127,9 @@ def main(page: ft.Page):
                 years_passed = today.year - base_year + 1
                 if years_passed < 1:
                     years_passed = 1
-                return f"📅 第{years_passed}年"
+                return f"💝 第{years_passed}年"
             else:
-                return "📅 纪念日"
+                return "💝 纪念日"
     
     def show_monthly_events():
         """显示每月事件列表"""
@@ -7128,7 +7161,7 @@ def main(page: ft.Page):
         
         # ========== 始终显示标题行和下拉框 ==========
         if hasattr(refresh_events_list, 'view_dropdown'):
-            title_text = f"💰 每月事件 {len(monthly_events)} 个" if monthly_events else "💰 每月事件 0 个"
+            title_text = f"🔄 每月事件 {len(monthly_events)} 个" if monthly_events else "🔄 每月事件 0 个"
             events_list.controls.append(ft.Row([
                 ft.Text(title_text, size=14, weight=ft.FontWeight.BOLD, expand=True),
                 refresh_events_list.view_dropdown,
@@ -7191,7 +7224,7 @@ def main(page: ft.Page):
 
         # ========== 始终显示标题行和下拉框 ==========
         if hasattr(refresh_events_list, 'view_dropdown'):
-            title_text = f"🎂 生日事件 {len(birthday_events)} 个" if birthday_events else "🎂 生日事件 0 个"
+            title_text = f"🎉 生日事件 {len(birthday_events)} 个" if birthday_events else "🎉 生日事件 0 个"
             events_list.controls.append(ft.Row([
                 ft.Text(title_text, size=14, weight=ft.FontWeight.BOLD, expand=True),
                 refresh_events_list.view_dropdown,
@@ -7250,7 +7283,7 @@ def main(page: ft.Page):
 
         # ========== 始终显示标题行和下拉框 ==========
         if hasattr(refresh_events_list, 'view_dropdown'):
-            title_text = f"📖 纪念日事件 {len(event_events_list)} 个" if event_events_list else "📖 纪念日事件 0 个"
+            title_text = f"💝 纪念日事件 {len(event_events_list)} 个" if event_events_list else "💝 纪念日事件 0 个"
             events_list.controls.append(ft.Row([
                 ft.Text(title_text, size=14, weight=ft.FontWeight.BOLD, expand=True),
                 refresh_events_list.view_dropdown,
@@ -7307,7 +7340,7 @@ def main(page: ft.Page):
 
         # ========== 始终显示标题行和下拉框 ==========
         if hasattr(refresh_events_list, 'view_dropdown'):
-            title_text = f"⏰ 一次性事件 {len(once_events_list)} 个" if once_events_list else "⏰ 一次性事件 0 个"
+            title_text = f"🎯 一次性事件 {len(once_events_list)} 个" if once_events_list else "🎯 一次性事件 0 个"
             events_list.controls.append(ft.Row([
                 ft.Text(title_text, size=14, weight=ft.FontWeight.BOLD, expand=True),
                 refresh_events_list.view_dropdown,
@@ -7360,28 +7393,28 @@ def main(page: ft.Page):
             show_bottom_message("📋 已切换到全部事件视图")
         elif selected == "today":
             show_today_events()
-            show_bottom_message("📅 已切换到今日事件视图")
+            show_bottom_message("📌 已切换到今日事件视图")
         elif selected == "three_days":
             show_three_days_events()
-            show_bottom_message("⏰ 已切换到预警事件视图")
+            show_bottom_message("🔔 已切换到预警事件视图")
         elif selected == "daily":
             show_daily_events()
-            show_bottom_message("📆 已切换到每日事件视图")
+            show_bottom_message("⏰ 已切换到每日事件视图")
         elif selected == "weekly":
             show_weekly_events()
-            show_bottom_message("📅 已切换到每周事件视图")
+            show_bottom_message("🔁 已切换到每周事件视图")
         elif selected == "monthly":
             show_monthly_events()
-            show_bottom_message("💰 已切换到每月事件视图")
+            show_bottom_message("🔄 已切换到每月事件视图")
         elif selected == "birthday":
             show_birthday_events()
-            show_bottom_message("🎂 已切换到生日事件视图")
+            show_bottom_message("🎉 已切换到生日事件视图")
         elif selected == "event":
             show_event_events()
-            show_bottom_message("📖 已切换到纪念日事件视图")
+            show_bottom_message("💝 已切换到纪念日事件视图")
         elif selected == "once":
             show_once_events()
-            show_bottom_message("⏰ 已切换到一次性事件视图")
+            show_bottom_message("🎯 已切换到一次性事件视图")
 
         # 更新下拉框的显示值
         if hasattr(refresh_events_list, 'view_dropdown'):
@@ -7505,10 +7538,9 @@ def main(page: ft.Page):
         return playing_events + other_events
 
     def refresh_events_list(filter_date=None):
-        global current_playing_event_id, current_music_state , three_days_events, current_view, current_selected_lunar,card_duration_texts
-        #print(f"[DEBUG] refresh_events_list 被调用, filter_date={filter_date}, current_view={current_view}")
-
-        # ========== 清空旧的卡片引用（放在最开头） ==========
+        global current_playing_event_id, current_music_state, three_days_events, current_view, current_selected_lunar, card_duration_texts
+        
+        # ========== 清空旧的卡片引用 ==========
         card_duration_texts.clear()
         
         # 清空事件列表控件
@@ -7533,27 +7565,22 @@ def main(page: ft.Page):
         # 更新 date_text 显示
         update_date_text_with_events(today, three_days_events)
 
-         # ========== 筛选模式 ==========
+        # ========== 筛选模式 ==========
         if filter_date is not None:
             filtered_events = []
             for event in events.values():
-                # ========== 排除每日事件 ==========
+                # 排除每日事件
                 if event.event_type == "daily" or event.repeat_type == "daily":
                     continue
                 
                 # 使用 is_event_on_date 方法判断事件是否在指定日期发生
                 if event.is_event_on_date(filter_date):
-                    # 计算从今天到选中日期的天数
                     days_until = (filter_date - today).days
-
-                    # 如果选中日期已经过了今天，标记为已过期（-1）
                     if days_until < 0:
                         days_until = -1
-                    
-                    # 如果选中日期已经过了，显示负数
                     filtered_events.append((event, days_until))
             
-            # ========== 调用排序函数 ==========
+            # 调用排序函数
             event_list = [item[0] for item in filtered_events]
             event_list = sort_events_by_playing(event_list)
             
@@ -7568,15 +7595,14 @@ def main(page: ft.Page):
             # 显示筛选结果
             events_list.controls.clear()
 
-            # ========== 显示日期标题（阳历 + 农历） ==========
+            # 显示日期标题（阳历 + 农历）
             lunar_str = get_lunar_date_str(filter_date.year, filter_date.month, filter_date.day)
-            #date_title = f"📅 {filter_date.strftime('%Y年%m月%d日')} {lunar_str}"
-            date_title = f"📅 农历 {lunar_str}"
+            date_title = f"🌙 农历 {lunar_str}"
             
             # 始终显示返回按钮/下拉框
             if hasattr(refresh_events_list, 'view_dropdown'):
                 events_list.controls.append(ft.Row([
-                    ft.Text(date_title, size=16, weight=ft.FontWeight.BOLD,expand=True),
+                    ft.Text(date_title, size=16, weight=ft.FontWeight.BOLD, expand=True),
                     refresh_events_list.view_dropdown,
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN))
                 events_list.controls.append(ft.Divider(height=10))
@@ -7590,7 +7616,7 @@ def main(page: ft.Page):
                             ft.Container(height=10),
                             ft.Button(
                                 "📋 返回之前事件", 
-                                on_click=lambda e: restore_previous_view(),  # 返回之前的视图
+                                on_click=lambda e: restore_previous_view(),
                                 style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE),
                             ),
                         ], spacing=8, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
@@ -7603,20 +7629,86 @@ def main(page: ft.Page):
                                                     size=14, color=ft.Colors.GREEN_700))
                 events_list.controls.append(ft.Divider(height=5))
                 for event, days_until in filtered_events:
-                    # 直接传递 days_until 参数
                     display_event_card(event, is_filter_mode=True, custom_days_until=days_until)
             
             update_event_count()
             page.update()
             return
         
+        # ========== 非筛选模式 ==========
+        if not events:
+            events_list.controls.append(ft.Text("✨ 暂无事件，点击「+」添加", color=ft.Colors.GREY_500, size=14))
+            page.update()
+            return
+        
+        # ========== 确保下拉框存在 ==========
+        if not hasattr(refresh_events_list, 'view_dropdown'):
+            
+            # 视图选项（使用统一定义）
+            view_options = [
+                ("all", "📋 全部事件"),
+                ("today", "📌 今日事件"),
+                ("three_days", "🔔 预警事件"),
+                ("daily", "⏰ 每日事件"),
+                ("weekly", "🔁 每周事件"),
+                ("monthly", "🔄 每月事件"),
+                ("birthday", "🎉 生日"),
+                ("event", "💝 纪念日"),
+                ("once", "🎯 一次性事件"),
+            ]
+            
+            # 获取当前选中视图的显示文本
+            def get_view_display_text(value):
+                for v, text in view_options:
+                    if v == value:
+                        return text
+                return "📋 全部事件"
+
+            # 重新构建 items，在选项之间添加分割线
+            popup_items = []
+            for i, (value, text) in enumerate(view_options):
+                popup_items.append(
+                    ft.PopupMenuItem(
+                        content=ft.Container(
+                            content=ft.Text(text, size=14),
+                            width=150,
+                        ),
+                        on_click=lambda e, val=value: select_view_popup(val),
+                        height=40,
+                    )
+                )
+                if i < len(view_options) - 1:
+                    popup_items.append(
+                        ft.PopupMenuItem(
+                            content=ft.Divider(height=1, color=ft.Colors.GREY_300),
+                            disabled=True,
+                            height=2,
+                        )
+                    )
+
+            view_popup = ft.PopupMenuButton(
+                content=ft.Row([
+                    ft.Text(get_view_display_text(current_view), size=14, weight=ft.FontWeight.BOLD),
+                    ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18),
+                ], spacing=5, alignment=ft.MainAxisAlignment.CENTER),
+                items=popup_items,
+                bgcolor=ft.Colors.WHITE,
+            )
+
+            def select_view_popup(value):
+                view_popup.content.controls[0].value = get_view_display_text(value)
+                on_view_change(value)
+                page.update()
+
+            refresh_events_list.view_dropdown = view_popup
+            refresh_events_list.view_dropdown.value = current_view
+
+        # ========== 获取视图标题 ==========
         def get_view_title():
-            """获取当前视图的标题"""
             global current_view
             
             if current_view == "all":
                 return f"📋 全部事件 ({len(events)}个)"
-            
             elif current_view == "today":
                 today = datetime.now().date()
                 count = 0
@@ -7630,118 +7722,30 @@ def main(page: ft.Page):
                                 count += 1
                         else:
                             count += 1
-                return f"📅 今日事件 ({count}个)" if count > 0 else "📅 今日事件"
-            
+                return f"📌 今日事件 ({count}个)" if count > 0 else "📌 今日事件"
             elif current_view == "three_days":
-                return "⏰ 预警事件"
-            
+                return "🔔 预警事件"
             elif current_view == "daily":
                 daily_count = len([e for e in events.values() if e.event_type == "daily"])
-                return f"📆 每日事件 ({daily_count}个)" if daily_count > 0 else "📆 每日事件"
-            
+                return f"⏰ 每日事件 ({daily_count}个)" if daily_count > 0 else "⏰ 每日事件"
             elif current_view == "weekly":
                 weekly_count = len([e for e in events.values() if e.event_type == "weekly"])
-                return f"📅 每周事件 ({weekly_count}个)" if weekly_count > 0 else "📅 每周事件"
-            
+                return f"🔁 每周事件 ({weekly_count}个)" if weekly_count > 0 else "🔁 每周事件"
             elif current_view == "monthly":
                 monthly_count = len([e for e in events.values() if e.event_type == "monthly"])
-                return f"💰 每月事件 ({monthly_count}个)" if monthly_count > 0 else "💰 每月事件"
-            
+                return f"🔄 每月事件 ({monthly_count}个)" if monthly_count > 0 else "🔄 每月事件"
             elif current_view == "birthday":
                 birthday_count = len([e for e in events.values() if e.event_type == "birthday"])
-                return f"🎂 生日 ({birthday_count}个)" if birthday_count > 0 else "🎂 生日"
-            
+                return f"🎉 生日 ({birthday_count}个)" if birthday_count > 0 else "🎉 生日"
             elif current_view == "event":
                 event_count = len([e for e in events.values() if e.event_type == "event"])
-                return f"📖 纪念日 ({event_count}个)" if event_count > 0 else "📖 纪念日"
-            
+                return f"💝 纪念日 ({event_count}个)" if event_count > 0 else "💝 纪念日"
             elif current_view == "once":
                 once_count = len([e for e in events.values() if e.repeat_type == "once"])
-                return f"⏰ 一次性事件 ({once_count}个)" if once_count > 0 else "⏰ 一次性事件"
-            
+                return f"🎯 一次性事件 ({once_count}个)" if once_count > 0 else "🎯 一次性事件"
             return "事件列表"
-        
 
-        # ========== 非筛选模式 ==========
-        if not events:
-            events_list.controls.append(ft.Text("✨ 暂无事件，点击「+」添加", color=ft.Colors.GREY_500, size=14))
-            page.update()
-            return
-        
-        # ========== 创建下拉框（始终显示） ==========
-        # ========== 确保下拉框存在（自定义下拉菜单） ==========
-        if not hasattr(refresh_events_list, 'view_dropdown'):
-            
-            # 视图选项
-            view_options = [
-                ("all", "📋 全部事件"),
-                ("today", "📅 今日事件"),
-                ("three_days", "⏰ 预警事件"),
-                ("daily", "📆 每日事件"),
-                ("weekly", "📅 每周事件"),
-                ("monthly", "💰 每月事件"),
-                ("birthday", "🎂 生日"),
-                ("event", "📖 纪念日"),
-                ("once", "⏰ 一次性事件"),
-            ]
-            
-            # 获取当前选中视图的显示文本
-            def get_view_display_text(value):
-                for v, text in view_options:
-                    if v == value:
-                        return text
-                return "📋 全部事件"
-
-            # ========== 重新构建 items，在选项之间添加分割线 ==========
-            popup_items = []
-            for i, (value, text) in enumerate(view_options):
-                # 添加选项
-                popup_items.append(
-                    ft.PopupMenuItem(
-                        content=ft.Container(
-                            content=ft.Text(text, size=14),
-                            width=150,
-                        ),
-                        on_click=lambda e, val=value: select_view_popup(val),
-                        height=40,  # 控制选项高度
-                    )
-                )
-                # 在选项之间添加分割线（最后一个不加）
-                if i < len(view_options) - 1:
-                    popup_items.append(
-                        ft.PopupMenuItem(
-                            content=ft.Divider(height=1, color=ft.Colors.GREY_300),
-                            disabled=True,
-                            height=2,  # 分割线高度
-                        )
-                    )
-
-            view_popup = ft.PopupMenuButton(
-                content=ft.Row([
-                    ft.Text(get_view_display_text(current_view), size=14, weight=ft.FontWeight.BOLD),
-                    ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18),
-                ], spacing=5, alignment=ft.MainAxisAlignment.CENTER),
-                items=popup_items,
-                bgcolor=ft.Colors.WHITE,  # 下拉框背景设置为白色，默认是银色
-            )
-
-            def select_view_popup(value):
-                # 更新显示文本
-                view_popup.content.controls[0].value = get_view_display_text(value)
-                # 调用视图切换
-                on_view_change(value)
-                page.update()
-
-            
-            # 存储下拉控件到 refresh_events_list 属性中
-            # 存储到 refresh_events_list
-            refresh_events_list.view_dropdown = view_popup
-            refresh_events_list.view_dropdown.value = current_view
-
-        # ========== 根据视图收集并显示数据 ==========
-        events_list.controls.clear()
-        
-        # 先添加标题行（包含下拉框）
+        # ========== 添加标题行 ==========
         events_list.controls.append(ft.Row([
             ft.Text(get_view_title(), size=14, weight=ft.FontWeight.BOLD, expand=True),
             refresh_events_list.view_dropdown,
@@ -7756,22 +7760,21 @@ def main(page: ft.Page):
         all_events = []
         
         for event in events.values():
-
             month, day, year, base_year, days_until = event.get_next_date_info()
             
-            # ========== 根据事件类型计算年龄/年份显示 ==========
+            # 根据事件类型计算年龄/年份显示
             if event.event_type == "birthday":
                 if base_year > 0 and base_year <= today.year:
                     age = today.year - base_year
-                    age_text = f"🎂 {age}岁"
+                    age_text = f"🎉 {age}岁"
                 else:
-                    age_text = "🎂 生日"
+                    age_text = "🎉 生日"
             elif event.event_type == "monthly":
-                age_text = "📆 每月提醒"
+                age_text = "🔄 每月提醒"
             elif event.event_type == "daily":
-                age_text = "📆 每天提醒"
+                age_text = "⏰ 每天提醒"
             elif event.event_type == "weekly":
-                age_text = "📅 每周提醒"
+                age_text = "🔁 每周提醒"
             elif event.repeat_type == "once":
                 age_text = ""
             else:  # event
@@ -7779,13 +7782,12 @@ def main(page: ft.Page):
                     years_passed = today.year - base_year + 1
                     if years_passed < 1:
                         years_passed = 1
-                    age_text = f"📅 第{years_passed}年"
+                    age_text = f"💝 第{years_passed}年"
                 else:
-                    age_text = "📅 纪念日"
+                    age_text = "💝 纪念日"
             
-            # ========== 判断是否是今日事件（每日和每周事件不纳入今日事件） ==========
+            # 判断是否是今日事件
             is_today = False
-            # 只有非每日/非每周的事件才判断是否是今天
             if event.event_type != "daily" and event.event_type != "weekly":
                 is_today = (month == today.month and day == today.day)
             
@@ -7804,7 +7806,6 @@ def main(page: ft.Page):
         
         # 根据当前视图选择标题和显示内容
         if current_view == "today":
-            title_text = "📅 今日事件"
             display_events = today_events
             if not display_events:
                 events_list.controls.append(ft.Text("🎉 今日没有事件", size=14, color=ft.Colors.GREEN_700))
@@ -7812,10 +7813,8 @@ def main(page: ft.Page):
                 page.update()
                 return
         elif current_view == "all":
-            title_text = "📋 全部事件"
             display_events = sorted(all_events, key=lambda x: x["days_until"])
         elif current_view == "daily":
-            # 调用专门的每日事件显示函数
             show_daily_events()
             return
         elif current_view == "weekly":
@@ -7837,281 +7836,18 @@ def main(page: ft.Page):
             show_once_events()
             return
         else:
-            title_text = "📋 全部事件"
             display_events = sorted(all_events, key=lambda x: x["days_until"])
         
-        # 显示事件卡片
+        # ========== 显示事件卡片 ==========
         for info in display_events:
-            event = info["event"]
-            is_today = info["is_today"]
-            days_until = info["days_until"]
-            base_year = info.get("base_year", 0)
-            
-            # ========== 状态文本和背景色设置 ==========
-            # 每日和每周事件特殊处理
-            if event.event_type == "daily":
-                status_text = "每天"
-                status_color = ft.Colors.PURPLE_700
-                bg_color = ft.Colors.PURPLE_50
-            elif event.event_type == "weekly":
-                status_text = "每周"
-                status_color = ft.Colors.TEAL_700
-                bg_color = ft.Colors.TEAL_50
-            # 一次性事件特殊处理
-            elif event.repeat_type == "once":
-                if event.completed:
-                    status_text = "已完成"
-                    status_color = ft.Colors.GREY_500
-                    bg_color = ft.Colors.GREY_100
-                elif days_until < 0:
-                    status_text = "已过期"
-                    status_color = ft.Colors.GREY_500
-                    bg_color = ft.Colors.GREY_100
-                elif days_until == 0:
-                    status_text = "今天！"
-                    status_color = ft.Colors.RED_700
-                    bg_color = ft.Colors.RED_50
-                elif days_until <= 3:
-                    status_text = f"还剩 {days_until} 天"
-                    status_color = ft.Colors.ORANGE_700
-                    bg_color = ft.Colors.ORANGE_50
-                else:
-                    status_text = f"还剩 {days_until} 天"
-                    status_color = ft.Colors.BLUE_700
-                    bg_color = ft.Colors.WHITE
-            else:
-                if is_today:
-                    status_text = "今天！"
-                    status_color = ft.Colors.RED_700
-                    bg_color = ft.Colors.RED_50
-                elif days_until <= 7:
-                    status_text = f"还剩 {days_until} 天"
-                    status_color = ft.Colors.ORANGE_700
-                    bg_color = ft.Colors.ORANGE_50
-                else:
-                    status_text = f"还剩 {days_until} 天"
-                    status_color = ft.Colors.BLUE_700
-                    bg_color = ft.Colors.WHITE
-            
-            # 根据事件类型和重复类型显示不同的信息
-            if event.event_type == "daily":
-                # 每天事件
-                age_text = info["age_text"]
-                calendar_icon = "📆"
-                type_name = "每天"
-                if event.reminders:
-                    time_list = [r.get("time", "") for r in event.reminders if r.get("enabled")]
-                    display_date = f"每天 {' '.join(time_list)}"
-                else:
-                    display_date = "每天"
-                    
-            elif event.event_type == "weekly":
-                age_text = info["age_text"]
-                calendar_icon = "📅"
-                type_name = "每周"
-                weekday_names = ["", "周一", "周二", "周三", "周四", "周五", "周六", "周日"]
-                weekday_num = int(event.birth_date) if event.birth_date else 1
-                # 获取提醒时间
-                if event.reminders:
-                    time_list = [r.get("time", "") for r in event.reminders if r.get("enabled")]
-                    time_str = " ".join(time_list)
-                    display_date = f"每周 {weekday_names[weekday_num]} {time_str}"
-                else:
-                    display_date = f"每周 {weekday_names[weekday_num]}"
-                
-            elif event.event_type == "birthday":
-                age_text = info["age_text"]
-                calendar_icon = "🎂" if event.calendar_type == "solar" else "🎋"
-                type_name = "生日"
-                if event.calendar_type == "solar":
-                    display_date = f"阳历 {info['month']}月{info['day']}日"
-                else:
-                    lunar_parts = event.birth_date.split("-")
-                    display_date = f"农历 {int(lunar_parts[1])}月{int(lunar_parts[2])}日"
-                    
-            elif event.event_type == "monthly":
-                age_text = info["age_text"]
-                calendar_icon = "💰"
-                type_name = "每月"
-                day_num = int(event.birth_date)
-                display_date = f"每月 {day_num}日"
-                
-            elif event.repeat_type == "once":
-                date_parts = event.birth_date.split("-")
-                event_year = int(date_parts[0])
-                event_month = int(date_parts[1])
-                event_day = int(date_parts[2])
-                
-                if event.completed:
-                    age_text = f"✅ 已完成于 {event_year}年{event_month}月{event_day}日"
-                elif days_until < 0:
-                    age_text = f"⏰ 已过期 ({event_year}年{event_month}月{event_day}日)"
-                elif days_until == 0:
-                    age_text = "🎯 今天执行"
-                else:
-                    age_text = f"⏰ {event_year}年{event_month}月{event_day}日"
-                calendar_icon = "⏰"
-                type_name = "一次性"
-                display_date = f"{int(date_parts[0])}年{int(date_parts[1])}月{int(date_parts[2])}日"
-                
-            else:
-                # 纪念日/事件：使用之前计算好的 age_text
-                age_text = info["age_text"]
-                calendar_icon = "📅" if event.calendar_type == "solar" else "📖"
-                type_name = "事件"
-                if event.calendar_type == "solar":
-                    display_date = f"阳历 {info['month']}月{info['day']}日"
-                else:
-                    lunar_parts = event.birth_date.split("-")
-                    display_date = f"农历 {int(lunar_parts[1])}月{int(lunar_parts[2])}日"
-            
-            # 获取音乐名称和状态
-            music_name = None
-            music_status = "no_music"
-            music_status_text = ""
-            music_status_color = ft.Colors.GREY_500
-            music_status_icon = "🔇"
-            
-            if event.sound_file and os.path.exists(event.sound_file):
-                music_name = get_full_music_name(event.sound_file)
-                if current_playing_event_id == event.id:
-                    if current_music_state == "playing":
-                        music_status = "playing"
-                        music_status_text = "▶️ 播放中"
-                        music_status_color = ft.Colors.GREEN_700
-                        music_status_icon = "▶️"
-                    elif current_music_state == "paused":
-                        music_status = "paused"
-                        music_status_text = "⏸️ 已暂停"
-                        music_status_color = ft.Colors.ORANGE_700
-                        music_status_icon = "⏸️"
-                else:
-                    # 没有播放这个事件
-                    music_status = "stopped"
-                    music_status_text = "🎵 未播放"
-                    music_status_color = ft.Colors.GREY_500
-                    music_status_icon = "🎵"
-            else:
-                music_status_text = "❌ 无音乐"
-                music_status_color = ft.Colors.GREY_400
-                music_status_icon = "🔇"
-
-            # 创建动态音乐显示Row
-            music_info_row = ft.Row([
-                ft.Text(f"🏷️ {type_name}", size=10, color=ft.Colors.BLUE_400),
-                ft.Container(width=8),
-                ft.Text(music_status_icon, size=10),
-                ft.Text(music_name if music_name else "无音乐", size=10, color=ft.Colors.GREY_600,
-                    weight=ft.FontWeight.NORMAL if music_status != "playing" else ft.FontWeight.BOLD),
-                ft.Text(music_status_text, size=9, color=music_status_color,
-                    weight=ft.FontWeight.BOLD if music_status == "playing" else ft.FontWeight.NORMAL),
-            ], spacing=3, vertical_alignment=ft.CrossAxisAlignment.CENTER)
-            
-            # 获取保存的循环状态
-            loop_state = event_loop_states.get(event.id, False)
-            loop_checkbox = ft.Checkbox(label="循环", value=loop_state, tooltip="勾选后循环播放")
-            
-            def on_loop_change(e, event_id=event.id, checkbox=loop_checkbox):
-                event_loop_states[event_id] = checkbox.value
-            
-            loop_checkbox.on_change = on_loop_change
-
-            # 创建播放处理函数
-            def create_play_handler(event_name, sound_file, event_id, loop_checkbox_ref):
-                def handler(e):
-                    if sound_file and os.path.exists(sound_file):
-                        should_loop = loop_checkbox_ref.value
-                        event_loop_states[event_id] = should_loop
-
-                        if current_playing_event_id and current_playing_event_id != event_id:
-                            if current_playing_event_id in event_loop_states:
-                                event_loop_states[current_playing_event_id] = False
-                        
-                        # 如果点击的是当前正在播放的音乐
-                        if current_playing_event_id == event_id:
-                            # 根据当前状态决定是暂停还是继续
-                            if current_music_state == "playing":
-                                # 正在播放 -> 暂停
-                                print(f"[播放] 暂停音乐: {event_name}")
-                                async def pause_music_handler():
-                                    if current_audio:
-                                        await current_audio.pause()
-                                asyncio.create_task(pause_music_handler())
-                                return
-                            elif current_music_state == "paused":
-                                # 已暂停 -> 继续播放
-                                print(f"[播放] 继续播放: {event_name}")
-                                async def resume_music_handler():
-                                    if current_audio:
-                                        await current_audio.resume()
-                                asyncio.create_task(resume_music_handler())
-                                return
-                        
-                        # 如果不是同一个事件，则播放新音乐
-                        print(f"[播放] 播放新音乐: {event_name}")
-                        play_music_with_lock(sound_file, loop=should_loop, event_name=event_name, event_id=event_id)
-                    else:
-                        show_snack_bar("未设置音乐文件")
-                return handler
-            
-            async def pause_music_handler():
-                if current_audio:
-                    await current_audio.pause()
-            
-            async def resume_music_handler():
-                if current_audio:
-                    await current_audio.resume()
-
-            # 创建播放按钮
-            play_button = ft.TextButton(
-                "🔊 播放", 
-                on_click=create_play_handler(event.name, event.sound_file, event.id, loop_checkbox)
-            )
-            
-            # 创建事件卡片
-            event_card = ft.Container(
-                content=ft.Column([
-                    ft.Row([
-                        ft.Column([
-                            ft.Text(f"{calendar_icon} {event.name}", size=16, weight=ft.FontWeight.BOLD),
-                            ft.Text(f"📅 {display_date}", size=12, color=ft.Colors.GREY_600),
-                            ft.Text(age_text, size=11, color=ft.Colors.ORANGE_700) if age_text and event.repeat_type != "once" else ft.Container(),
-                            music_info_row,
-                        ], expand=True),
-                        ft.Container(content=ft.Text(status_text, size=12, weight=ft.FontWeight.BOLD, color=status_color), 
-                                    padding=5, bgcolor=ft.Colors.WHITE, border_radius=5),
-                    ]),
-                    ft.Row([
-                        ft.Row([
-                            loop_checkbox,
-                            play_button,
-                        ], spacing=5),
-                        ft.Row([
-                            ft.TextButton("✏️ 编辑", on_click=lambda e, eid=event.id: edit_event_dialog(eid)),
-                            ft.TextButton("🗑️ 删除", on_click=lambda e, eid=event.id: delete_event(eid)),
-                        ], spacing=10),
-                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                ], spacing=5),
-                padding=10,
-                bgcolor=bg_color,
-                border_radius=10,
-            )
-            events_list.controls.append(event_card)
+            display_event_card(info["event"], is_filter_mode=True)
+        
+        # 移除最后一个多余的分隔符
+        if events_list.controls and isinstance(events_list.controls[-1], ft.Divider):
+            events_list.controls.pop()
         
         update_event_count()
         page.update()
-    
-    def toggle_view():
-        global current_view
-        if current_view == "today":
-            current_view = "all"
-        elif current_view == "all":
-            current_view = "today"
-        # 如果是在每日/每周视图中，切换回全部事件
-        else:
-            current_view = "all"
-        refresh_events_list()
-        show_bottom_message(f"已切换到{'全部事件' if current_view == 'all' else '今日事件'}")
     
     def show_bottom_message(message, is_error=False):
         """显示底部消息（使用 SnackBar）"""
@@ -8217,20 +7953,6 @@ def main(page: ft.Page):
             page.update()
         
         threading.Thread(target=auto_close, daemon=True).start()
-        
-
-    # 在需要的地方创建 LyricsDownloader 实例
-    lyrics_downloader = LyricsDownloader(
-        page=page, 
-        show_snack_bar=show_snack_bar
-    )
-    
-    def change_date(delta):
-        nonlocal current_date
-        current_date += timedelta(days=delta)
-        date_display.value = current_date.strftime("%Y年%m月%d日")
-        date_display.update()
-        refresh_events_list()
     
     def close_dialog():
         nonlocal dialog_container
@@ -8633,12 +8355,18 @@ def main(page: ft.Page):
         initial_calendar = selected_event.calendar_type if selected_event else "solar"
         initial_calendar_text = get_calendar_text(initial_calendar)
 
+        def on_calendar_change(value):
+            """历法选择变化"""
+            nonlocal calendar_selected
+            # ========== 修复：使用 get_calendar_key 函数 ==========
+            calendar_selected = get_calendar_key(value)
+            print(f"[历法变化] 选中: {value} -> key: {calendar_selected}")
+
         calendar_dropdown = SearchableDropdown(
-            #page=page,  # 传入 page
             label="历法",
             options=calendar_options,
-            value=initial_calendar_text,
-            on_change=lambda e: None,  # 不需要特殊处理
+            value=get_calendar_text(calendar_selected),
+            on_change=on_calendar_change,
         )
         
         print(f"[调试] 初始事件类型: {initial_event_type}")  # 添加调试
@@ -9672,7 +9400,7 @@ def main(page: ft.Page):
         
         # 在保存时使用 event_type
         def save_click(e):
-            nonlocal event_type_selected
+            nonlocal event_type_selected, calendar_selected, dialog_container
             name = name_field.value.strip()
             if not name:
                 show_snack_bar("请输入名称")
@@ -9793,6 +9521,22 @@ def main(page: ft.Page):
                     if repeat_type_value == "once":
                         selected_event.completed = False
                     save_events(trigger_check=False)
+
+                    # ========== 强制触发检查 ==========
+                    async def do_check():
+                        await asyncio.sleep(0.3)
+                        print(f"[强制检查] 开始检查，事件数: {len(events)}")
+                        
+                        # 重新加载事件数据
+                        load_events()
+                        print(f"[强制检查] 重新加载后事件数: {len(events)}")
+                        
+                        # 调用 check_events
+                        check_time_reminders()
+                        check_events()
+                        page.update()
+                    
+                    asyncio.create_task(do_check())
                     
                     # ========== 重新收集3日内事件 ==========
                     three_days_events = []
@@ -9834,6 +9578,22 @@ def main(page: ft.Page):
                         new_event.completed = False
                     events[event_id] = new_event
                     save_events(trigger_check=False)
+
+                    # ========== 强制触发检查 ==========
+                    async def do_check():
+                        await asyncio.sleep(0.3)
+                        print(f"[强制检查] 开始检查，事件数: {len(events)}")
+                        
+                        # 重新加载事件数据
+                        load_events()
+                        print(f"[强制检查] 重新加载后事件数: {len(events)}")
+                        
+                        # 调用 check_events
+                        check_time_reminders()
+                        check_events()
+                        page.update()
+                    
+                    asyncio.create_task(do_check())
                     
                     # ========== 重新收集3日内事件 ==========
                     three_days_events = []
@@ -10057,7 +9817,11 @@ def main(page: ft.Page):
 
     def show_combined_reminder(events_by_day, is_today=False):
         """显示合并后的提醒弹窗"""
+        print(f"[弹框调试] show_combined_reminder 被调用, is_today={is_today}")
+        print(f"[弹框调试] events_by_day: {events_by_day}")
+
         if not events_by_day:
+            print("[弹框调试] events_by_day 为空，返回")
             return
         
         # ========== 发送通知（使用统一函数，带去重） ==========
@@ -10291,58 +10055,280 @@ def main(page: ft.Page):
                         play_music(music_file, loop=False)
                 else:
                     print(f"[事件自动播放] 音乐正在播放中，跳过: {os.path.basename(music_file)}")
-
-    def check_today_birthdays_on_start():
-        """启动时检查今日生日并播放音乐"""
-        #debug_log("========== 启动时检查 ==========")
+    
+    def check_startup_events():
+        """启动时检查今日事件和预警事件"""
         today = datetime.now().date()
-        #debug_log(f"启动日期: {today}")
+        now = datetime.now()
+        current_time = now.strftime("%H:%M")
         
-        today_events = []  # 今天生日的
-        upcoming_events = []  # 即将到来的（3天内）
+        print(f"[启动检查] ========== 开始 ==========")
+        print(f"[启动检查] 当前日期: {today}, 当前时间: {current_time}")
+        
+        today_events = []
+        upcoming_events = []
         
         for event in events.values():
-            # 跳过每天事件和每周事件（由时间提醒处理）
-            if event.event_type == "daily" or event.event_type == "weekly":
-                #debug_log(f"事件: {event.name} - {event.event_type}事件，跳过启动检查（由时间提醒处理）")
+            # 跳过每日事件
+            if event.event_type == "daily":
                 continue
-
-            # 跳过每月事件（由时间提醒处理）
-            if event.repeat_type == "monthly":
-                #debug_log(f"事件: {event.name} - 每月事件，跳过启动检查（由时间提醒处理）")
-                continue
-
-            month, day, year, birth_year, days_until = event.get_next_date_info()
-            #debug_log(f"事件: {event.name}, 日期: {month}月{day}日, 剩余: {days_until}天")
             
-            # 检查是否是今天
-            if month == today.month and day == today.day:
-                #debug_log(f"  -> 今天是 {event.name} 的事件!")
-                today_events.append((event, days_until))
-            # 提前3天提醒
-            elif days_until <= 3 and days_until > 0:
-                #debug_log(f"  -> {event.name} 还有 {days_until} 天")
+            # 每周事件
+            if event.event_type == "weekly":
+                target_weekday = int(event.birth_date) if event.birth_date else 1
+                if now.isoweekday() == target_weekday:
+                    # 每周事件：检查是否设置了提醒时间
+                    reminder_time = None
+                    if event.reminders:
+                        for reminder in event.reminders:
+                            if reminder.get("enabled"):
+                                reminder_time = reminder.get("time")
+                                break
+                    
+                    # 如果有提醒时间且还没到，跳过今日提醒
+                    if reminder_time and reminder_time > current_time:
+                        print(f"[启动检查] 每周事件今天: {event.name}，提醒时间 {reminder_time} 还没到，跳过今日提醒")
+                        # 但仍然加入预警？每周事件只在当天，所以如果时间没到就不提醒
+                        continue
+                    
+                    print(f"[启动检查] 每周事件今天: {event.name}")
+                    today_events.append((event, 0))
+                continue
+            
+            # 获取事件信息
+            month, day, year, base_year, days_until = event.get_next_date_info()
+            
+            # 跳过已经完成的一次性事件
+            if event.repeat_type == "once" and event.completed:
+                continue
+            
+            # 检查是否设置了提醒时间
+            reminder_time = None
+            has_reminder = False
+            if event.reminders:
+                for reminder in event.reminders:
+                    if reminder.get("enabled"):
+                        has_reminder = True
+                        reminder_time = reminder.get("time")
+                        break
+            
+            # ========== 今日事件 ==========
+            if days_until == 0:
+                # 如果设置了提醒时间且还没到，跳过今日提醒
+                if has_reminder and reminder_time and reminder_time > current_time:
+                    print(f"[启动检查] {event.name} 今天发生，但提醒时间 {reminder_time} 还没到，跳过今日提醒")
+                    continue
+                
+                print(f"[启动检查] 今日事件: {event.name}")
+                today_events.append((event, 0))
+            
+            # ========== 预警事件（未来3天）：忽略提醒时间 ==========
+            elif 0 < days_until <= 3:
+                print(f"[启动检查] 预警事件: {event.name}, {days_until}天后")
                 upcoming_events.append((event, days_until))
         
-        # 合并显示今日生日
+        print(f"[启动检查] 今日事件: {len(today_events)}, 预警事件: {len(upcoming_events)}")
+        
+        # 触发弹框
         if today_events:
-            #debug_log(f"发现 {len(today_events)} 个今日事件，显示弹框")
+            print("[启动检查] 触发今日事件弹框")
             grouped = group_events_by_date(today_events)
             show_combined_reminder(grouped, is_today=True)
+            for event, _ in today_events:
+                if event.repeat_type != "once":
+                    event.last_remind_year = today.year
+                    event.reminded_this_year = True
+            _save_events_silent()
         
-        # 合并显示即将到来的生日
         if upcoming_events:
-            #debug_log(f"发现 {len(upcoming_events)} 个即将到来事件，显示预告")
+            print("[启动检查] 触发预警弹框")
             grouped = group_events_by_date(upcoming_events)
             show_combined_reminder(grouped, is_today=False)
         
-        # 更新提醒标记
-        for event, _ in today_events:
-            if event.last_remind_year != today.year:
-                event.last_remind_year = today.year
-                event.reminded_this_year = True
-        save_events()
-        #debug_log("========== 启动检查完成 ==========")
+        print(f"[启动检查] ========== 完成 ==========")
+
+    def check_missed_reminders():
+        """检查今天已经错过的提醒（程序启动时执行）"""
+        now = datetime.now()
+        current_time = now.strftime("%H:%M")
+        today = now.date()
+        
+        print(f"[错过提醒检查] ========== 开始检查 ==========")
+        print(f"[错过提醒检查] 当前时间: {current_time}")
+        
+        triggered_events = []
+        
+        for event in events.values():
+            # 跳过每日事件（由 check_time_reminders 处理）
+            if event.event_type == "daily":
+                continue
+            
+            if not is_event_today(event):
+                continue
+            
+            if not event.reminders:
+                continue
+            
+            reminder_time = None
+            for reminder in event.reminders:
+                if reminder.get("enabled"):
+                    reminder_time = reminder.get("time")
+                    break
+            
+            if not reminder_time:
+                continue
+            
+            if reminder_time <= current_time:
+                notification_key = f"{event.id}_{today.strftime('%Y-%m-%d')}"
+                if notification_key in sent_notifications:
+                    continue
+                
+                print(f"[错过提醒检查] 触发错过提醒: {event.name} - {reminder_time}")
+                triggered_events.append((event, reminder_time))
+                sent_notifications.add(notification_key)
+        
+        if triggered_events:
+            triggered_events.sort(key=lambda x: x[1])
+            
+            for event, reminder_time in triggered_events:
+                # ========== 弹框 ==========
+                show_reminder_popup(
+                    "⏰ 错过提醒",
+                    f"{event.name}\n提醒时间: {reminder_time}",
+                    event
+                )
+                
+                # ========== 播放音乐 ==========
+                if event.sound_file and os.path.exists(event.sound_file):
+                    async def do_play(e=event):
+                        with music_playing_lock:
+                            if not is_playing:
+                                print(f"[错过提醒] 播放音乐: {os.path.basename(e.sound_file)}")
+                                play_music_with_lock(e.sound_file, loop=False, event_name=e.name, event_id=e.id)
+                    page.run_task(do_play)
+        
+        print(f"[错过提醒检查] ========== 检查完成 ==========")
+
+    def check_today_birthdays_on_start():
+        """启动时检查今日事件并播放音乐（只播放音乐，不弹框）"""
+        debug_log("========== 启动时检查 ==========")
+        today = datetime.now().date()
+        now = datetime.now()
+        current_time = now.strftime("%H:%M")
+        debug_log(f"启动日期: {today}, 当前时间: {current_time}")
+        
+        # 只处理今日事件，不处理预警
+        today_events = []
+        
+        for event in events.values():
+            # 跳过每天事件
+            if event.event_type == "daily":
+                continue
+            
+            # 每周事件：检查今天是否是提醒日
+            if event.event_type == "weekly":
+                target_weekday = int(event.birth_date) if event.birth_date else 1
+                if now.isoweekday() != target_weekday:
+                    continue
+            
+            # 每月事件
+            if event.repeat_type == "monthly":
+                target_day = int(event.birth_date) if event.birth_date else 1
+                if now.day != target_day:
+                    continue
+            
+            # 检查事件是否在今天发生
+            month, day, year, birth_year, days_until = event.get_next_date_info()
+            if month != today.month or day != today.day:
+                continue
+            
+            # ========== 检查是否设置了提醒时间 ==========
+            has_reminder = False
+            reminder_time = None
+            if event.reminders:
+                for reminder in event.reminders:
+                    if reminder.get("enabled"):
+                        has_reminder = True
+                        reminder_time = reminder.get("time")
+                        break
+            
+            # 如果设置了提醒时间且时间还没到，跳过播放
+            if has_reminder and reminder_time:
+                if reminder_time > current_time:
+                    debug_log(f"事件: {event.name} 提醒时间 {reminder_time} 还没到，跳过启动播放")
+                    continue
+            
+            debug_log(f"  -> 今天是 {event.name} 的事件!")
+            today_events.append(event)
+        
+        # 只播放音乐，不弹框
+        if today_events and not is_playing:
+            for event in today_events:
+                if event.sound_file and os.path.exists(event.sound_file):
+                    debug_log(f"[启动播放] 播放: {os.path.basename(event.sound_file)}")
+                    play_music_with_lock(event.sound_file, loop=False, event_name=event.name, event_id=event.id)
+                    break
+        
+        debug_log("========== 启动检查完成 ==========")
+
+    def show_reminder_popup(title, message, event=None):
+        """显示提醒弹框"""
+        def close_popup():
+            if popup_container in page.overlay:
+                page.overlay.remove(popup_container)
+                page.update()
+        
+        # 弹框内容
+        popup_content = ft.Container(
+            content=ft.Column([
+                ft.Container(
+                    content=ft.Icon(ft.Icons.NOTIFICATIONS_ACTIVE, size=55, color=ft.Colors.BLUE_700),
+                    padding=10,
+                    bgcolor=ft.Colors.BLUE_50,
+                    border_radius=50,
+                ),
+                ft.Text(title, size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, text_align=ft.TextAlign.CENTER),
+                ft.Divider(height=1, color=ft.Colors.GREY_300),
+                ft.Text(message, size=16, color=ft.Colors.GREY_700, text_align=ft.TextAlign.CENTER),
+                ft.Divider(height=1, color=ft.Colors.GREY_300),
+                ft.Row([
+                    ft.ElevatedButton(
+                        "知道了",
+                        on_click=lambda e: close_popup(),
+                        expand=True,
+                        style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE),
+                    ),
+                ], alignment=ft.MainAxisAlignment.CENTER),
+            ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+            width=320,
+            padding=20,
+            bgcolor=ft.Colors.WHITE,
+            border_radius=16,
+            shadow=ft.BoxShadow(
+                spread_radius=1,
+                blur_radius=15,
+                color=ft.Colors.BLACK12,
+                offset=ft.Offset(0, 4),
+            ),
+        )
+        
+        popup_container = ft.Container(
+            content=ft.Column([
+                ft.Container(expand=True),
+                ft.Row([
+                    ft.Container(expand=True),
+                    popup_content,
+                    ft.Container(expand=True),
+                ]),
+                ft.Container(expand=True),
+            ]),
+            expand=True,
+            bgcolor=ft.Colors.BLACK26,
+            on_click=lambda e: close_popup(),
+        )
+        
+        page.overlay.append(popup_container)
+        page.update()
 
     def reset_all_reminders():
         """重置所有提醒标记"""
@@ -10356,293 +10342,215 @@ def main(page: ft.Page):
         global sent_notifications
         now = datetime.now()
         current_time = now.strftime("%H:%M")
-        current_weekday = now.weekday() + 1  # 1=周一
-
-        # 判断今天是否是法定工作日
+        current_weekday = now.weekday() + 1
         is_workday_today = is_workday(now)
         
-        #print(f"[时间提醒] ========== 开始检查 ==========")
-        #print(f"[时间提醒] 当前时间: {current_time}, 当前星期: {current_weekday}, 是否工作日: {is_workday_today}")
+        print(f"[时间提醒] ========== 开始检查 ==========")
+        print(f"[时间提醒] 当前时间: {current_time}, 当前星期: {current_weekday}")
         
         for event in events.values():
-            # 检查提醒列表
             if not event.reminders:
                 continue
-
-            # 如果是每日事件且启用了工作日选项，检查今天是否是工作日
+            
+            has_enabled_reminder = False
+            for reminder in event.reminders:
+                if reminder.get("enabled"):
+                    has_enabled_reminder = True
+                    break
+            
+            if not has_enabled_reminder:
+                continue
+            
             if event.event_type == "daily" and hasattr(event, 'workday_only') and event.workday_only:
                 if not is_workday_today:
-                    #print(f"[时间提醒] 事件 {event.name} 只在工作日提醒，今天不是工作日，跳过")
                     continue
-            
             
             for reminder in event.reminders:
                 if not reminder.get("enabled"):
                     continue
+                if reminder.get("time") != current_time:
+                    continue
                 
-                # 第一步：先判断时间是否匹配
-                reminder_time = reminder.get("time")
-                if reminder_time != current_time:
-                    continue  # 时间不匹配，跳过，不继续判断
+                if not is_event_today(event):
+                    continue
                 
-                # 第二步：时间匹配了，才进入这里
-                #print(f"[时间提醒] 匹配到事件: {event.name}, 时间: {reminder_time}")
+                today = now.date()
+                notification_key = f"{event.id}_{today.strftime('%Y-%m-%d')}"
+                if notification_key in sent_notifications:
+                    print(f"[时间提醒] {event.name} 今天已提醒过，跳过")
+                    continue
                 
-                # 第三步：再根据事件类型判断是否需要提醒
-                should_remind = False
+                print(f"[时间提醒] 触发事件: {event.name} ({event.event_type})")
+                sent_notifications.add(notification_key)
                 
-                # 每日事件检查
-                if event.event_type == "daily":
-                    # 每天事件：每天都提醒
-                    should_remind = True
-                    #print(f"[时间提醒] 每天事件，触发提醒")
-                    
-                elif event.event_type == "weekly":
-                    # 每周事件：检查今天是否是提醒日
-                    target_weekday = int(event.birth_date) if event.birth_date else 1
-                    if current_weekday == target_weekday:
-                        should_remind = True
-                        print(f"[时间提醒] 每周事件，今天是提醒日，触发提醒")
-                        
-                elif event.event_type == "monthly":
-                    # 每月事件：检查今天是否是提醒日
-                    target_day = int(event.birth_date) if event.birth_date else 1
-                    if now.day == target_day:
-                        should_remind = True
-                        print(f"[时间提醒] 每月事件，今天是提醒日，触发提醒")
-                        
-                elif event.repeat_type == "once":
-                    # 一次性事件：检查是否是事件当天
-                    month, day, year, _, _ = event.get_next_date_info()
-                    if month == now.month and day == now.day:
-                        should_remind = True
-                        print(f"[时间提醒] 一次性事件，今天是事件日，触发提醒")
-                        
-                else:
-                    # 生日/纪念日：检查是否是事件当天
-                    month, day, year, _, _ = event.get_next_date_info()
-                    if month == now.month and day == now.day:
-                        should_remind = True
-                        print(f"[时间提醒] 生日/纪念日，今天是事件日，触发提醒")
+                # ========== 弹框 ==========
+                show_reminder_popup(
+                    "🔔 时间提醒",
+                    f"{event.name}\n时间: {current_time}",
+                    event
+                )
                 
-                # 触发提醒
-                if should_remind:
-                    # ========== 生成唯一标识，用于去重 ==========
-                    notification_key = f"{event.id}_{reminder_time}_{current_date}"
-                    
-                    # ========== 发送系统通知 ==========
-                    #if notification_key not in sent_notifications:
-                        #sent_notifications.add(notification_key)
-                        #show_notification(page,f"🔔 {event.name}",f"时间到了！{reminder_time}")
-                    
-                    # 检查是否已经发送过
-                    if notification_key in sent_notifications:
-                        #print(f"[时间提醒] 跳过重复提醒: {event.name} - {reminder_time} (已发送过)")
-                        continue
-                    
-                    # ========== 发送系统通知 ==========
-                    sent_notifications.add(notification_key)
-                    print(f"[时间提醒] 发送通知: {event.name} - {reminder_time}")
-                    show_notification(page,f"🔔 事件提醒", f"{event.name} - {reminder_time} 提醒")
+                # ========== 播放音乐 ==========
+                if event.sound_file and os.path.exists(event.sound_file):
+                    async def do_play(e=event):
+                        with music_playing_lock:
+                            if not is_playing:
+                                print(f"[时间提醒] 播放音乐: {os.path.basename(e.sound_file)}")
+                                play_music_with_lock(e.sound_file, loop=False, event_name=e.name, event_id=e.id)
+                    page.run_task(do_play)
+                break
 
-                    # ========== 播放音乐（只播放第一个匹配的事件） ==========
-                    if event.sound_file and os.path.exists(event.sound_file):
-                        # 保存当前事件的信息到局部变量，避免闭包捕获问题
-                        current_event_name = event.name
-                        current_event_id = event.id
-                        current_sound_file = event.sound_file
+        print(f"[时间提醒] ========== 检查完成 ==========")
 
-                        print(f"[时间提醒] 准备播放音乐: {os.path.basename(current_sound_file)}, 事件: {current_event_name}")
-
-                        # 定义异步函数，使用局部变量
-                        async def do_play(name=current_event_name, eid=current_event_id, sound=current_sound_file):
-                            with music_playing_lock:
-                                if not is_playing:
-                                    print(f"[时间提醒] 开始播放音乐: {os.path.basename(sound)}, 事件: {name}")
-                                    #play_music(event.sound_file, loop=False, event_name=event.name, event_id=event.id)
-                                    #play_music_with_lock(event.sound_file, loop=False, event_name=event.name, event_id=event.id)
-                                    play_music_with_lock(sound, loop=False, event_name=name, event_id=eid)
-                                else:
-                                    print(f"[时间提醒] 音乐正在播放中，跳过: {os.path.basename(sound)}")
-                        # 使用 page.run_task 传入异步函数
-                        # 执行播放
-                        page.run_task(do_play)
-                        break  # 找到第一个匹配的事件就退出，避免播放多个
-
-        # 每天凌晨清理一次通知记录（避免内存无限增长）
-        if current_time == "00:00":
-            sent_notifications.clear()
-            print(f"[时间提醒] 已清空通知记录")
-
-        #print(f"[时间提醒] ========== 检查完成 ==========")
+    def is_event_today(event):
+        """判断事件是否在今天发生"""
+        now = datetime.now()
+        
+        if event.event_type == "weekly":
+            target_weekday = int(event.birth_date) if event.birth_date else 1
+            return now.isoweekday() == target_weekday
+        
+        elif event.event_type == "monthly" or event.repeat_type == "monthly":
+            target_day = int(event.birth_date) if event.birth_date else 1
+            return now.day == target_day
+        
+        elif event.repeat_type == "once":
+            month, day, year, _, _ = event.get_next_date_info()
+            return month == now.month and day == now.day
+        
+        else:  # birthday, event
+            month, day, year, _, _ = event.get_next_date_info()
+            return month == now.month and day == now.day
 
     # 修改 check_events 函数，添加详细日志
     def check_events():
-        """检查是否有事件发生"""
-        global reminder_flags
-
-        # ========== 添加防重复标志 ==========
-        if hasattr(check_events, '_running') and check_events._running:
-            return
-        check_events._running = True
-
+        """检查事件发生（处理预警事件）"""
         try:
             today = datetime.now().date()
-            current_year = today.year
+            now = datetime.now()
+            current_time = now.strftime("%H:%M")
             
-            # ========== 强制重置：检查并重置所有事件的提醒状态 ==========
-            modified = False
-            for event in events.values():
-                # 如果 last_remind_year 等于当前年份但今天是事件当天，说明需要重置
-                # 或者 last_remind_year 大于0且小于当前年份，也需要重置
-                if event.last_remind_year > 0 and event.last_remind_year < current_year:
-                    print(f"[强制重置] 事件 {event.name} last_remind_year={event.last_remind_year} < {current_year}，重置为0")
-                    event.last_remind_year = 0
-                    event.reminded_this_year = False
-                    modified = True
-                elif event.last_remind_year == current_year:
-                    # 检查是否真的是今年提醒过
-                    month, day, year, birth_year, days_until = event.get_next_date_info()
-                    if month == today.month and day == today.day:
-                        # 如果今天是事件当天但 last_remind_year 已经是今年，说明是之前测试遗留的
-                        print(f"[强制重置] 事件 {event.name} 今天是事件当天但 last_remind_year={event.last_remind_year}，强制重置")
-                        event.last_remind_year = 0
-                        event.reminded_this_year = False
-                        modified = True
-            
-            if modified:
-                save_events()
-                print(f"[强制重置] 已完成事件状态重置")
-
-                # ========== 状态重置后重新检查视图 ==========
-                determine_startup_view()
-            
-            # ========== 原有的检查逻辑 ==========
-            #print(f"[定时检查] ========== 开始检查事件 ==========")
-            #print(f"[定时检查] 当前日期: {today}")
-            #print(f"[定时检查] 事件总数: {len(events)}")
+            print(f"[定时检查] ========== 开始检查事件 ==========")
+            print(f"[定时检查] 当前日期: {today}, 当前时间: {current_time}")
             
             today_events = []
             upcoming_events = []
             
             for event in events.values():
+                # 排除每日事件
+                if event.event_type == "daily":
+                    continue
+                
+                # 每周事件：只在当天
+                if event.event_type == "weekly":
+                    target_weekday = int(event.birth_date) if event.birth_date else 1
+                    if now.isoweekday() == target_weekday:
+                        # 检查提醒时间
+                        reminder_time = None
+                        if event.reminders:
+                            for reminder in event.reminders:
+                                if reminder.get("enabled"):
+                                    reminder_time = reminder.get("time")
+                                    break
+                        
+                        if reminder_time and reminder_time > current_time:
+                            print(f"[定时检查] 每周事件今天: {event.name}，提醒时间 {reminder_time} 还没到，跳过")
+                            continue
+                        
+                        print(f"[定时检查] 每周事件今天: {event.name}")
+                        today_events.append((event, 0))
+                    continue
+                
+                # 获取事件信息
                 month, day, year, base_year, days_until = event.get_next_date_info()
-                #print(f"[定时检查] 检查事件: {event.name} (类型: {event.event_type}, 重复: {event.repeat_type})")
-                #print(f"[定时检查]   - 日期: {month}月{day}日, 距离: {days_until}天")
-                #print(f"[定时检查]   - last_remind_year: {event.last_remind_year}")
                 
-                # ========== 每天提醒处理 ==========
-                if event.event_type == "daily" or event.repeat_type == "daily":
-                    # 每天提醒，不在这里弹框，由 check_time_reminders 处理
-                    #print(f"[定时检查]   - 每天提醒事件，跳过弹框检查")
-                    continue
-                
-                # ========== 每周提醒处理 ==========
-                if event.event_type == "weekly" or event.repeat_type == "weekly":
-                    # 每周提醒，不在这里弹框，由 check_time_reminders 处理
-                    #print(f"[定时检查]   - 每周提醒事件，跳过弹框检查（由时间提醒处理）")
-                    continue
-                
-                # ========== 一次性事件处理 ==========
+                # 一次性事件
                 if event.repeat_type == "once":
                     if event.completed:
-                        #print(f"[定时检查]   - 已完成，跳过")
                         continue
-                    
                     if days_until == 0:
-                        #print(f"[定时检查]   ✓ 今日一次性事件!")
-                        today_events.append((event, days_until))
+                        print(f"[定时检查] 一次性事件今天: {event.name}")
+                        today_events.append((event, 0))
                         event.completed = True
                         _save_events_silent()
                     elif 0 < days_until <= 3:
-                        #print(f"[定时检查]   ✓ 即将到来的一次性事件 (剩余{days_until}天)")
-                        reminder_key = f"{event.id}_advance_{days_until}"
-                        if not reminder_flags.get(reminder_key, False):
-                            reminder_flags[reminder_key] = True
-                            upcoming_events.append((event, days_until))
-                    continue
-                
-                # ========== 每月提醒处理 ==========
-                if event.repeat_type == "monthly":
-                    if days_until == 0:
-                        #print(f"[定时检查]   ✓ 每月提醒，今天是提醒日!")
-                        if event.last_remind_year != today.year:
-                            #print(f"[定时检查]   ✓ 今年未提醒，添加到今日事件")
-                            today_events.append((event, days_until))
-                        else:
-                            #print(f"[定时检查]   ✗ 今年已提醒过")
-                            pass
-                    elif 0 < days_until <= 3:
-                        #print(f"[定时检查]   ✓ 即将到来的每月提醒 (剩余{days_until}天)")
-                        reminder_key = f"{event.id}_advance_{days_until}"
-                        if not reminder_flags.get(reminder_key, False):
-                            reminder_flags[reminder_key] = True
-                            upcoming_events.append((event, days_until))
-                    continue
-                
-                # ========== 每年提醒（生日/纪念日） ==========
-                # 检查是否是今天
-                if month == today.month and day == today.day:
-                    #print(f"[定时检查]   ✓ 匹配今天!")
-                    if event.last_remind_year != today.year:
-                        #print(f"[定时检查]   ✓ 今年未提醒，添加到今日事件")
-                        today_events.append((event, days_until))
-                    else:
-                        #print(f"[定时检查]   ✗ 今年已提醒过 (last_remind_year={event.last_remind_year})，但仍添加到今日事件进行测试")
-                        # 为了测试，强制添加
-                        today_events.append((event, days_until))
-                elif days_until <= 3 and days_until > 0:
-                    #print(f"[定时检查]   ✓ 即将到来 (剩余{days_until}天)")
-                    reminder_key = f"{event.id}_advance_{days_until}"
-                    if not reminder_flags.get(reminder_key, False):
-                        reminder_flags[reminder_key] = True
+                        print(f"[定时检查] 一次性事件预警: {event.name}, {days_until}天后")
                         upcoming_events.append((event, days_until))
-                    else:
-                        #print(f"[定时检查]   ✗ 已提醒过")
-                        pass
-                else:
-                    #print(f"[定时检查]   ✗ 不匹配")
-                    pass
+                    continue
+                
+                # 每月事件
+                if event.event_type == "monthly":
+                    if days_until == 0:
+                        print(f"[定时检查] 每月事件今天: {event.name}")
+                        today_events.append((event, 0))
+                    elif 0 < days_until <= 3:
+                        print(f"[定时检查] 每月事件预警: {event.name}, {days_until}天后")
+                        upcoming_events.append((event, days_until))
+                    continue
+                
+                # ========== 生日/纪念日 ==========
+                if days_until == 0:
+                    # 检查提醒时间
+                    reminder_time = None
+                    if event.reminders:
+                        for reminder in event.reminders:
+                            if reminder.get("enabled"):
+                                reminder_time = reminder.get("time")
+                                break
+                    
+                    if reminder_time and reminder_time > current_time:
+                        print(f"[定时检查] {event.name} 今天发生，但提醒时间 {reminder_time} 还没到，跳过")
+                        continue
+                    
+                    if event.last_remind_year != today.year:
+                        print(f"[定时检查] 生日/纪念日今天: {event.name}")
+                        today_events.append((event, 0))
+                elif 0 < days_until <= 3:
+                    # ========== 预警事件：忽略提醒时间 ==========
+                    print(f"[定时检查] 生日/纪念日预警: {event.name}, {days_until}天后")
+                    upcoming_events.append((event, days_until))
             
-            #print(f"[定时检查] 今日事件数量: {len(today_events)}")
-            #print(f"[定时检查] 即将到来事件数量: {len(upcoming_events)}")
+            print(f"[定时检查] 今日事件: {len(today_events)}, 预警事件: {len(upcoming_events)}")
             
-            # 显示提醒
             if today_events:
-                #print(f"[定时检查] 触发今日事件弹框!")
                 grouped = group_events_by_date(today_events)
                 show_combined_reminder(grouped, is_today=True)
-                
-                # 更新提醒标记
                 for event, _ in today_events:
-                    if event.repeat_type != "once" and event.event_type != "daily":
-                        #print(f"[定时检查] 更新事件 {event.name} 的 last_remind_year 为 {today.year}")
+                    if event.repeat_type != "once":
                         event.last_remind_year = today.year
                         event.reminded_this_year = True
-                    elif event.event_type == "daily":
-                        # 每天提醒不需要更新年份标记
-                        #print(f"[定时检查] 每天提醒事件 {event.name}，不更新年份标记")
-                        pass
                 _save_events_silent()
-            else:
-                #print(f"[定时检查] 没有今日事件")
-                pass
             
             if upcoming_events:
-                #print(f"[定时检查] 触发预告弹框!")
+                print(f"[定时检查] 触发预警弹框")
                 grouped = group_events_by_date(upcoming_events)
                 show_combined_reminder(grouped, is_today=False)
-            else:
-                #print(f"[定时检查] 没有即将到来事件")
-                pass
                 
-            #print(f"[定时检查] ========== 检查完成 ==========")
+            print(f"[定时检查] ========== 检查完成 ==========")
             
         except Exception as e:
-            print(f"检查生日出错: {e}")
+            print(f"检查出错: {e}")
             import traceback
             traceback.print_exc()
-            show_snack_bar(f"检查失败: {str(e)}")
+
+    def trigger_event_reminder(event, message):
+        """触发事件提醒"""
+        notification_key = f"{event.id}_{datetime.now().strftime('%Y-%m-%d_%H%M')}"
+        if notification_key in sent_notifications:
+            return
+        
+        sent_notifications.add(notification_key)
+        show_notification(page, f"🔔 事件提醒", message)
+        
+        if event.sound_file and os.path.exists(event.sound_file):
+            async def do_play():
+                with music_playing_lock:
+                    if not is_playing:
+                        print(f"[时间提醒] 播放音乐: {os.path.basename(event.sound_file)}")
+                        play_music_with_lock(event.sound_file, loop=False, event_name=event.name, event_id=event.id)
+                    else:
+                        print(f"[时间提醒] 音乐正在播放中，跳过")
+            page.run_task(do_play)
 
     def _save_events_silent():
         """静默保存事件（不触发任何其他操作）"""
@@ -10659,6 +10567,9 @@ def main(page: ft.Page):
         def check_loop():
             while True:
                 try:
+                    # ========== 先执行时间提醒 ==========
+                    check_time_reminders()
+                    # ========== 再执行事件检查 ==========
                     check_events()  # 每小时检查事件
                     time.sleep(3600)
                 except Exception as e:
@@ -12531,21 +12442,39 @@ def main(page: ft.Page):
             else:
                 # 正式事件
                 event = events[current_playing_event_id]
-                if event.event_type == "birthday":
-                    event_icon = "🎉"
-                    event_type_text = "生日"
+
+                # ========== 获取事件类型显示名称 ==========
+                event_type_display = {
+                    "birthday": "🎉生日",
+                    "event": "💝纪念日",
+                    "monthly": "🔄每月",
+                    "once": "🎯一次性",
+                    "daily": "⏰每日",
+                    "weekly": "🔁每周",
+                }.get(event.event_type, "📅事件")
+
+                # ========== 判断是今日事件还是预警事件 ==========
+                today = datetime.now().date()
+                month, day, year, base_year, days_until = event.get_next_date_info()
+
+                if days_until == 0:
+                    event_tag = "📌今日事件"
+                    tag_color = ft.Colors.RED_700
+                elif 0 < days_until <= 3:
+                    event_tag = "⏰预警事件"
+                    tag_color = ft.Colors.ORANGE_700
                 else:
-                    event_icon = "📅"
-                    event_type_text = "事件"
+                    event_tag = "📋普通事件"
+                    tag_color = ft.Colors.BLUE_700
                 
                 if current_music_state == "playing":
-                    full_text = f"播放中: {event_icon}【{event.name}】- {event_type_text} : {music_name}"
-                    marquee_text.color = ft.Colors.BLUE_700
+                    full_text = f"播放中: {event_tag} {event_type_display}【{event.name}】: {music_name}"
+                    marquee_text.color = tag_color
                     marquee_text.update_text(full_text)
                     page.run_task(async_start_marquee)
                 else:
                     full_text = f"已暂停: {music_name}"
-                    marquee_text.color = ft.Colors.ORANGE_700
+                    marquee_text.color = tag_color
                     marquee_text.update_text(full_text)
                     page.run_task(async_stop_marquee)
         else:
@@ -12918,83 +12847,51 @@ def main(page: ft.Page):
 
     # ========== 启动时自动选择视图 ==========
     def determine_startup_view():
-        """根据事件情况决定启动时显示的视图"""
+        """根据事件情况决定启动时显示的视图（只切换视图，不触发提醒）"""
         global current_view
         
         today = datetime.now().date()
         has_today_event = False
         has_warning_event = False
         
-        #print(f"[启动视图] ========== 开始检查 ==========")
-        #print(f"[启动视图] 当前日期: {today}")
+        print(f"[启动视图] ========== 开始检查 ==========")
+        print(f"[启动视图] 当前日期: {today}")
         
-        # 检查是否有今日事件（不包括每日和每周事件）
-        for event in events.values():
-            if event.event_type == "daily" or event.event_type == "weekly":
-                continue
-
-            month, day, year, base_year, days_until = event.get_next_date_info()
-            #print(f"[启动视图] 检查今日事件: {event.name}, 类型: {event.event_type}, 日期: {month}/{day}")
-
-            if event.event_type == "monthly":
-                target_day = int(event.birth_date) if event.birth_date else 1
-                if today.day == target_day:
-                    has_today_event = True
-                    #print(f"[启动视图] ✓ 今日每月事件: {event.name}")
-                    break
-
-            elif month == today.month and day == today.day:
-                if event.repeat_type == "once":
-                    if not event.completed and days_until >= 0:
-                        has_today_event = True
-                        #print(f"[启动视图] ✓ 今日一次性事件: {event.name}")
-                        break
-                else:
-                    has_today_event = True
-                    #print(f"[启动视图] ✓ 今日生日/纪念日事件: {event.name}")
-                    break
-        
-        # ========== 检查预警事件（未来3天内，不包括今天） ==========
-        # 包括：生日、纪念日、每月事件、一次性事件（不包括每日和每周）
         for event in events.values():
             # 跳过每天事件和每周事件
             if event.event_type == "daily" or event.event_type == "weekly":
                 continue
             
+            # 检查是否设置了提醒时间，如果设置了且时间还没到，今日事件不显示
+            has_reminder = False
+            reminder_time = None
+            if event.reminders:
+                for reminder in event.reminders:
+                    if reminder.get("enabled"):
+                        has_reminder = True
+                        reminder_time = reminder.get("time")
+                        break
+            
             month, day, year, base_year, days_until = event.get_next_date_info()
-            #print(f"[启动视图] 检查预警事件: {event.name}, 类型: {event.event_type}, 剩余天数: {days_until}")
             
-            # 一次性事件特殊处理
-            if event.repeat_type == "once":
-                if event.completed or days_until < 0:
-                    #print(f"[启动视图]   - 跳过（已完成或已过期）")
-                    continue
+            # 如果是今日事件
+            if month == today.month and day == today.day:
+                # 如果设置了提醒时间且时间还没到，不视为今日事件（防止提前显示）
+                if has_reminder and reminder_time:
+                    now = datetime.now()
+                    if reminder_time > now.strftime("%H:%M"):
+                        print(f"[启动视图] {event.name} 提醒时间 {reminder_time} 还没到，今日不显示")
+                        continue
+                has_today_event = True
+                print(f"[启动视图] ✓ 今日事件: {event.name}")
+                break
             
-            # 每月事件：检查剩余天数
-            if event.event_type == "monthly":
-                if 0 < days_until <= 3:
-                    has_warning_event = True
-                    #print(f"[启动视图] ✓ 预警每月事件: {event.name}, {days_until}天后")
-                    break
-            
-            # 生日/纪念日：检查剩余天数
-            elif event.event_type in ["birthday", "event"]:
-                if 0 < days_until <= 3:
-                    has_warning_event = True
-                    #print(f"[启动视图] ✓ 预警生日/纪念日: {event.name}, {days_until}天后")
-                    break
-            
-            # 一次性事件：检查剩余天数
-            elif event.repeat_type == "once":
-                if 0 < days_until <= 3:
-                    has_warning_event = True
-                    #print(f"[启动视图] ✓ 预警一次性事件: {event.name}, {days_until}天后")
-                    break
-        
-        #print(f"[启动视图] 结果 - 今日事件: {has_today_event}, 预警事件: {has_warning_event}")
+            # 预警事件（3天内）
+            if 0 < days_until <= 3:
+                has_warning_event = True
+                print(f"[启动视图] ✓ 预警事件: {event.name}, {days_until}天后")
         
         # 根据检查结果设置初始视图
-        # ========== 更新视图 ==========
         if has_today_event:
             current_view = "today"
             show_today_events()
@@ -13008,9 +12905,8 @@ def main(page: ft.Page):
             show_daily_events()
             show_bottom_message("📆 切换到每日事件视图")
         
-        # ========== 新增：更新下拉框的显示文本 ==========
+        # 更新下拉框的显示
         update_view_dropdown_display(current_view)
-        
         page.update()
 
     # ========== 设置页面关闭回调 ==========
@@ -13177,19 +13073,23 @@ def main(page: ft.Page):
     # 更新顶部当前播放信息显示
     update_current_playing_info()
 
-    # 根据事件情况决定显示什么视图
-    determine_startup_view()
-
-    # 延迟2秒后执行首次检查
-    debug_log("设置首次检查定时器（2秒后）")
-    threading.Timer(2.0, check_events).start()
-
-    # 启动后台定时检查（但延迟1秒启动，避免与启动检查冲突）
+    # 启动后台定时检查
     debug_log("设置后台检查定时器（30秒后启动，之后每15分钟）")
     threading.Timer(1.0, start_background_check).start()
 
-    # 执行启动检查
-    check_today_birthdays_on_start()
+     # ========== 执行启动时检查 ==========
+    # 1. 检查错过的提醒（设置了提醒时间且时间已过）
+    check_missed_reminders()
+    
+    # 2. 检查今日事件和预警事件（未设置提醒时间）- 使用 show_combined_reminder
+    check_startup_events()
+    
+    # 3. 设置启动视图
+    determine_startup_view()
+    
+    # 4. 延迟执行首次检查
+    debug_log("设置首次检查定时器（2秒后）")
+    threading.Timer(2.0, check_events).start()
 
 if __name__ == "__main__":
     ft.app(target=main, assets_dir="assets")
