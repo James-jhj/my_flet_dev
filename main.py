@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.90"
-APP_VERSION_CODE = 90
+APP_VERSION = "1.0.91"
+APP_VERSION_CODE = 91
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -272,17 +272,19 @@ class Transaction:
         )
 
 class SearchableDropdown(ft.Column):
-    """可搜索的下拉选择框"""
-    def __init__(self, label, options, value=None, on_change=None, **kwargs):
+    """可搜索的下拉选择框（使用 Overlay 实现悬浮，位置自动适配）"""
+    def __init__(self, page, label, options, value=None, on_change=None, **kwargs):
         super().__init__(**kwargs)
+        self._page = page
         self.options = options
         self.on_change_callback = on_change
+        self._overlay_container = None
         
         # 文本输入框
         self.text_field = ft.TextField(
             label=label,
             value=value,
-            height=56,  # Flet TextField 默认高度约 56
+            height=56,
             expand=True,
             on_change=self.on_text_change,
             on_focus=self.on_focus,
@@ -298,123 +300,127 @@ class SearchableDropdown(ft.Column):
             bottom=BorderSide(1, ft.Colors.GREY_300),
         )
         
-        # 下拉列表容器（初始隐藏）
+        # 下拉列表容器
         self.dropdown_container = ft.Container(
             content=ft.Column([], spacing=2, scroll=ft.ScrollMode.AUTO),
-            expand=True,
+            width=300,
             height=50,
             bgcolor=ft.Colors.WHITE,
             border=border,
             border_radius=4,
-            visible=False,
             shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.BLACK12),
         )
         
-        self.controls = [
-            self.text_field,
-            self.dropdown_container,
-        ]
+        self.controls = [self.text_field]
     
     def on_text_change(self, e):
-        """文本变化时过滤选项"""
         search_text = self.text_field.value.lower()
         filtered = [opt for opt in self.options if search_text in opt.lower()]
-        self.update_dropdown(filtered)
+        self.update_dropdown_content(filtered)
+        if self._overlay_container and self._overlay_container in self._page.overlay:
+            self._page.update()
         
         if self.on_change_callback:
-            self.on_change_callback(e)
+            value = self.text_field.value
+            if value and value.strip():
+                self.on_change_callback(value)
+            else:
+                self.on_change_callback(None)
     
     def on_focus(self, e):
-        """获得焦点时显示下拉列表"""
-        self.update_dropdown(self.options)
+        self.show_dropdown()
     
     def toggle_dropdown(self, e):
-        """切换下拉列表显示"""
-        if self.dropdown_container.visible:
-            self.dropdown_container.visible = False
+        if self._overlay_container and self._overlay_container in self._page.overlay:
+            self.hide_dropdown()
         else:
-            self.update_dropdown(self.options)
+            self.show_dropdown()
     
-    def update_dropdown(self, options):
-        """更新下拉列表"""
-        if not options:
-            self.dropdown_container.visible = False
-            self.dropdown_container.update()
+    def show_dropdown(self):
+        """显示下拉列表（使用 Overlay 悬浮）"""
+        self.update_dropdown_content(self.options)
+        
+        if self._overlay_container and self._overlay_container in self._page.overlay:
             return
         
+        # ========== 使用 Column + Row 让下拉框出现在文本框下方 ==========
+        # 使用弹性布局，让下拉框在文本框正下方
+        self._overlay_container = ft.Container(
+            content=ft.Column([
+                # 上方空白（点击关闭）
+                ft.Container(expand=True, on_click=lambda e: self.hide_dropdown()),
+                # 下拉框（在 Row 中居中）
+                ft.Row([
+                    ft.Container(expand=True),  # 左侧弹性空间
+                    self.dropdown_container,    # 下拉框居中
+                    ft.Container(expand=True),  # 右侧弹性空间
+                ]),
+                # 下方空白
+                ft.Container(height=100, on_click=lambda e: self.hide_dropdown()),
+            ]),
+            expand=True,
+            bgcolor=ft.Colors.TRANSPARENT,
+        )
+        self._page.overlay.append(self._overlay_container)
+        self.dropdown_container.visible = True
+        self._page.update()
+    
+    def hide_dropdown(self):
+        if self._overlay_container and self._overlay_container in self._page.overlay:
+            self._page.overlay.remove(self._overlay_container)
+            self._overlay_container = None
+            self._page.update()
+    
+    def update_dropdown_content(self, options):
+        """更新下拉列表内容"""
         self.dropdown_container.content.controls.clear()
+        
+        if not options:
+            return
+        
         for i, opt in enumerate(options):
-            # 添加选项按钮
+            # ========== 使用 Container 包裹，expand=True 让整行可点击 ==========
             btn = ft.Container(
-                content=ft.TextButton(
-                    opt,
-                    on_click=lambda e, val=opt: self.select_option(val),
-                    style=ft.ButtonStyle(
-                        color=ft.Colors.BLACK,
-                        bgcolor=ft.Colors.TRANSPARENT,
-                        overlay_color=ft.Colors.BLUE_50,
-                    ),
-                ),
-                width=float("inf"),  # 宽度填满
+                content=ft.Row([
+                    ft.Text(opt, size=14, color=ft.Colors.BLACK),
+                ], alignment=ft.MainAxisAlignment.START),
+                #padding=(12, 8, 12, 8),
+                on_click=lambda e, val=opt: self.select_option(val),
+                ink=True,
+                expand=True,  # 整行展开
             )
-            # ========== 修改：让 TextButton 的内容左对齐 ==========
-            btn.content.style = ft.ButtonStyle(
-                color=ft.Colors.BLACK,
-                bgcolor=ft.Colors.TRANSPARENT,
-                overlay_color=ft.Colors.BLUE_50,
-            )
-            btn.content.content = ft.Row([
-                ft.Text(opt, size=14),
-            ], alignment=ft.MainAxisAlignment.START)  # 左对齐
-
             self.dropdown_container.content.controls.append(btn)
             
-            # ========== 在选项之间添加分割线（最后一个不加） ==========
             if i < len(options) - 1:
                 divider = ft.Divider(height=1, color=ft.Colors.GREY_200)
                 self.dropdown_container.content.controls.append(divider)
         
-        # ========== 根据选项数量动态调整高度 ==========
-        # 计算内容高度：每个选项约40px + 分割线1px
-        item_height = 35
-        divider_height = 1
+        # 计算高度
+        import platform
+        is_android = platform.system() == "Linux"
+        item_height = 42 if is_android else 35
         total_items = len(options)
-        # 总高度 = 选项数 * 选项高度 + (选项数-1) * 分割线高度
-        content_height = total_items * item_height + (total_items - 1) * divider_height
-        # 加上上下内边距
-        content_height += 20
-
-        print(f"选项数: {total_items}, 计算高度: {content_height}")
-
-        IS_WINDOWS = platform.system() == "Windows"
-
-        # 设置容器高度：最小80px，最大300px
-        if content_height < 100:
-            if IS_WINDOWS:
-                self.dropdown_container.height = 70
-            else:
-                self.dropdown_container.height = 105
-        elif content_height < 250:
-            self.dropdown_container.height = content_height - 10
-        elif content_height < 280:
-            self.dropdown_container.height = content_height - 10
-        else:
-            self.dropdown_container.height = 300
+        content_height = total_items * item_height + (total_items - 1) * 1 + 20
         
-        print(f"实际设置高度: {self.dropdown_container.height}")
-
-        self.dropdown_container.visible = True
-        self.dropdown_container.update()
+        min_height = 80
+        max_height = 320 if is_android else 300
+        
+        if content_height < min_height:
+            self.dropdown_container.height = min_height
+        elif content_height > max_height:
+            self.dropdown_container.height = max_height
+        else:
+            self.dropdown_container.height = content_height
     
     def select_option(self, value):
-        """选择选项"""
         self.text_field.value = value
-        self.dropdown_container.visible = False
-        self.dropdown_container.update()
-        self.text_field.update()
-        
+        self.hide_dropdown()
         if self.on_change_callback:
-            self.on_change_callback(value)
+            if value and value.strip():
+                self.on_change_callback(value)
+            else:
+                self.on_change_callback(None)
+        self._page.update()
     
     @property
     def value(self):
@@ -4131,6 +4137,7 @@ def main(page: ft.Page):
             )
 
             category_field = SearchableDropdown(
+                page=page,  # 传入 page
                 label="分类",
                 options=categories,
                 value=transaction.category if transaction else None,
@@ -4382,160 +4389,56 @@ def main(page: ft.Page):
             current_tab = 0
 
 
-            # ========== 月份选择（自定义下拉菜单，带分割线） ==========
-            month_names = ['1月', '2月', '3月', '4月', '5月', '6月', 
-                        '7月', '8月', '9月', '10月', '11月', '12月']
+            # 年份列表（往前5年，往后1年）
+            year_options = [str(y) for y in range(current_year - 5, current_year + 2)]
 
-            # ========== 创建月份选项列表（带分割线） ==========
-            month_menu_items = []
-            for i, name in enumerate(month_names):
-                month_num = i + 1
-                month_menu_items.append(
-                    ft.Container(
-                        content=ft.Text(name, size=14),
-                        padding=10,
-                        on_click=lambda e, month=month_num: select_month_item(month),
-                        ink=True,
-                        width=120,
-                    )
-                )
-                if i < len(month_names) - 1:
-                    month_menu_items.append(
-                        ft.Divider(height=1, color=ft.Colors.GREY_200)
-                    )
-
-            month_display_btn = ft.Container(
-                content=ft.Row([
-                    ft.Text(f"{selected_month}月", size=15, weight=ft.FontWeight.BOLD, color=ft.Colors.BLACK),
-                    ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18, color=ft.Colors.GREY_700),
-                ], spacing=5, alignment=ft.MainAxisAlignment.CENTER),
-                #padding=ft.padding.symmetric(horizontal=10, vertical=6),  # 统一内边距
-                border_radius=8,
-                ink=True,
-                on_click=lambda e: toggle_month_menu(),
-                bgcolor=ft.Colors.WHITE,
-                #border=ft.border.all(1, ft.Colors.GREY_300),
-            )
-
-            month_menu_container = ft.Container(
-                content=ft.Column(
-                    month_menu_items,
-                    spacing=0,
-                    scroll=ft.ScrollMode.AUTO,
-                ),
-                width=120,
-                height=180,
-                bgcolor=ft.Colors.WHITE,
-                border_radius=8,
-                shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.BLACK12),
-                visible=False,
-            )
-
-            month_dropdown_stack = ft.Stack([
-                month_display_btn,
-                ft.Container(
-                    content=month_menu_container,
-                    left=0,
-                    top=0,
-                ),
-            ], height=180, width=120)
-
-            def toggle_month_menu():
-                month_menu_container.visible = not month_menu_container.visible
+            def on_year_change(value):
+                """年份选择变化"""
+                nonlocal selected_year
+                if not value or not value.strip():
+                    return
+                selected_year = int(value)
+                # 更新月份下拉框的值
+                month_dropdown.value = str(selected_month)
                 page.update()
 
-            def select_month_item(month):
+            # 年份下拉框（使用 SearchableDropdown）
+            year_dropdown = SearchableDropdown(
+                page=page,
+                label="年份",
+                options=year_options,
+                value=str(selected_year),
+                on_change=on_year_change,
+            )
+
+
+            # ========== 月份选择 ==========
+            month_options = [f"{i}" for i in range(1, 13)]
+
+            def on_month_change(value):
+                """月份选择变化"""
                 nonlocal selected_month
-                selected_month = month
-                month_display_btn.content.controls[0].value = f"{month}月"
-                month_menu_container.visible = False
-                page.update()
-            
-            # ========== 先定义 on_year_change 函数 ==========
-            def on_year_change(year):
-                nonlocal selected_year
-                selected_year = year
-                # 更新月份显示按钮的文字
-                month_display_btn.content.controls[0].value = f"{selected_month}月"
-                month_display_btn.update()
+                if not value or not value.strip():
+                    return
+                # 从 "1月" 中提取数字
+                selected_month = int(value.replace("月", ""))
+                # 切换到按月查询
+                query_mode = "month"
+                current_year = selected_year
+                current_month = selected_month
+                month_text.value = f"{current_year}年{current_month}月"
+                refresh_summary()
+                refresh_records_list()
+                update_query_mode_display()
                 page.update()
 
-            
-            # ========== 年份选择（自定义下拉菜单，带分割线） ==========
-            year_options = list(range(current_year - 5, current_year + 2))
-
-            # 年份显示按钮
-            year_display_btn = ft.Container(
-                content=ft.Row([
-                    ft.Text(f"{selected_year}年", size=15, weight=ft.FontWeight.BOLD, color=ft.Colors.BLACK),
-                    ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18, color=ft.Colors.GREY_700),
-                ], spacing=5, alignment=ft.MainAxisAlignment.CENTER),
-                #padding=ft.padding.symmetric(horizontal=10, vertical=6),  # 统一内边距
-                border_radius=8,
-                ink=True,
-                on_click=lambda e: toggle_year_menu(),
-                bgcolor=ft.Colors.WHITE,
-                #border=ft.border.all(1, ft.Colors.GREY_300),
+            month_dropdown = SearchableDropdown(
+                page=page,
+                label="月份",
+                options=month_options,
+                value=str(selected_month),
+                on_change=on_month_change,
             )
-
-            # ========== 创建年份选项列表（带分割线） ==========
-            year_menu_items = []
-            for i, y in enumerate(year_options):
-                # 添加年份选项
-                year_menu_items.append(
-                    ft.Container(
-                        content=ft.Text(f"{y}年", size=14),
-                        padding=10,
-                        on_click=lambda e, year=y: select_year(year),
-                        ink=True,
-                        width=120,
-                    )
-                )
-                # 在选项之间添加分割线（最后一个不加）
-                if i < len(year_options) - 1:
-                    year_menu_items.append(
-                        ft.Divider(height=1, color=ft.Colors.GREY_200)
-                    )
-
-            # 年份下拉菜单（带分割线）
-            year_menu_container = ft.Container(
-                content=ft.Column(
-                    year_menu_items,
-                    spacing=0,
-                    scroll=ft.ScrollMode.AUTO,
-                ),
-                width=120,
-                height=180,  # 增大高度以显示所有选项
-                bgcolor=ft.Colors.WHITE,
-                border_radius=8,
-                shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.BLACK12),
-                visible=False,
-            )
-
-            # ========== 使用 Container 的 left/top 属性定位 ==========
-            year_dropdown_stack = ft.Stack([
-                year_display_btn,
-                ft.Container(
-                    content=year_menu_container,
-                    left=0,
-                    top=0,
-                ),
-            ], height=180, width=120)  # 增大高度
-
-            # 切换菜单显示
-            def toggle_year_menu():
-                year_menu_container.visible = not year_menu_container.visible
-                page.update()
-
-            # 选择年份
-            def select_year(year):
-                nonlocal selected_year
-                selected_year = year
-                year_display_btn.content.controls[0].value = f"{year}年"
-                year_menu_container.visible = False
-                page.update()
-                on_year_change(year)
-
 
 
             # ========== 按月查询内容 ==========
@@ -4592,9 +4495,9 @@ def main(page: ft.Page):
                     # 第二行：年份和月份下拉框
                     ft.Container(
                         content=ft.Row([
-                            year_dropdown_stack ,
-                            #ft.Container(width=10),
-                            month_dropdown_stack ,
+                            ft.Container(year_dropdown, expand=True),  # 平分空间
+                            ft.Container(width=10),  # 间距
+                            ft.Container(month_dropdown, expand=True),  # 平分空间
                         ], spacing=5, alignment=ft.MainAxisAlignment.CENTER),
                         padding=10,
                         top=55,
@@ -5692,6 +5595,7 @@ def main(page: ft.Page):
             categories = INCOME_CATEGORIES if transaction_type == "income" else EXPENSE_CATEGORIES
 
             category_field = SearchableDropdown(
+                page=page,  # 传入 page
                 label="分类",
                 options=categories,
                 value=categories[0] if categories else None,
@@ -8329,7 +8233,7 @@ def main(page: ft.Page):
 
         # 创建事件类型下拉框
         event_type_dropdown = SearchableDropdown(
-            #page=page,  # 传入 page
+            page=page,  # 传入 page
             label="事件类型",
             options=event_type_options,
             value=initial_event_type_text,
@@ -8363,6 +8267,7 @@ def main(page: ft.Page):
             print(f"[历法变化] 选中: {value} -> key: {calendar_selected}")
 
         calendar_dropdown = SearchableDropdown(
+            page=page,  # 传入 page
             label="历法",
             options=calendar_options,
             value=get_calendar_text(calendar_selected),
@@ -8403,7 +8308,7 @@ def main(page: ft.Page):
         print(f"[调试] weekday_row_visible: {weekday_row_visible}")  # 添加调试
 
         weekday_dropdown = SearchableDropdown(
-            #page=page,  # 传入 page
+            page=page,  # 传入 page
             label="星期",
             options=weekday_options,
             value=initial_weekday_text,
