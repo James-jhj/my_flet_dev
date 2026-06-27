@@ -1,3 +1,76 @@
 {
-  "transactions": []
+  "transactions": [
+    {
+      "id": "1781235860410",
+      "date": "2026-06-15",
+      "type": "income",
+      "category": "工资收入",
+      "amount": 16964.0,
+      "note": ""
+    },
+    {
+      "id": "1781235860411",
+      "date": "2026-06-16",
+      "type": "expense",
+      "category": "水电费",
+      "amount": 388.0,
+      "note": "水电费-泉州"
+    },
+    {
+      "id": "1781604899754",
+      "date": "2026-06-16",
+      "type": "income",
+      "category": "报销收入",
+      "amount": 692.0,
+      "note": ""
+    },
+    {
+      "id": "1781604922929",
+      "date": "2026-06-19",
+      "type": "expense",
+      "category": "网贷",
+      "amount": 2038.0,
+      "note": "招商银行闪电贷还贷"
+    },
+    {
+      "id": "1781604957003",
+      "date": "2026-06-16",
+      "type": "expense",
+      "category": "网贷",
+      "amount": 7215.0,
+      "note": "中国银行信用卡还贷"
+    },
+    {
+      "id": "1781605050424",
+      "date": "2026-06-16",
+      "type": "expense",
+      "category": "生活费",
+      "amount": 1300.0,
+      "note": "书仪生活费"
+    },
+    {
+      "id": "1781679646980",
+      "date": "2026-06-17",
+      "type": "expense",
+      "category": "电话费",
+      "amount": 100.0,
+      "note": "电话费-18575793589"
+    },
+    {
+      "id": "1781682447567",
+      "date": "2026-06-17",
+      "type": "expense",
+      "category": "电话费",
+      "amount": 200.0,
+      "note": "电话费-13003731229"
+    },
+    {
+      "id": "1781682460036",
+      "date": "2026-06-17",
+      "type": "expense",
+      "category": "电话费",
+      "amount": 200.0,
+      "note": "电话费-15767837692"
+    }
+  ]
 }

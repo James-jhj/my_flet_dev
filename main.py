@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.105"
-APP_VERSION_CODE = 105
+APP_VERSION = "1.0.106"
+APP_VERSION_CODE = 106
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -466,6 +466,7 @@ class SearchableDropdownFl(ft.Column):
         self.on_change_callback = on_change
         self._overlay_container = None
         self._is_open = False
+        self._bottom_offset = 395
         
         # 文本输入框
         self.text_field = ft.TextField(
@@ -474,7 +475,7 @@ class SearchableDropdownFl(ft.Column):
             height=56,
             expand=True,
             on_change=self.on_text_change,
-            on_focus=self.on_focus,  # 添加 on_focus
+            on_focus=self.on_focus,
             suffix=ft.IconButton(ft.Icons.ARROW_DROP_DOWN, on_click=self.toggle_dropdown),
             **kwargs
         )
@@ -501,20 +502,21 @@ class SearchableDropdownFl(ft.Column):
         self.controls = [self.text_field]
     
     def on_focus(self, e):
-        """获得焦点时，调整下拉框高度"""
+        """获得焦点时，设置底部偏移为90（键盘弹出）"""
         import platform
         is_android = platform.system() == "Linux"
         
         if is_android:
-            # 手机：获得焦点后，键盘弹出，高度变为90
             self._bottom_offset = 90
         else:
             self._bottom_offset = 395
         
         # 如果下拉框已打开，刷新显示
         if self._is_open and self._overlay_container and self._overlay_container in self._page.overlay:
-            # 更新 Overlay 中的高度
             self._update_overlay_height()
+        else:
+            # 未打开则自动打开
+            self.show_dropdown()
     
     def on_text_change(self, e):
         """文本变化时过滤选项"""
@@ -523,6 +525,7 @@ class SearchableDropdownFl(ft.Column):
         
         self.update_dropdown_content(filtered)
         
+        # 如果下拉框已经打开，更新显示
         if self._is_open and self._overlay_container and self._overlay_container in self._page.overlay:
             self._page.update()
         elif search_text and len(search_text) > 0:
@@ -536,7 +539,7 @@ class SearchableDropdownFl(ft.Column):
                 self.on_change_callback(None)
     
     def toggle_dropdown(self, e):
-        """切换下拉列表显示"""
+        """切换下拉列表显示（点击箭头时触发）"""
         if self._is_open and self._overlay_container and self._overlay_container in self._page.overlay:
             self.hide_dropdown()
         else:
@@ -551,18 +554,6 @@ class SearchableDropdownFl(ft.Column):
         
         self._is_open = True
         
-        # 判断底部偏移高度
-        import platform
-        is_android = platform.system() == "Linux"
-        
-        # 如果文本框获得焦点（手机端），使用90；否则使用395
-        if is_android and self.text_field.focused:
-            bottom_offset = 90
-        else:
-            bottom_offset = 395
-        
-        self._bottom_offset = bottom_offset
-        
         # 创建 Overlay 容器
         self._overlay_container = ft.Container(
             content=ft.Column([
@@ -572,7 +563,7 @@ class SearchableDropdownFl(ft.Column):
                     self.dropdown_container,
                     ft.Container(expand=True),
                 ]),
-                ft.Container(height=bottom_offset, on_click=lambda e: self.hide_dropdown()),
+                ft.Container(height=self._bottom_offset, on_click=lambda e: self.hide_dropdown()),
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
@@ -583,6 +574,28 @@ class SearchableDropdownFl(ft.Column):
         self.dropdown_container.visible = True
         
         # 更新页面
+        self._page.update()
+    
+    def _update_overlay_height(self):
+        """更新 Overlay 中的底部高度"""
+        if not self._overlay_container or self._overlay_container not in self._page.overlay:
+            return
+        
+        # 重新创建 Overlay 容器
+        self._overlay_container = ft.Container(
+            content=ft.Column([
+                ft.Container(expand=True, on_click=lambda e: self.hide_dropdown()),
+                ft.Row([
+                    ft.Container(expand=True),
+                    self.dropdown_container,
+                    ft.Container(expand=True),
+                ]),
+                ft.Container(height=self._bottom_offset, on_click=lambda e: self.hide_dropdown()),
+            ]),
+            expand=True,
+            bgcolor=ft.Colors.TRANSPARENT,
+        )
+        self._page.overlay.append(self._overlay_container)
         self._page.update()
     
     def hide_dropdown(self):
