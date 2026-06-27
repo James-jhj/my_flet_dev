@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.98"
-APP_VERSION_CODE = 98
+APP_VERSION = "1.0.99"
+APP_VERSION_CODE = 99
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -601,9 +601,9 @@ class SearchableDropdownFl(ft.Column):
         max_height = 320 if is_android else 300
         
         if content_height < min_height:
-            self.dropdown_container.height = min_height - 37   # 电脑刚刚好高度
+            self.dropdown_container.height = min_height - 37   # 电脑文本过滤后高度刚刚好
         elif content_height > max_height:
-            self.dropdown_container.height = max_height
+            self.dropdown_container.height = max_height + 15   # 电脑下拉框展开高度刚刚好
         else:
             self.dropdown_container.height = content_height
     
@@ -884,7 +884,7 @@ class SearchableDropdownEvtLf(ft.Column):
                     ft.Container(expand=True),  # 右侧弹性空间
                 ]),
                 # 下方空白
-                ft.Container(height=305, on_click=lambda e: self.hide_dropdown()),
+                ft.Container(height=306, on_click=lambda e: self.hide_dropdown()),
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
@@ -1046,7 +1046,7 @@ class SearchableDropdownEvtWeek(ft.Column):
                     ft.Container(expand=True),  # 右侧弹性空间
                 ]),
                 # 下方空白
-                ft.Container(height=140, on_click=lambda e: self.hide_dropdown()),
+                ft.Container(height=135, on_click=lambda e: self.hide_dropdown()),
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
