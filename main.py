@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.92"
-APP_VERSION_CODE = 92
+APP_VERSION = "1.0.93"
+APP_VERSION_CODE = 93
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -272,7 +272,7 @@ class Transaction:
         )
 
 class SearchableDropdown(ft.Column):
-    """可搜索的下拉选择框（使用 Overlay 实现悬浮）"""
+    """可搜索的下拉选择框（使用 Overlay 实现悬浮，位置自动适配）"""
     def __init__(self, page, label, options, value=None, on_change=None, **kwargs):
         super().__init__(**kwargs)
         self._page = page
@@ -287,7 +287,7 @@ class SearchableDropdown(ft.Column):
             height=56,
             expand=True,
             on_change=self.on_text_change,
-            on_focus=self.on_focus,  # 保留 on_focus
+            on_focus=self.on_focus,
             suffix=ft.IconButton(ft.Icons.ARROW_DROP_DOWN, on_click=self.toggle_dropdown),
             **kwargs
         )
@@ -328,18 +328,9 @@ class SearchableDropdown(ft.Column):
                 self.on_change_callback(None)
     
     def on_focus(self, e):
-        """获得焦点时显示下拉列表"""
-        # 延迟一点执行，等待键盘弹出后布局稳定
-        import asyncio
-        asyncio.create_task(self._show_dropdown_delayed())
-    
-    async def _show_dropdown_delayed(self):
-        """延迟显示下拉框，等待键盘弹出"""
-        await asyncio.sleep(0.3)
         self.show_dropdown()
     
     def toggle_dropdown(self, e):
-        """切换下拉列表显示"""
         if self._overlay_container and self._overlay_container in self._page.overlay:
             self.hide_dropdown()
         else:
@@ -352,24 +343,20 @@ class SearchableDropdown(ft.Column):
         if self._overlay_container and self._overlay_container in self._page.overlay:
             return
         
-        # ========== 获取文本框在页面中的位置 ==========
-        # 由于无法直接获取，使用估算值
-        # 假设文本框在屏幕中间偏上位置
-        
-        # 使用 Column + Row 控制位置
-        # 让下拉框出现在屏幕中间偏下位置（键盘上方）
+        # ========== 使用 Column + Row 让下拉框出现在文本框下方 ==========
+        # 使用弹性布局，让下拉框在文本框正下方
         self._overlay_container = ft.Container(
             content=ft.Column([
                 # 上方空白（点击关闭）
                 ft.Container(expand=True, on_click=lambda e: self.hide_dropdown()),
                 # 下拉框（在 Row 中居中）
                 ft.Row([
-                    ft.Container(expand=True),
-                    self.dropdown_container,
-                    ft.Container(expand=True),
+                    ft.Container(expand=True),  # 左侧弹性空间
+                    self.dropdown_container,    # 下拉框居中
+                    ft.Container(expand=True),  # 右侧弹性空间
                 ]),
-                # 下方留空给键盘
-                ft.Container(height=200, on_click=lambda e: self.hide_dropdown()),
+                # 下方空白
+                ft.Container(height=210, on_click=lambda e: self.hide_dropdown()),
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
@@ -385,19 +372,22 @@ class SearchableDropdown(ft.Column):
             self._page.update()
     
     def update_dropdown_content(self, options):
+        """更新下拉列表内容"""
         self.dropdown_container.content.controls.clear()
         
         if not options:
             return
         
         for i, opt in enumerate(options):
+            # ========== 使用 Container 包裹，expand=True 让整行可点击 ==========
             btn = ft.Container(
                 content=ft.Row([
                     ft.Text(opt, size=14, color=ft.Colors.BLACK),
                 ], alignment=ft.MainAxisAlignment.START),
+                #padding=(12, 8, 12, 8),
                 on_click=lambda e, val=opt: self.select_option(val),
                 ink=True,
-                expand=True,
+                expand=True,  # 整行展开
                 height=40,
             )
             self.dropdown_container.content.controls.append(btn)
@@ -406,6 +396,168 @@ class SearchableDropdown(ft.Column):
                 divider = ft.Divider(height=1, color=ft.Colors.GREY_200)
                 self.dropdown_container.content.controls.append(divider)
         
+        # 计算高度
+        import platform
+        is_android = platform.system() == "Linux"
+        item_height = 42 if is_android else 35
+        total_items = len(options)
+        content_height = total_items * item_height + (total_items - 1) * 1 + 20
+        
+        min_height = 80
+        max_height = 320 if is_android else 300
+        
+        if content_height < min_height:
+            self.dropdown_container.height = min_height
+        elif content_height > max_height:
+            self.dropdown_container.height = max_height
+        else:
+            self.dropdown_container.height = content_height
+    
+    def select_option(self, value):
+        self.text_field.value = value
+        self.hide_dropdown()
+        if self.on_change_callback:
+            if value and value.strip():
+                self.on_change_callback(value)
+            else:
+                self.on_change_callback(None)
+        self._page.update()
+    
+    @property
+    def value(self):
+        return self.text_field.value
+    
+    @value.setter
+    def value(self, val):
+        self.text_field.value = val
+        self.text_field.update()
+
+class SearchableDropdownEvt(ft.Column):
+    """可搜索的下拉选择框（使用 Overlay 实现悬浮，位置自动适配）"""
+    def __init__(self, page, label, options, value=None, on_change=None, **kwargs):
+        super().__init__(**kwargs)
+        self._page = page
+        self.options = options
+        self.on_change_callback = on_change
+        self._overlay_container = None
+        
+        # 文本输入框
+        self.text_field = ft.TextField(
+            label=label,
+            value=value,
+            height=56,
+            expand=True,
+            on_change=self.on_text_change,
+            on_focus=self.on_focus,
+            suffix=ft.IconButton(ft.Icons.ARROW_DROP_DOWN, on_click=self.toggle_dropdown),
+            **kwargs
+        )
+        
+        from flet import Border, BorderSide
+        border = Border(
+            left=BorderSide(1, ft.Colors.GREY_300),
+            top=BorderSide(1, ft.Colors.GREY_300),
+            right=BorderSide(1, ft.Colors.GREY_300),
+            bottom=BorderSide(1, ft.Colors.GREY_300),
+        )
+        
+        # 下拉列表容器
+        self.dropdown_container = ft.Container(
+            content=ft.Column([], spacing=2, scroll=ft.ScrollMode.AUTO),
+            width=300,
+            height=50,
+            bgcolor=ft.Colors.WHITE,
+            border=border,
+            border_radius=4,
+            shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.BLACK12),
+        )
+        
+        self.controls = [self.text_field]
+    
+    def on_text_change(self, e):
+        search_text = self.text_field.value.lower()
+        filtered = [opt for opt in self.options if search_text in opt.lower()]
+        self.update_dropdown_content(filtered)
+        if self._overlay_container and self._overlay_container in self._page.overlay:
+            self._page.update()
+        
+        if self.on_change_callback:
+            value = self.text_field.value
+            if value and value.strip():
+                self.on_change_callback(value)
+            else:
+                self.on_change_callback(None)
+    
+    def on_focus(self, e):
+        self.show_dropdown()
+    
+    def toggle_dropdown(self, e):
+        if self._overlay_container and self._overlay_container in self._page.overlay:
+            self.hide_dropdown()
+        else:
+            self.show_dropdown()
+    
+    def show_dropdown(self):
+        """显示下拉列表（使用 Overlay 悬浮）"""
+        self.update_dropdown_content(self.options)
+        
+        if self._overlay_container and self._overlay_container in self._page.overlay:
+            return
+        
+        # ========== 使用 Column + Row 让下拉框出现在文本框下方 ==========
+        # 使用弹性布局，让下拉框在文本框正下方
+        self._overlay_container = ft.Container(
+            content=ft.Column([
+                # 上方空白（点击关闭）
+                ft.Container(expand=True, on_click=lambda e: self.hide_dropdown()),
+                # 下拉框（在 Row 中居中）
+                ft.Row([
+                    ft.Container(expand=True),  # 左侧弹性空间
+                    self.dropdown_container,    # 下拉框居中
+                    ft.Container(expand=True),  # 右侧弹性空间
+                ]),
+                # 下方空白
+                ft.Container(height=300, on_click=lambda e: self.hide_dropdown()),
+            ]),
+            expand=True,
+            bgcolor=ft.Colors.TRANSPARENT,
+        )
+        self._page.overlay.append(self._overlay_container)
+        self.dropdown_container.visible = True
+        self._page.update()
+    
+    def hide_dropdown(self):
+        if self._overlay_container and self._overlay_container in self._page.overlay:
+            self._page.overlay.remove(self._overlay_container)
+            self._overlay_container = None
+            self._page.update()
+    
+    def update_dropdown_content(self, options):
+        """更新下拉列表内容"""
+        self.dropdown_container.content.controls.clear()
+        
+        if not options:
+            return
+        
+        for i, opt in enumerate(options):
+            # ========== 使用 Container 包裹，expand=True 让整行可点击 ==========
+            btn = ft.Container(
+                content=ft.Row([
+                    ft.Text(opt, size=14, color=ft.Colors.BLACK),
+                ], alignment=ft.MainAxisAlignment.START),
+                #padding=(12, 8, 12, 8),
+                on_click=lambda e, val=opt: self.select_option(val),
+                ink=True,
+                expand=True,  # 整行展开
+                height=40,
+            )
+            self.dropdown_container.content.controls.append(btn)
+            
+            if i < len(options) - 1:
+                divider = ft.Divider(height=1, color=ft.Colors.GREY_200)
+                self.dropdown_container.content.controls.append(divider)
+        
+        # 计算高度
         import platform
         is_android = platform.system() == "Linux"
         item_height = 42 if is_android else 35
@@ -8242,7 +8394,7 @@ def main(page: ft.Page):
             page.update()
 
         # 创建事件类型下拉框
-        event_type_dropdown = SearchableDropdown(
+        event_type_dropdown = SearchableDropdownEvt(
             page=page,  # 传入 page
             label="事件类型",
             options=event_type_options,
@@ -8276,7 +8428,7 @@ def main(page: ft.Page):
             calendar_selected = get_calendar_key(value)
             print(f"[历法变化] 选中: {value} -> key: {calendar_selected}")
 
-        calendar_dropdown = SearchableDropdown(
+        calendar_dropdown = SearchableDropdownEvt(
             page=page,  # 传入 page
             label="历法",
             options=calendar_options,
@@ -8317,7 +8469,7 @@ def main(page: ft.Page):
 
         print(f"[调试] weekday_row_visible: {weekday_row_visible}")  # 添加调试
 
-        weekday_dropdown = SearchableDropdown(
+        weekday_dropdown = SearchableDropdownEvt(
             page=page,  # 传入 page
             label="星期",
             options=weekday_options,
