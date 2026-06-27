@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.110"
-APP_VERSION_CODE = 110
+APP_VERSION = "1.0.111"
+APP_VERSION_CODE = 111
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -509,7 +509,7 @@ class SearchableDropdownFl(ft.Column):
         dropdown_height = self.dropdown_container.height
         
         # 多个选项（高度>100，=135），底部偏移100
-        self._bottom_offset = 100
+        self._bottom_offset = 110
 
         # ========== 显示调试信息（使用 SnackBar） ==========
         try:
@@ -542,11 +542,11 @@ class SearchableDropdownFl(ft.Column):
         # 保存过滤结果
         self._filtered_options = filtered
         
-        # ========== 单个选项时，底部偏移185 ==========
+        # ========== 单个选项时，底部偏移195 ==========
         if len(filtered) == 1:
-            self._bottom_offset = 185
+            self._bottom_offset = 195
         elif len(filtered) > 0:
-            self._bottom_offset = 100
+            self._bottom_offset = 110
         else:
             self._bottom_offset = 398
         
