@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.106"
-APP_VERSION_CODE = 106
+APP_VERSION = "1.0.107"
+APP_VERSION_CODE = 107
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -466,7 +466,7 @@ class SearchableDropdownFl(ft.Column):
         self.on_change_callback = on_change
         self._overlay_container = None
         self._is_open = False
-        self._bottom_offset = 395
+        self._bottom_offset = 398
         
         # 文本输入框
         self.text_field = ft.TextField(
@@ -505,11 +505,19 @@ class SearchableDropdownFl(ft.Column):
         """获得焦点时，设置底部偏移为90（键盘弹出）"""
         import platform
         is_android = platform.system() == "Linux"
+
+        # 获取当前下拉框高度
+        dropdown_height = self.dropdown_container.height
         
         if is_android:
-            self._bottom_offset = 90
+            if dropdown_height > 100 :
+                # 多个选项（高度>100，=135），底部偏移100
+                self._bottom_offset = 100
+            else:
+                # 只有1个子项（高度≈50），底部偏移185
+                self._bottom_offset = 185
         else:
-            self._bottom_offset = 395
+            self._bottom_offset = 398
         
         # 如果下拉框已打开，刷新显示
         if self._is_open and self._overlay_container and self._overlay_container in self._page.overlay:
