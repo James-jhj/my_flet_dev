@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.91"
-APP_VERSION_CODE = 91
+APP_VERSION = "1.0.92"
+APP_VERSION_CODE = 92
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -272,7 +272,7 @@ class Transaction:
         )
 
 class SearchableDropdown(ft.Column):
-    """可搜索的下拉选择框（使用 Overlay 实现悬浮，位置自动适配）"""
+    """可搜索的下拉选择框（使用 Overlay 实现悬浮）"""
     def __init__(self, page, label, options, value=None, on_change=None, **kwargs):
         super().__init__(**kwargs)
         self._page = page
@@ -287,7 +287,7 @@ class SearchableDropdown(ft.Column):
             height=56,
             expand=True,
             on_change=self.on_text_change,
-            on_focus=self.on_focus,
+            on_focus=self.on_focus,  # 保留 on_focus
             suffix=ft.IconButton(ft.Icons.ARROW_DROP_DOWN, on_click=self.toggle_dropdown),
             **kwargs
         )
@@ -328,9 +328,18 @@ class SearchableDropdown(ft.Column):
                 self.on_change_callback(None)
     
     def on_focus(self, e):
+        """获得焦点时显示下拉列表"""
+        # 延迟一点执行，等待键盘弹出后布局稳定
+        import asyncio
+        asyncio.create_task(self._show_dropdown_delayed())
+    
+    async def _show_dropdown_delayed(self):
+        """延迟显示下拉框，等待键盘弹出"""
+        await asyncio.sleep(0.3)
         self.show_dropdown()
     
     def toggle_dropdown(self, e):
+        """切换下拉列表显示"""
         if self._overlay_container and self._overlay_container in self._page.overlay:
             self.hide_dropdown()
         else:
@@ -343,20 +352,24 @@ class SearchableDropdown(ft.Column):
         if self._overlay_container and self._overlay_container in self._page.overlay:
             return
         
-        # ========== 使用 Column + Row 让下拉框出现在文本框下方 ==========
-        # 使用弹性布局，让下拉框在文本框正下方
+        # ========== 获取文本框在页面中的位置 ==========
+        # 由于无法直接获取，使用估算值
+        # 假设文本框在屏幕中间偏上位置
+        
+        # 使用 Column + Row 控制位置
+        # 让下拉框出现在屏幕中间偏下位置（键盘上方）
         self._overlay_container = ft.Container(
             content=ft.Column([
                 # 上方空白（点击关闭）
                 ft.Container(expand=True, on_click=lambda e: self.hide_dropdown()),
                 # 下拉框（在 Row 中居中）
                 ft.Row([
-                    ft.Container(expand=True),  # 左侧弹性空间
-                    self.dropdown_container,    # 下拉框居中
-                    ft.Container(expand=True),  # 右侧弹性空间
+                    ft.Container(expand=True),
+                    self.dropdown_container,
+                    ft.Container(expand=True),
                 ]),
-                # 下方空白
-                ft.Container(height=100, on_click=lambda e: self.hide_dropdown()),
+                # 下方留空给键盘
+                ft.Container(height=200, on_click=lambda e: self.hide_dropdown()),
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
@@ -372,22 +385,20 @@ class SearchableDropdown(ft.Column):
             self._page.update()
     
     def update_dropdown_content(self, options):
-        """更新下拉列表内容"""
         self.dropdown_container.content.controls.clear()
         
         if not options:
             return
         
         for i, opt in enumerate(options):
-            # ========== 使用 Container 包裹，expand=True 让整行可点击 ==========
             btn = ft.Container(
                 content=ft.Row([
                     ft.Text(opt, size=14, color=ft.Colors.BLACK),
                 ], alignment=ft.MainAxisAlignment.START),
-                #padding=(12, 8, 12, 8),
                 on_click=lambda e, val=opt: self.select_option(val),
                 ink=True,
-                expand=True,  # 整行展开
+                expand=True,
+                height=40,
             )
             self.dropdown_container.content.controls.append(btn)
             
@@ -395,7 +406,6 @@ class SearchableDropdown(ft.Column):
                 divider = ft.Divider(height=1, color=ft.Colors.GREY_200)
                 self.dropdown_container.content.controls.append(divider)
         
-        # 计算高度
         import platform
         is_android = platform.system() == "Linux"
         item_height = 42 if is_android else 35
