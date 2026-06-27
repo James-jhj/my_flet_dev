@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.102"
-APP_VERSION_CODE = 102
+APP_VERSION = "1.0.103"
+APP_VERSION_CODE = 103
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -536,6 +536,32 @@ class SearchableDropdownFl(ft.Column):
         
         self._is_open = True
         
+        # ========== 获取屏幕高度，动态计算位置 ==========
+        screen_height = 800  # 默认值
+        try:
+            if hasattr(self._page, 'window_height') and self._page.window_height:
+                screen_height = self._page.window_height
+        except:
+            pass
+        
+        # 判断是否是手机（屏幕高度小于700）
+        is_phone = screen_height < 700
+        
+        # 键盘弹出时，可用高度减少约300px
+        # 输入时下拉框往上偏移
+        if is_phone:
+            # 手机：检测是否有输入内容（键盘弹出）
+            has_text = len(self.text_field.value or '') > 0
+            if has_text:
+                # 有输入内容，键盘弹出，下拉框上移
+                bottom_offset = 320  # 键盘高度约300px
+            else:
+                # 无输入内容，键盘未弹出
+                bottom_offset = 180
+        else:
+            # 电脑：固定位置
+            bottom_offset = 220
+        
         # 创建 Overlay 容器
         self._overlay_container = ft.Container(
             content=ft.Column([
@@ -545,7 +571,7 @@ class SearchableDropdownFl(ft.Column):
                     self.dropdown_container,
                     ft.Container(expand=True),
                 ]),
-                ft.Container(height=395, on_click=lambda e: self.hide_dropdown()),
+                ft.Container(height=bottom_offset, on_click=lambda e: self.hide_dropdown()),
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
