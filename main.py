@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.109"
-APP_VERSION_CODE = 109
+APP_VERSION = "1.0.110"
+APP_VERSION_CODE = 110
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -463,6 +463,7 @@ class SearchableDropdownFl(ft.Column):
         super().__init__(**kwargs)
         self._page = page
         self.options = options
+        self._filtered_options = options  # 初始化
         self.on_change_callback = on_change
         self._overlay_container = None
         self._is_open = False
@@ -503,26 +504,17 @@ class SearchableDropdownFl(ft.Column):
     
     def on_focus(self, e):
         """获得焦点时，设置底部偏移为100（键盘弹出）"""
-        import platform
-        is_android = platform.system() == "Linux"
 
         # 获取当前下拉框高度
         dropdown_height = self.dropdown_container.height
         
-        if is_android:
-            if dropdown_height > 100 :
-                # 多个选项（高度>100，=135），底部偏移100
-                self._bottom_offset = 100
-            else:
-                # 只有1个子项（高度≈50），底部偏移185
-                self._bottom_offset = 185
-        else:
-            self._bottom_offset = 398
+        # 多个选项（高度>100，=135），底部偏移100
+        self._bottom_offset = 100
 
         # ========== 显示调试信息（使用 SnackBar） ==========
         try:
             snack = ft.SnackBar(
-                content=ft.Text(f"高度: {dropdown_height}, 偏移: {self._bottom_offset}"),
+                content=ft.Text(f"多个项目高度: {dropdown_height}, 偏移: {self._bottom_offset}"),
                 bgcolor=ft.Colors.BLUE_700,
                 duration=2000,
                 open=True,
@@ -544,13 +536,33 @@ class SearchableDropdownFl(ft.Column):
         search_text = self.text_field.value.lower()
         filtered = [opt for opt in self.options if search_text in opt.lower()]
         
+        # 更新下拉框内容
         self.update_dropdown_content(filtered)
         
-        # 如果下拉框已经打开，更新显示
-        if self._is_open and self._overlay_container and self._overlay_container in self._page.overlay:
-            self._page.update()
-        elif search_text and len(search_text) > 0:
+        # 保存过滤结果
+        self._filtered_options = filtered
+        
+        # ========== 单个选项时，底部偏移185 ==========
+        if len(filtered) == 1:
+            self._bottom_offset = 185
+        elif len(filtered) > 0:
+            self._bottom_offset = 100
+        else:
+            self._bottom_offset = 398
+        
+        # ========== 强制重新创建 Overlay ==========
+        if self._is_open:
+            if self._overlay_container and self._overlay_container in self._page.overlay:
+                self._page.overlay.remove(self._overlay_container)
+                self._overlay_container = None
+            if len(filtered) > 0:
+                self.show_dropdown()
+            else:
+                self.hide_dropdown()
+        elif search_text and len(search_text) > 0 and len(filtered) > 0:
             self.show_dropdown()
+        elif len(filtered) == 0:
+            self.hide_dropdown()
         
         if self.on_change_callback:
             value = self.text_field.value
@@ -561,6 +573,26 @@ class SearchableDropdownFl(ft.Column):
     
     def toggle_dropdown(self, e):
         """切换下拉列表显示（点击箭头时触发）"""
+
+        # 获取当前下拉框高度
+        dropdown_height = self.dropdown_container.height
+        
+        # 点击右边下拉框按钮，底部偏移398
+        self._bottom_offset = 398
+
+        # ========== 显示调试信息（使用 SnackBar） ==========
+        try:
+            snack = ft.SnackBar(
+                content=ft.Text(f"点击右边下拉框按钮高度: {dropdown_height}, 偏移: {self._bottom_offset}"),
+                bgcolor=ft.Colors.BLUE_700,
+                duration=2000,
+                open=True,
+            )
+            self._page.overlay.append(snack)
+            self._page.update()
+        except:
+            pass
+
         if self._is_open and self._overlay_container and self._overlay_container in self._page.overlay:
             self.hide_dropdown()
         else:
@@ -568,12 +600,28 @@ class SearchableDropdownFl(ft.Column):
     
     def show_dropdown(self):
         """显示下拉列表（使用 Overlay 悬浮）"""
-        self.update_dropdown_content(self.options)
+        print(f"[创建Overlay] 底部偏移最新: {self._bottom_offset}")
+        
+        # 先移除旧的 Overlay
+        if self._overlay_container and self._overlay_container in self._page.overlay:
+            self._page.overlay.remove(self._overlay_container)
+            self._overlay_container = None
+        
+        # ========== 判断使用过滤结果还是完整列表 ==========
+        if hasattr(self, '_filtered_options') and self._filtered_options:
+            # 有过滤结果，使用过滤后的
+            self.update_dropdown_content(self._filtered_options)
+        else:
+            # 没有过滤结果，使用完整列表
+            self.update_dropdown_content(self.options)
         
         if self._is_open and self._overlay_container and self._overlay_container in self._page.overlay:
             return
         
         self._is_open = True
+
+        # ========== 使用最新的 _bottom_offset ==========
+        print(f"[创建Overlay] 底部偏移最新: {self._bottom_offset}")
         
         # 创建 Overlay 容器
         self._overlay_container = ft.Container(
