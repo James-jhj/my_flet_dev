@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.94"
-APP_VERSION_CODE = 94
+APP_VERSION = "1.0.95"
+APP_VERSION_CODE = 95
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -287,7 +287,8 @@ class SearchableDropdown(ft.Column):
             value=value,
             height=56,
             expand=True,
-            on_change=self.on_text_change,
+            read_only=True,  # 添加只读属性
+            #on_change=self.on_text_change,
             #on_focus=self.on_focus,
             suffix=ft.IconButton(ft.Icons.ARROW_DROP_DOWN, on_click=self.toggle_dropdown),
             **kwargs
@@ -368,7 +369,7 @@ class SearchableDropdown(ft.Column):
                     self.dropdown_container,
                     ft.Container(expand=True),
                 ]),
-                ft.Container(height=210, on_click=lambda e: self.hide_dropdown()),
+                ft.Container(height=220, on_click=lambda e: self.hide_dropdown()),   # 如果太高就调小一点
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
@@ -447,6 +448,175 @@ class SearchableDropdown(ft.Column):
         self.text_field.value = val
         self.text_field.update()
 
+class SearchableDropdownFl(ft.Column):
+    """可搜索的下拉选择框（使用 Overlay 实现悬浮）"""
+    def __init__(self, page, label, options, value=None, on_change=None, **kwargs):
+        super().__init__(**kwargs)
+        self._page = page
+        self.options = options
+        self.on_change_callback = on_change
+        self._overlay_container = None
+        self._is_open = False
+        
+        # 文本输入框
+        self.text_field = ft.TextField(
+            label=label,
+            value=value,
+            height=56,
+            expand=True,
+            on_change=self.on_text_change,
+            suffix=ft.IconButton(ft.Icons.ARROW_DROP_DOWN, on_click=self.toggle_dropdown),
+            **kwargs
+        )
+        
+        from flet import Border, BorderSide
+        border = Border(
+            left=BorderSide(1, ft.Colors.GREY_300),
+            top=BorderSide(1, ft.Colors.GREY_300),
+            right=BorderSide(1, ft.Colors.GREY_300),
+            bottom=BorderSide(1, ft.Colors.GREY_300),
+        )
+        
+        # 下拉列表容器
+        self.dropdown_container = ft.Container(
+            content=ft.Column([], spacing=2, scroll=ft.ScrollMode.AUTO),
+            width=300,
+            height=50,
+            bgcolor=ft.Colors.WHITE,
+            border=border,
+            border_radius=4,
+            shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.BLACK12),
+        )
+        
+        self.controls = [self.text_field]
+    
+    def on_text_change(self, e):
+        """文本变化时过滤选项"""
+        search_text = self.text_field.value.lower()
+        filtered = [opt for opt in self.options if search_text in opt.lower()]
+        
+        # 更新内容
+        self.update_dropdown_content(filtered)
+        
+        # 如果下拉框已经打开，刷新页面
+        if self._is_open and self._overlay_container and self._overlay_container in self._page.overlay:
+            self._page.update()
+        elif search_text and len(search_text) > 0:
+            self.show_dropdown()
+        
+        if self.on_change_callback:
+            value = self.text_field.value
+            if value and value.strip():
+                self.on_change_callback(value)
+            else:
+                self.on_change_callback(None)
+    
+    def toggle_dropdown(self, e):
+        """切换下拉列表显示"""
+        if self._is_open and self._overlay_container and self._overlay_container in self._page.overlay:
+            self.hide_dropdown()
+        else:
+            self.show_dropdown()
+    
+    def show_dropdown(self):
+        """显示下拉列表（使用 Overlay 悬浮）"""
+        self.update_dropdown_content(self.options)
+        
+        if self._is_open and self._overlay_container and self._overlay_container in self._page.overlay:
+            return
+        
+        self._is_open = True
+        
+        # 创建 Overlay 容器
+        self._overlay_container = ft.Container(
+            content=ft.Column([
+                ft.Container(expand=True, on_click=lambda e: self.hide_dropdown()),
+                ft.Row([
+                    ft.Container(expand=True),
+                    self.dropdown_container,
+                    ft.Container(expand=True),
+                ]),
+                ft.Container(height=220, on_click=lambda e: self.hide_dropdown()),
+            ]),
+            expand=True,
+            bgcolor=ft.Colors.TRANSPARENT,
+        )
+        
+        # 添加到 Overlay
+        self._page.overlay.append(self._overlay_container)
+        self.dropdown_container.visible = True
+        
+        # 更新页面
+        self._page.update()
+    
+    def hide_dropdown(self):
+        """隐藏下拉列表"""
+        self._is_open = False
+        if self._overlay_container and self._overlay_container in self._page.overlay:
+            self._page.overlay.remove(self._overlay_container)
+            self._overlay_container = None
+            self._page.update()
+    
+    def update_dropdown_content(self, options):
+        """更新下拉列表内容（不调用 update，由调用方刷新）"""
+        self.dropdown_container.content.controls.clear()
+        
+        if not options:
+            self.dropdown_container.height = 50
+            return
+        
+        for i, opt in enumerate(options):
+            btn = ft.Container(
+                content=ft.Row([
+                    ft.Text(opt, size=14, color=ft.Colors.BLACK),
+                ], alignment=ft.MainAxisAlignment.START),
+                on_click=lambda e, val=opt: self.select_option(val),
+                ink=True,
+                expand=True,
+                height=40,
+            )
+            self.dropdown_container.content.controls.append(btn)
+            
+            if i < len(options) - 1:
+                divider = ft.Divider(height=1, color=ft.Colors.GREY_200)
+                self.dropdown_container.content.controls.append(divider)
+        
+        # 计算高度
+        import platform
+        is_android = platform.system() == "Linux"
+        item_height = 42 if is_android else 35
+        total_items = len(options)
+        content_height = total_items * item_height + (total_items - 1) * 1 + 20
+        
+        min_height = 80
+        max_height = 320 if is_android else 300
+        
+        if content_height < min_height:
+            self.dropdown_container.height = min_height
+        if content_height > max_height:
+            self.dropdown_container.height = max_height
+        else:
+            self.dropdown_container.height = content_height
+    
+    def select_option(self, value):
+        self.text_field.value = value
+        self.hide_dropdown()
+        if self.on_change_callback:
+            if value and value.strip():
+                self.on_change_callback(value)
+            else:
+                self.on_change_callback(None)
+        self._page.update()
+    
+    @property
+    def value(self):
+        return self.text_field.value
+    
+    @value.setter
+    def value(self, val):
+        self.text_field.value = val
+        self.text_field.update()
+
 class SearchableDropdownEvtTp(ft.Column):
     """可搜索的下拉选择框（使用 Overlay 实现悬浮，位置自动适配）"""
     def __init__(self, page, label, options, value=None, on_change=None, **kwargs):
@@ -462,7 +632,8 @@ class SearchableDropdownEvtTp(ft.Column):
             value=value,
             height=56,
             expand=True,
-            on_change=self.on_text_change,
+            read_only=True,  # 添加只读属性
+            #on_change=self.on_text_change,
             #on_focus=self.on_focus,
             suffix=ft.IconButton(ft.Icons.ARROW_DROP_DOWN, on_click=self.toggle_dropdown),
             **kwargs
@@ -532,7 +703,7 @@ class SearchableDropdownEvtTp(ft.Column):
                     ft.Container(expand=True),  # 右侧弹性空间
                 ]),
                 # 下方空白
-                ft.Container(height=320, on_click=lambda e: self.hide_dropdown()),
+                ft.Container(height=340, on_click=lambda e: self.hide_dropdown()),
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
@@ -580,7 +751,7 @@ class SearchableDropdownEvtTp(ft.Column):
         content_height = total_items * item_height + (total_items - 1) * 1 + 20
         
         min_height = 80 if is_android else 80
-        max_height = 300 if is_android else 300
+        max_height = 320 if is_android else 300
         
         if content_height < min_height:
             self.dropdown_container.height = min_height
@@ -623,7 +794,8 @@ class SearchableDropdownEvtLf(ft.Column):
             value=value,
             height=56,
             expand=True,
-            on_change=self.on_text_change,
+            read_only=True,  # 添加只读属性
+            #on_change=self.on_text_change,
             #on_focus=self.on_focus,
             suffix=ft.IconButton(ft.Icons.ARROW_DROP_DOWN, on_click=self.toggle_dropdown),
             **kwargs
@@ -693,7 +865,7 @@ class SearchableDropdownEvtLf(ft.Column):
                     ft.Container(expand=True),  # 右侧弹性空间
                 ]),
                 # 下方空白
-                ft.Container(height=290, on_click=lambda e: self.hide_dropdown()),
+                ft.Container(height=300, on_click=lambda e: self.hide_dropdown()),
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
@@ -784,7 +956,8 @@ class SearchableDropdownEvtWeek(ft.Column):
             value=value,
             height=56,
             expand=True,
-            on_change=self.on_text_change,
+            read_only=True,  # 添加只读属性
+            #on_change=self.on_text_change,
             #on_focus=self.on_focus,
             suffix=ft.IconButton(ft.Icons.ARROW_DROP_DOWN, on_click=self.toggle_dropdown),
             **kwargs
@@ -854,7 +1027,7 @@ class SearchableDropdownEvtWeek(ft.Column):
                     ft.Container(expand=True),  # 右侧弹性空间
                 ]),
                 # 下方空白
-                ft.Container(height=200, on_click=lambda e: self.hide_dropdown()),
+                ft.Container(height=150, on_click=lambda e: self.hide_dropdown()),
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
@@ -909,7 +1082,7 @@ class SearchableDropdownEvtWeek(ft.Column):
         elif content_height > max_height:
             self.dropdown_container.height = max_height
         else:
-            self.dropdown_container.height = content_height - 20
+            self.dropdown_container.height = content_height - 10
     
     def select_option(self, value):
         self.text_field.value = value
@@ -4635,7 +4808,7 @@ def main(page: ft.Page):
                 expand=True,
             )
 
-            category_field = SearchableDropdown(
+            category_field = SearchableDropdownFl(
                 page=page,  # 传入 page
                 label="分类",
                 options=categories,
@@ -6093,7 +6266,7 @@ def main(page: ft.Page):
             # 根据收支类型显示不同的分类列表
             categories = INCOME_CATEGORIES if transaction_type == "income" else EXPENSE_CATEGORIES
 
-            category_field = SearchableDropdown(
+            category_field = SearchableDropdownFl(
                 page=page,  # 传入 page
                 label="分类",
                 options=categories,
