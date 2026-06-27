@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.101"
-APP_VERSION_CODE = 101
+APP_VERSION = "1.0.102"
+APP_VERSION_CODE = 102
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -369,7 +369,7 @@ class SearchableDropdown(ft.Column):
                     self.dropdown_container,
                     ft.Container(expand=True),
                 ]),
-                ft.Container(height=220, on_click=lambda e: self.hide_dropdown()),   # 如果太高就调小一点
+                ft.Container(height=105, on_click=lambda e: self.hide_dropdown()),   # 如果太高就调小一点
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
@@ -424,11 +424,11 @@ class SearchableDropdown(ft.Column):
         print(f"[高度计算] 选项数: {total_items}, 高度: {total_height}")
         
         # 限制最大高度（防止超出屏幕）
-        max_height = 300
+        max_height = 150
         if total_height > max_height:
-            total_height = max_height + 15  # 电脑月份刚刚好高度
+            total_height = max_height - 15  # 电脑月份刚刚好高度
         else:
-            total_height +=20               # 电脑年份刚刚好高度
+            total_height -=20               # 电脑年份刚刚好高度
         
         # 确保最小高度
         min_height = 50
@@ -545,7 +545,7 @@ class SearchableDropdownFl(ft.Column):
                     self.dropdown_container,
                     ft.Container(expand=True),
                 ]),
-                ft.Container(height=230, on_click=lambda e: self.hide_dropdown()),
+                ft.Container(height=395, on_click=lambda e: self.hide_dropdown()),
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
@@ -567,7 +567,7 @@ class SearchableDropdownFl(ft.Column):
             self._page.update()
     
     def update_dropdown_content(self, options):
-        """更新下拉列表内容（不调用 update，由调用方刷新）"""
+        """更新下拉列表内容"""
         self.dropdown_container.content.controls.clear()
         
         if not options:
@@ -590,22 +590,31 @@ class SearchableDropdownFl(ft.Column):
                 divider = ft.Divider(height=1, color=ft.Colors.GREY_200)
                 self.dropdown_container.content.controls.append(divider)
         
-        # 计算高度
-        import platform
-        is_android = platform.system() == "Linux"
-        item_height = 42 if is_android else 35
+        # ========== 高度 = 子项高度 * 子项个数 + 分割线高度 ==========
         total_items = len(options)
-        content_height = total_items * item_height + (total_items - 1) * 1 + 20
+        item_height = 40
+        divider_height = 1
         
-        min_height = 80
-        max_height = 320 if is_android else 300
+        # 总高度 = 选项数 * 选项高度 + (选项数-1) * 分割线高度
+        total_height = total_items * item_height + (total_items - 1) * divider_height
         
-        if content_height < min_height:
-            self.dropdown_container.height = min_height - 37   # 电脑文本过滤后高度刚刚好
-        elif content_height > max_height:
-            self.dropdown_container.height = max_height - 8   # 电脑下拉框展开高度刚刚好
-        else:
-            self.dropdown_container.height = content_height
+        # 加上上下内边距（如果有）
+        total_height += 10
+
+        print(f"[高度计算] 选项数: {total_items}, 高度: {total_height}")
+        
+        # 限制最大高度（防止超出屏幕）
+        max_height = 150
+        if total_height > max_height:
+            total_height = max_height - 15  # 电脑展开下拉框刚刚好高度
+        
+        # 确保最小高度
+        min_height = 50
+        if total_height < min_height:
+            total_height = min_height
+        
+        self.dropdown_container.height = total_height
+        print(f"[高度计算] 选项数: {total_items}, 高度: {total_height}")
     
     def select_option(self, value):
         self.text_field.value = value
@@ -5494,7 +5503,7 @@ def main(page: ft.Page):
                 left=0,
                 right=0,
                 bottom=0,
-                height=400,
+                height=450,
                 bgcolor=ft.Colors.WHITE,
                 shadow=ft.BoxShadow(
                     spread_radius=1,
