@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.108"
-APP_VERSION_CODE = 108
+APP_VERSION = "1.0.109"
+APP_VERSION_CODE = 109
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -503,6 +503,34 @@ class SearchableDropdownFl(ft.Column):
     
     def on_focus(self, e):
         """获得焦点时，设置底部偏移为100（键盘弹出）"""
+        import platform
+        is_android = platform.system() == "Linux"
+
+        # 获取当前下拉框高度
+        dropdown_height = self.dropdown_container.height
+        
+        if is_android:
+            if dropdown_height > 100 :
+                # 多个选项（高度>100，=135），底部偏移100
+                self._bottom_offset = 100
+            else:
+                # 只有1个子项（高度≈50），底部偏移185
+                self._bottom_offset = 185
+        else:
+            self._bottom_offset = 398
+
+        # ========== 显示调试信息（使用 SnackBar） ==========
+        try:
+            snack = ft.SnackBar(
+                content=ft.Text(f"高度: {dropdown_height}, 偏移: {self._bottom_offset}"),
+                bgcolor=ft.Colors.BLUE_700,
+                duration=2000,
+                open=True,
+            )
+            self._page.overlay.append(snack)
+            self._page.update()
+        except:
+            pass
         
         # 如果下拉框已打开，刷新显示
         if self._is_open and self._overlay_container and self._overlay_container in self._page.overlay:
@@ -546,38 +574,6 @@ class SearchableDropdownFl(ft.Column):
             return
         
         self._is_open = True
-
-        # ========== 判断下拉框高度，决定底部偏移 ==========
-        import platform
-        is_android = platform.system() == "Linux"
-        
-        # 获取当前下拉框高度
-        dropdown_height = self.dropdown_container.height
-        
-        if is_android:
-            if dropdown_height > 100:
-                # 多个选项（高度>100），底部偏移100
-                self._bottom_offset = 100
-            else:
-                # 只有1个子项（高度≈50），底部偏移185
-                self._bottom_offset = 185
-        else:
-            # 电脑端
-            self._bottom_offset = 398
-        
-        # ========== 显示调试信息（底部弹框） ==========
-        # ========== 显示调试信息（使用 SnackBar） ==========
-        try:
-            snack = ft.SnackBar(
-                content=ft.Text(f"高度: {dropdown_height}, 偏移: {self._bottom_offset}"),
-                bgcolor=ft.Colors.BLUE_700,
-                duration=2000,
-                open=True,
-            )
-            self._page.overlay.append(snack)
-            self._page.update()
-        except:
-            pass
         
         # 创建 Overlay 容器
         self._overlay_container = ft.Container(
