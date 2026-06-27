@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.104"
-APP_VERSION_CODE = 104
+APP_VERSION = "1.0.105"
+APP_VERSION_CODE = 105
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -466,7 +466,6 @@ class SearchableDropdownFl(ft.Column):
         self.on_change_callback = on_change
         self._overlay_container = None
         self._is_open = False
-        self._initial_height = None  # 初始高度
         
         # 文本输入框
         self.text_field = ft.TextField(
@@ -475,13 +474,10 @@ class SearchableDropdownFl(ft.Column):
             height=56,
             expand=True,
             on_change=self.on_text_change,
+            on_focus=self.on_focus,  # 添加 on_focus
             suffix=ft.IconButton(ft.Icons.ARROW_DROP_DOWN, on_click=self.toggle_dropdown),
             **kwargs
         )
-
-        # 在页面加载后获取初始高度
-        if hasattr(self._page, 'window_height'):
-            self._initial_height = self._page.window_height
         
         from flet import Border, BorderSide
         border = Border(
@@ -504,15 +500,29 @@ class SearchableDropdownFl(ft.Column):
         
         self.controls = [self.text_field]
     
+    def on_focus(self, e):
+        """获得焦点时，调整下拉框高度"""
+        import platform
+        is_android = platform.system() == "Linux"
+        
+        if is_android:
+            # 手机：获得焦点后，键盘弹出，高度变为90
+            self._bottom_offset = 90
+        else:
+            self._bottom_offset = 395
+        
+        # 如果下拉框已打开，刷新显示
+        if self._is_open and self._overlay_container and self._overlay_container in self._page.overlay:
+            # 更新 Overlay 中的高度
+            self._update_overlay_height()
+    
     def on_text_change(self, e):
         """文本变化时过滤选项"""
         search_text = self.text_field.value.lower()
         filtered = [opt for opt in self.options if search_text in opt.lower()]
         
-        # 更新内容
         self.update_dropdown_content(filtered)
         
-        # 如果下拉框已经打开，刷新页面
         if self._is_open and self._overlay_container and self._overlay_container in self._page.overlay:
             self._page.update()
         elif search_text and len(search_text) > 0:
@@ -541,22 +551,17 @@ class SearchableDropdownFl(ft.Column):
         
         self._is_open = True
         
-        # ========== 判断键盘是否弹出 ==========
-        # 方法：比较当前窗口高度与初始高度
-        # 如果窗口高度小于初始高度 100px 以上，认为键盘弹出
-        try:
-            current_height = self._page.window_height if hasattr(self._page, 'window_height') else 800
-            # 初始高度在类初始化时保存
-            if not hasattr(self, '_initial_height'):
-                self._initial_height = current_height
-            
-            # 如果当前高度比初始高度小 150px 以上，认为键盘弹出
-            if self._initial_height - current_height > 150:
-                bottom_offset = 90  # 键盘弹出时，降低高度
-            else:
-                bottom_offset = 395  # 键盘未弹出时，正常高度
-        except:
-            bottom_offset = 395  # 默认值
+        # 判断底部偏移高度
+        import platform
+        is_android = platform.system() == "Linux"
+        
+        # 如果文本框获得焦点（手机端），使用90；否则使用395
+        if is_android and self.text_field.focused:
+            bottom_offset = 90
+        else:
+            bottom_offset = 395
+        
+        self._bottom_offset = bottom_offset
         
         # 创建 Overlay 容器
         self._overlay_container = ft.Container(
