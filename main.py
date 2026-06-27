@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.103"
-APP_VERSION_CODE = 103
+APP_VERSION = "1.0.104"
+APP_VERSION_CODE = 104
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -466,6 +466,7 @@ class SearchableDropdownFl(ft.Column):
         self.on_change_callback = on_change
         self._overlay_container = None
         self._is_open = False
+        self._initial_height = None  # 初始高度
         
         # 文本输入框
         self.text_field = ft.TextField(
@@ -477,6 +478,10 @@ class SearchableDropdownFl(ft.Column):
             suffix=ft.IconButton(ft.Icons.ARROW_DROP_DOWN, on_click=self.toggle_dropdown),
             **kwargs
         )
+
+        # 在页面加载后获取初始高度
+        if hasattr(self._page, 'window_height'):
+            self._initial_height = self._page.window_height
         
         from flet import Border, BorderSide
         border = Border(
@@ -536,31 +541,22 @@ class SearchableDropdownFl(ft.Column):
         
         self._is_open = True
         
-        # ========== 获取屏幕高度，动态计算位置 ==========
-        screen_height = 800  # 默认值
+        # ========== 判断键盘是否弹出 ==========
+        # 方法：比较当前窗口高度与初始高度
+        # 如果窗口高度小于初始高度 100px 以上，认为键盘弹出
         try:
-            if hasattr(self._page, 'window_height') and self._page.window_height:
-                screen_height = self._page.window_height
-        except:
-            pass
-        
-        # 判断是否是手机（屏幕高度小于700）
-        is_phone = screen_height < 700
-        
-        # 键盘弹出时，可用高度减少约300px
-        # 输入时下拉框往上偏移
-        if is_phone:
-            # 手机：检测是否有输入内容（键盘弹出）
-            has_text = len(self.text_field.value or '') > 0
-            if has_text:
-                # 有输入内容，键盘弹出，下拉框上移
-                bottom_offset = 320  # 键盘高度约300px
+            current_height = self._page.window_height if hasattr(self._page, 'window_height') else 800
+            # 初始高度在类初始化时保存
+            if not hasattr(self, '_initial_height'):
+                self._initial_height = current_height
+            
+            # 如果当前高度比初始高度小 150px 以上，认为键盘弹出
+            if self._initial_height - current_height > 150:
+                bottom_offset = 90  # 键盘弹出时，降低高度
             else:
-                # 无输入内容，键盘未弹出
-                bottom_offset = 180
-        else:
-            # 电脑：固定位置
-            bottom_offset = 220
+                bottom_offset = 395  # 键盘未弹出时，正常高度
+        except:
+            bottom_offset = 395  # 默认值
         
         # 创建 Overlay 容器
         self._overlay_container = ft.Container(
