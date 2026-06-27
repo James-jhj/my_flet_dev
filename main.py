@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.95"
-APP_VERSION_CODE = 95
+APP_VERSION = "1.0.96"
+APP_VERSION_CODE = 96
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -285,7 +285,7 @@ class SearchableDropdown(ft.Column):
         self.text_field = ft.TextField(
             label=label,
             value=value,
-            height=56,
+            height=45,
             expand=True,
             read_only=True,  # 添加只读属性
             #on_change=self.on_text_change,
@@ -592,8 +592,8 @@ class SearchableDropdownFl(ft.Column):
         max_height = 320 if is_android else 300
         
         if content_height < min_height:
-            self.dropdown_container.height = min_height
-        if content_height > max_height:
+            self.dropdown_container.height = min_height - 37   # 电脑刚刚好高度
+        elif content_height > max_height:
             self.dropdown_container.height = max_height
         else:
             self.dropdown_container.height = content_height
@@ -703,7 +703,7 @@ class SearchableDropdownEvtTp(ft.Column):
                     ft.Container(expand=True),  # 右侧弹性空间
                 ]),
                 # 下方空白
-                ft.Container(height=340, on_click=lambda e: self.hide_dropdown()),
+                ft.Container(height=350, on_click=lambda e: self.hide_dropdown()),
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
@@ -751,14 +751,14 @@ class SearchableDropdownEvtTp(ft.Column):
         content_height = total_items * item_height + (total_items - 1) * 1 + 20
         
         min_height = 80 if is_android else 80
-        max_height = 320 if is_android else 300
+        max_height = 320 if is_android else 320
         
         if content_height < min_height:
             self.dropdown_container.height = min_height
         elif content_height > max_height:
             self.dropdown_container.height = max_height
         else:
-            self.dropdown_container.height = content_height - 20
+            self.dropdown_container.height = content_height
     
     def select_option(self, value):
         self.text_field.value = value
@@ -865,7 +865,7 @@ class SearchableDropdownEvtLf(ft.Column):
                     ft.Container(expand=True),  # 右侧弹性空间
                 ]),
                 # 下方空白
-                ft.Container(height=300, on_click=lambda e: self.hide_dropdown()),
+                ft.Container(height=310, on_click=lambda e: self.hide_dropdown()),
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
@@ -913,14 +913,14 @@ class SearchableDropdownEvtLf(ft.Column):
         content_height = total_items * item_height + (total_items - 1) * 1 + 20
         
         min_height = 80 if is_android else 80
-        max_height = 300 if is_android else 300
+        max_height = 320 if is_android else 300
         
         if content_height < min_height:
             self.dropdown_container.height = min_height
         elif content_height > max_height:
             self.dropdown_container.height = max_height
         else:
-            self.dropdown_container.height = content_height - 20
+            self.dropdown_container.height = content_height - 15  # 历法高度调试
     
     def select_option(self, value):
         self.text_field.value = value
@@ -1082,7 +1082,7 @@ class SearchableDropdownEvtWeek(ft.Column):
         elif content_height > max_height:
             self.dropdown_container.height = max_height
         else:
-            self.dropdown_container.height = content_height - 10
+            self.dropdown_container.height = content_height - 10  # 历法下拉框列表高度调试
     
     def select_option(self, value):
         self.text_field.value = value
