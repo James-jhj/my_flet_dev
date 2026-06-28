@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.115"
-APP_VERSION_CODE = 115
+APP_VERSION = "1.0.116"
+APP_VERSION_CODE = 116
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -472,6 +472,9 @@ class SearchableDropdownFl(ft.Column):
         self._overlay_container = None
         self._is_open = False
         self._bottom_offset = 404
+
+        # ========== 手动记录焦点状态 ==========
+        self._has_focus = False
         
         # 文本输入框
         self.text_field = ft.TextField(
@@ -480,7 +483,8 @@ class SearchableDropdownFl(ft.Column):
             height=56,
             expand=True,
             on_change=self.on_text_change,
-            on_focus=self.on_focus,
+            on_focus=self._on_focus,      # 获得焦点时记录
+            on_blur=self._on_blur,        # 失去焦点时记录
             suffix=ft.IconButton(ft.Icons.ARROW_DROP_DOWN, on_click=self.toggle_dropdown),
             **kwargs
         )
@@ -506,6 +510,18 @@ class SearchableDropdownFl(ft.Column):
         )
         
         self.controls = [self.text_field]
+
+    def _on_focus(self, e):
+        """获得焦点时记录状态"""
+        self._has_focus = True
+        print(f"[焦点状态] 获得焦点: {self._has_focus}")
+        # 调用原有的 on_focus 逻辑
+        self.on_focus(e)
+    
+    def _on_blur(self, e):
+        """失去焦点时记录状态"""
+        self._has_focus = False
+        print(f"[焦点状态] 失去焦点: {self._has_focus}")
     
     def on_focus(self, e):
         """获得焦点时，设置底部偏移为100（键盘弹出）"""
@@ -516,10 +532,13 @@ class SearchableDropdownFl(ft.Column):
         # 多个选项（高度>100，=135），底部偏移120
         self._bottom_offset = 120
 
+        # ========== 判断文本框是否获得焦点 ==========
+        is_focused = self.text_field.focused if hasattr(self.text_field, 'focused') else False
+
         # ========== 显示调试信息（使用 SnackBar） ==========
         try:
             snack = ft.SnackBar(
-                content=ft.Text(f"多个项目高度: {dropdown_height}, 偏移: {self._bottom_offset}"),
+                content=ft.Text(f"多个项目高度: {dropdown_height}, 偏移: {self._bottom_offset}, 获得焦点: {self._has_focus}"),
                 bgcolor=ft.Colors.BLUE_700,
                 duration=2000,
                 open=True,
@@ -540,12 +559,18 @@ class SearchableDropdownFl(ft.Column):
         """文本变化时过滤选项"""
         search_text = self.text_field.value.lower()
         filtered = [opt for opt in self.options if search_text in opt.lower()]
-        
+
+        # 获取当前下拉框高度
+        dropdown_height = self.dropdown_container.height
+
         # 更新下拉框内容
         self.update_dropdown_content(filtered)
         
         # 保存过滤结果
         self._filtered_options = filtered
+
+        # ========== 判断文本框是否获得焦点 ==========
+        is_focused = self.text_field.focused if hasattr(self.text_field, 'focused') else False
         
         # ========== 单个选项时，底部偏移205 ==========
         if len(filtered) == 1:
@@ -554,6 +579,19 @@ class SearchableDropdownFl(ft.Column):
             self._bottom_offset = 120
         else:
             self._bottom_offset = 404
+
+        # ========== 显示调试信息（使用 SnackBar） ==========
+        try:
+            snack = ft.SnackBar(
+                content=ft.Text(f"多个项目高度: {dropdown_height}, 偏移: {self._bottom_offset}, 得焦点: {self._has_focus}"),
+                bgcolor=ft.Colors.BLUE_700,
+                duration=2000,
+                open=True,
+            )
+            self._page.overlay.append(snack)
+            self._page.update()
+        except:
+            pass
         
         # ========== 强制重新创建 Overlay ==========
         if self._is_open:
@@ -579,36 +617,29 @@ class SearchableDropdownFl(ft.Column):
     def toggle_dropdown(self, e):
         """切换下拉列表显示（点击箭头时触发）"""
 
-        # 获取当前下拉框高度
-        dropdown_height = self.dropdown_container.height
-
-        # 点击右边下拉框按钮，底部偏移404
-        #self._bottom_offset = 404
-
-        is_android = platform.system() == "Linux"
-
-        # ========== 获取屏幕高度 ==========
-        screen_height = 800  # 默认值
-        try:
-            if hasattr(self._page, 'window_height') and self._page.window_height:
-                screen_height = self._page.window_height
-                print(f"[屏幕高度] 当前窗口高度: {screen_height}")
-        except:
-            pass
-        
         #如果是手机平台，且已经弹出了手机输入法（屏幕高度小于600），则根据dropdown_height高度来判断底部偏移量：
-        if is_android and screen_height < 600:
-            if dropdown_height == 50:
-                self._bottom_offset = 205 # 只有1个子项时的偏移量
-            elif dropdown_height == 135:
-                self._bottom_offset = 120 # 有多个子项时的偏移量
+        # ========== 根据焦点状态决定偏移 ==========
+        if self._has_focus:
+            # 有焦点，键盘弹出
+            dropdown_height = self.dropdown_container.height
+            is_android = platform.system() == "Linux"
+            if is_android:
+                # 手机端 + 文本框获得焦点（键盘弹出）
+                if dropdown_height == 50:
+                    self._bottom_offset = 205 # 只有1个子项时的偏移量
+                elif dropdown_height == 135:
+                    self._bottom_offset = 120 # 有多个子项时的偏移量
+            else:
+                # 键盘未弹出或电脑端
+                self._bottom_offset = 120     # 正常情况下的偏移量
         else:
+            # 无焦点，使用默认偏移
             self._bottom_offset = 404     # 正常情况下的偏移量
 
         # ========== 显示调试信息（使用 SnackBar） ==========
         try:
             snack = ft.SnackBar(
-                content=ft.Text(f"点击右边下拉框按钮高度: {dropdown_height}, 偏移: {self._bottom_offset},[屏幕高度] 当前窗口高度: {screen_height}"),
+                content=ft.Text(f"点击右边下拉框按钮高度: {dropdown_height}, 偏移: {self._bottom_offset},获得焦点: {self._has_focus}"),
                 bgcolor=ft.Colors.BLUE_700,
                 duration=2000,
                 open=True,
