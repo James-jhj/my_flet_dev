@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.113"
-APP_VERSION_CODE = 113
+APP_VERSION = "1.0.114"
+APP_VERSION_CODE = 114
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -471,7 +471,7 @@ class SearchableDropdownFl(ft.Column):
         self.on_change_callback = on_change
         self._overlay_container = None
         self._is_open = False
-        self._bottom_offset = 400
+        self._bottom_offset = 404
         
         # 文本输入框
         self.text_field = ft.TextField(
@@ -513,8 +513,8 @@ class SearchableDropdownFl(ft.Column):
         # 获取当前下拉框高度
         dropdown_height = self.dropdown_container.height
         
-        # 多个选项（高度>100，=135），底部偏移115
-        self._bottom_offset = 115
+        # 多个选项（高度>100，=135），底部偏移119
+        self._bottom_offset = 119
 
         # ========== 显示调试信息（使用 SnackBar） ==========
         try:
@@ -547,13 +547,13 @@ class SearchableDropdownFl(ft.Column):
         # 保存过滤结果
         self._filtered_options = filtered
         
-        # ========== 单个选项时，底部偏移200 ==========
+        # ========== 单个选项时，底部偏移204 ==========
         if len(filtered) == 1:
-            self._bottom_offset = 200
+            self._bottom_offset = 204
         elif len(filtered) > 0:
-            self._bottom_offset = 115
+            self._bottom_offset = 119
         else:
-            self._bottom_offset = 400
+            self._bottom_offset = 404
         
         # ========== 强制重新创建 Overlay ==========
         if self._is_open:
@@ -582,8 +582,8 @@ class SearchableDropdownFl(ft.Column):
         # 获取当前下拉框高度
         dropdown_height = self.dropdown_container.height
         
-        # 点击右边下拉框按钮，底部偏移400
-        self._bottom_offset = 400
+        # 点击右边下拉框按钮，底部偏移404
+        self._bottom_offset = 404
 
         # ========== 显示调试信息（使用 SnackBar） ==========
         try:
