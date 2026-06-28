@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.127"
-APP_VERSION_CODE = 127
+APP_VERSION = "1.0.128"
+APP_VERSION_CODE = 128
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -477,6 +477,7 @@ class SearchableDropdownFl(ft.Column):
             expand=True,
             on_change=self.on_text_change,
             on_focus=self.on_focus,
+            on_blur=self.on_blur,  # 添加失去焦点事件
             on_click=self.toggle_dropdown,  # 添加这行
             suffix=ft.IconButton(ft.Icons.ARROW_DROP_DOWN, on_click=self.toggle_dropdown),
             **kwargs
@@ -520,6 +521,11 @@ class SearchableDropdownFl(ft.Column):
     def on_focus(self, e):
         """获得焦点时显示下拉列表"""
         self.update_dropdown(self.options)
+
+    def on_blur(self, e):
+        """失去焦点时隐藏下拉列表"""
+        self.dropdown_container.visible = False
+        self.dropdown_container.update()
     
     def toggle_dropdown(self, e):
         """切换下拉列表显示"""
