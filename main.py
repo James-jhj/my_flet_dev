@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.112"
-APP_VERSION_CODE = 112
+APP_VERSION = "1.0.113"
+APP_VERSION_CODE = 113
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -305,7 +305,8 @@ class SearchableDropdown(ft.Column):
         # 下拉列表容器
         self.dropdown_container = ft.Container(
             content=ft.Column([], spacing=2, scroll=ft.ScrollMode.AUTO),
-            width=300,
+            #width=300,
+            expand=True,
             height=50,
             bgcolor=ft.Colors.WHITE,
             border=border,
@@ -365,11 +366,14 @@ class SearchableDropdown(ft.Column):
             content=ft.Column([
                 ft.Container(expand=True, on_click=lambda e: self.hide_dropdown()),
                 ft.Row([
-                    ft.Container(expand=True),
-                    self.dropdown_container,
-                    ft.Container(expand=True),
+                    ft.Container(width=10),
+                    ft.Container(
+                        content=self.dropdown_container,
+                        expand=True,  # 宽度填满剩余空间
+                    ),
+                    ft.Container(width=10),
                 ]),
-                ft.Container(height=105, on_click=lambda e: self.hide_dropdown()),   # 如果太高就调小一点
+                ft.Container(height=106, on_click=lambda e: self.hide_dropdown()),   # 如果太高就调小一点
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
@@ -467,7 +471,7 @@ class SearchableDropdownFl(ft.Column):
         self.on_change_callback = on_change
         self._overlay_container = None
         self._is_open = False
-        self._bottom_offset = 398
+        self._bottom_offset = 400
         
         # 文本输入框
         self.text_field = ft.TextField(
@@ -492,7 +496,8 @@ class SearchableDropdownFl(ft.Column):
         # 下拉列表容器
         self.dropdown_container = ft.Container(
             content=ft.Column([], spacing=2, scroll=ft.ScrollMode.AUTO),
-            width=300,
+            #width=300,
+            expand=True,
             height=50,
             bgcolor=ft.Colors.WHITE,
             border=border,
@@ -508,8 +513,8 @@ class SearchableDropdownFl(ft.Column):
         # 获取当前下拉框高度
         dropdown_height = self.dropdown_container.height
         
-        # 多个选项（高度>100，=135），底部偏移100
-        self._bottom_offset = 110
+        # 多个选项（高度>100，=135），底部偏移115
+        self._bottom_offset = 115
 
         # ========== 显示调试信息（使用 SnackBar） ==========
         try:
@@ -542,13 +547,13 @@ class SearchableDropdownFl(ft.Column):
         # 保存过滤结果
         self._filtered_options = filtered
         
-        # ========== 单个选项时，底部偏移195 ==========
+        # ========== 单个选项时，底部偏移200 ==========
         if len(filtered) == 1:
-            self._bottom_offset = 195
+            self._bottom_offset = 200
         elif len(filtered) > 0:
-            self._bottom_offset = 110
+            self._bottom_offset = 115
         else:
-            self._bottom_offset = 398
+            self._bottom_offset = 400
         
         # ========== 强制重新创建 Overlay ==========
         if self._is_open:
@@ -577,8 +582,8 @@ class SearchableDropdownFl(ft.Column):
         # 获取当前下拉框高度
         dropdown_height = self.dropdown_container.height
         
-        # 点击右边下拉框按钮，底部偏移398
-        self._bottom_offset = 398
+        # 点击右边下拉框按钮，底部偏移400
+        self._bottom_offset = 400
 
         # ========== 显示调试信息（使用 SnackBar） ==========
         try:
@@ -628,9 +633,12 @@ class SearchableDropdownFl(ft.Column):
             content=ft.Column([
                 ft.Container(expand=True, on_click=lambda e: self.hide_dropdown()),
                 ft.Row([
-                    ft.Container(expand=True),
-                    self.dropdown_container,
-                    ft.Container(expand=True),
+                    ft.Container(width=30),  # 左边距
+                    ft.Container(
+                        content=self.dropdown_container,
+                        expand=True,  # 宽度填满剩余空间
+                    ),
+                    ft.Container(width=30),  # 右边距
                 ]),
                 ft.Container(height=self._bottom_offset, on_click=lambda e: self.hide_dropdown()),
             ]),
@@ -834,7 +842,7 @@ class SearchableDropdownEvtTp(ft.Column):
                     ft.Container(width=30),  # 右边距
                 ]),
                 # 下方空白
-                ft.Container(height=340, on_click=lambda e: self.hide_dropdown()),
+                ft.Container(height=341, on_click=lambda e: self.hide_dropdown()),
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
@@ -953,7 +961,8 @@ class SearchableDropdownEvtLf(ft.Column):
         # 下拉列表容器
         self.dropdown_container = ft.Container(
             content=ft.Column([], spacing=2, scroll=ft.ScrollMode.AUTO),
-            width=300,
+            expand=True,
+            #width=300,
             height=50,
             bgcolor=ft.Colors.WHITE,
             border=border,
@@ -1001,12 +1010,15 @@ class SearchableDropdownEvtLf(ft.Column):
                 ft.Container(expand=True, on_click=lambda e: self.hide_dropdown()),
                 # 下拉框（在 Row 中居中）
                 ft.Row([
-                    ft.Container(expand=True),  # 左侧弹性空间
-                    self.dropdown_container,    # 下拉框居中
-                    ft.Container(expand=True),  # 右侧弹性空间
+                    ft.Container(width=30),  # 左边距
+                    ft.Container(
+                        content=self.dropdown_container,
+                        expand=True,  # 宽度填满剩余空间
+                    ),
+                    ft.Container(width=30),  # 右边距
                 ]),
                 # 下方空白
-                ft.Container(height=307, on_click=lambda e: self.hide_dropdown()),
+                ft.Container(height=309, on_click=lambda e: self.hide_dropdown()),
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
@@ -1115,7 +1127,8 @@ class SearchableDropdownEvtWeek(ft.Column):
         # 下拉列表容器
         self.dropdown_container = ft.Container(
             content=ft.Column([], spacing=2, scroll=ft.ScrollMode.AUTO),
-            width=300,
+            #width=300,
+            expand=True,
             height=50,
             bgcolor=ft.Colors.WHITE,
             border=border,
@@ -1163,12 +1176,15 @@ class SearchableDropdownEvtWeek(ft.Column):
                 ft.Container(expand=True, on_click=lambda e: self.hide_dropdown()),
                 # 下拉框（在 Row 中居中）
                 ft.Row([
-                    ft.Container(expand=True),  # 左侧弹性空间
-                    self.dropdown_container,    # 下拉框居中
-                    ft.Container(expand=True),  # 右侧弹性空间
+                    ft.Container(width=30),  # 左边距
+                    ft.Container(
+                        content=self.dropdown_container,
+                        expand=True,  # 宽度填满剩余空间
+                    ),
+                    ft.Container(width=30),  # 右边距
                 ]),
                 # 下方空白
-                ft.Container(height=136, on_click=lambda e: self.hide_dropdown()),
+                ft.Container(height=137, on_click=lambda e: self.hide_dropdown()),
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
