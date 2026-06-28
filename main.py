@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.119"
-APP_VERSION_CODE = 119
+APP_VERSION = "1.0.120"
+APP_VERSION_CODE = 120
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -475,7 +475,7 @@ class SearchableDropdownFl(ft.Column):
 
         # ========== 界面容器引用 ==========
         self._container = None
-        self._initial_container_height = 0
+        self._initial_container_height = 800
         
         # 文本输入框
         self.text_field = ft.TextField(
@@ -514,51 +514,65 @@ class SearchableDropdownFl(ft.Column):
     def set_container(self, container):
         """设置界面容器引用"""
         self._container = container
+        # 获取初始高度
         try:
             if hasattr(container, 'height') and container.height:
                 self._initial_container_height = container.height
                 print(f"[容器高度] 初始高度: {self._initial_container_height}")
+        except Exception as e:
+            print(f"[容器高度] 获取初始高度失败: {e}")
+
+    def _get_container_height(self):
+        """获取当前容器高度"""
+        if self._container is None:
+            return 0
+        try:
+            if hasattr(self._container, 'height') and self._container.height:
+                return self._container.height
         except:
             pass
+        return 0
 
     def _is_keyboard_open(self):
         """判断键盘是否弹出"""
-        # ========== 方法1：通过窗口高度变化判断 ==========
+        import platform
+        is_android = platform.system() == "Linux"
+        
+        # 非手机平台直接返回 False
+        if not is_android:
+            return False
+        
+        # ========== 方法1：通过容器高度变化判断 ==========
+        current_height = self._get_container_height()
+        if current_height > 0:
+            # 保存初始高度
+            if not hasattr(self, '_initial_container_height'):
+                self._initial_container_height = current_height
+                print(f"[容器高度] 初始: {self._initial_container_height}")
+            
+            height_diff = self._initial_container_height - current_height
+            if height_diff > 30:  # 容器高度减少30px以上，认为键盘弹出
+                print(f"[容器高度] 当前: {current_height}, 差值: {height_diff}, 键盘弹出")
+                return True
+        
+        # ========== 方法2：通过窗口高度变化判断 ==========
         try:
             if hasattr(self._page, 'window_height') and self._page.window_height:
-                current_height = self._page.window_height
-                
-                # 保存初始高度
+                current_window = self._page.window_height
                 if not hasattr(self, '_initial_window_height'):
-                    self._initial_window_height = current_height
-                    print(f"[键盘检测] 初始窗口高度: {self._initial_window_height}")
+                    self._initial_window_height = current_window
                 
-                # 如果当前高度比初始高度小 80px 以上，认为键盘弹出
-                height_diff = self._initial_window_height - current_height
-                if height_diff > 80:
-                    print(f"[键盘检测] 键盘弹出，高度变化: {height_diff}px")
+                window_diff = self._initial_window_height - current_window
+                if window_diff > 80:
+                    print(f"[窗口高度] 差值: {window_diff}, 键盘弹出")
                     return True
         except:
             pass
         
-        # ========== 方法2：通过容器高度变化判断 ==========
-        if self._container is not None:
-            try:
-                if hasattr(self._container, 'height') and self._container.height:
-                    current_height = self._container.height
-                    if not hasattr(self, '_initial_container_height'):
-                        self._initial_container_height = current_height
-                        print(f"[键盘检测] 初始容器高度: {self._initial_container_height}")
-
-                    height_diff = self._initial_container_height - current_height
-                    if height_diff > 50:
-                        print(f"[键盘检测] 键盘弹出，容器高度变化: {height_diff}px")
-                        return True
-            except:
-                pass
+        # ========== 方法3：通过是否有输入内容判断 ==========
+        if self.text_field.value and len(self.text_field.value) > 0:
+            return True
         
-        # 默认：键盘未弹出
-        print("[键盘检测] 键盘未弹出")
         return False
     
     def on_focus(self, e):
