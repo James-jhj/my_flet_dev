@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.122"
-APP_VERSION_CODE = 122
+APP_VERSION = "1.0.123"
+APP_VERSION_CODE = 123
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -517,11 +517,31 @@ class SearchableDropdownFl(ft.Column):
         print(f"[焦点状态] 获得焦点: {self._has_focus}")
         # 调用原有的 on_focus 逻辑
         self.on_focus(e)
-    
+
     def _on_blur(self, e):
         """失去焦点时记录状态"""
+        # ========== 延迟检测，避免点击下拉箭头时误触发 ==========
+        import asyncio
+        async def delayed_blur():
+            await asyncio.sleep(0.1)
+            # 检查是否真的失去焦点
+            try:
+                if hasattr(self.text_field, 'focused') and not self.text_field.focused:
+                    self._has_focus = False
+                    print(f"[焦点状态] 失去焦点: {self._has_focus}")
+                    # 隐藏下拉框
+                    if self._is_open:
+                        self.hide_dropdown()
+            except:
+                self._has_focus = False
+        asyncio.create_task(delayed_blur())
+    
+    """ 
+    def _on_blur(self, e):
+        #失去焦点时记录状态
         self._has_focus = False
         print(f"[焦点状态] 失去焦点: {self._has_focus}")
+    """
     
     def on_focus(self, e):
         """获得焦点时，设置底部偏移为100（键盘弹出）"""
@@ -648,7 +668,10 @@ class SearchableDropdownFl(ft.Column):
     def toggle_dropdown(self, e):
         """切换下拉列表显示（点击箭头时触发）"""
 
-        #如果是手机平台，且已经弹出了手机输入法（屏幕高度小于600），则根据dropdown_height高度来判断底部偏移量：
+        # ========== 阻止事件冒泡，避免触发 on_blur ==========
+        if hasattr(e, 'stop_propagation'):
+            e.stop_propagation()
+
         # ========== 根据焦点状态决定偏移 ==========
         if self._has_focus:
             # 有焦点，键盘弹出
@@ -682,6 +705,8 @@ class SearchableDropdownFl(ft.Column):
 
         if self._is_open and self._overlay_container and self._overlay_container in self._page.overlay:
             self.hide_dropdown()
+            # 隐藏后重新获取焦点，让键盘保持打开
+            self.text_field.focus()
         else:
             self._filtered_options = None
             self.text_field.value = ""
