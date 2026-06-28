@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.126"
-APP_VERSION_CODE = 126
+APP_VERSION = "1.0.127"
+APP_VERSION_CODE = 127
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -584,7 +584,7 @@ class SearchableDropdownFl(ft.Column):
         if content_height < 70:
             self.dropdown_container.height = 50
         elif content_height > 200:
-            self.dropdown_container.height = 152
+            self.dropdown_container.height = 155
         
         print(f"实际设置高度: {self.dropdown_container.height}")
 
