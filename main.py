@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.121"
-APP_VERSION_CODE = 121
+APP_VERSION = "1.0.122"
+APP_VERSION_CODE = 122
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -471,11 +471,10 @@ class SearchableDropdownFl(ft.Column):
         self.on_change_callback = on_change
         self._overlay_container = None
         self._is_open = False
-        self._bottom_offset = 404
+        self._bottom_offset = 120
 
-        # ========== 界面容器引用 ==========
-        self._container = None
-        self._initial_container_height = 800
+        # ========== 手动记录焦点状态 ==========
+        self._has_focus = False
         
         # 文本输入框
         self.text_field = ft.TextField(
@@ -484,7 +483,8 @@ class SearchableDropdownFl(ft.Column):
             height=56,
             expand=True,
             on_change=self.on_text_change,
-            on_focus=self.on_focus,      # 获得焦点时记录
+            on_focus=self._on_focus,      # 获得焦点时记录
+            on_blur=self._on_blur,        # 失去焦点时记录
             suffix=ft.IconButton(ft.Icons.ARROW_DROP_DOWN, on_click=self.toggle_dropdown),
             **kwargs
         )
@@ -511,91 +511,31 @@ class SearchableDropdownFl(ft.Column):
         
         self.controls = [self.text_field]
 
-    def set_container(self, container):
-        """设置界面容器引用"""
-        self._container = container
-        # 获取初始高度
-        try:
-            if hasattr(container, 'height') and container.height:
-                self._initial_container_height = container.height
-                print(f"[容器高度] 初始高度: {self._initial_container_height}")
-        except Exception as e:
-            print(f"[容器高度] 获取初始高度失败: {e}")
-
-    def _get_container_height(self):
-        """获取当前容器高度"""
-        if self._container is None:
-            return 0
-        try:
-            if hasattr(self._container, 'height') and self._container.height:
-                return self._container.height
-        except:
-            pass
-        return 0
-
-    def _is_keyboard_open(self):
-        """判断键盘是否弹出"""
-        import platform
-        is_android = platform.system() == "Linux"
-        
-        # 非手机平台直接返回 False
-        if not is_android:
-            return False
-        
-        # ========== 方法1：通过容器高度变化判断 ==========
-        current_height = self._get_container_height()
-        if current_height > 0:
-            # 保存初始高度
-            if not hasattr(self, '_initial_container_height'):
-                self._initial_container_height = current_height
-                print(f"[容器高度] 初始: {self._initial_container_height}")
-            
-            height_diff = self._initial_container_height - current_height
-            if height_diff > 30:  # 容器高度减少30px以上，认为键盘弹出
-                print(f"[容器高度] 当前: {current_height}, 差值: {height_diff}, 键盘弹出")
-                return True
-        
-        # ========== 方法2：通过窗口高度变化判断 ==========
-        try:
-            if hasattr(self._page, 'window_height') and self._page.window_height:
-                current_window = self._page.window_height
-                if not hasattr(self, '_initial_window_height'):
-                    self._initial_window_height = current_window
-                
-                window_diff = self._initial_window_height - current_window
-                if window_diff > 80:
-                    print(f"[窗口高度] 差值: {window_diff}, 键盘弹出")
-                    return True
-        except:
-            pass
-        
-        # ========== 方法3：通过是否有输入内容判断 ==========
-        if self.text_field.value and len(self.text_field.value) > 0:
-            return True
-        
-        return False
+    def _on_focus(self, e):
+        """获得焦点时记录状态"""
+        self._has_focus = True
+        print(f"[焦点状态] 获得焦点: {self._has_focus}")
+        # 调用原有的 on_focus 逻辑
+        self.on_focus(e)
+    
+    def _on_blur(self, e):
+        """失去焦点时记录状态"""
+        self._has_focus = False
+        print(f"[焦点状态] 失去焦点: {self._has_focus}")
     
     def on_focus(self, e):
         """获得焦点时，设置底部偏移为100（键盘弹出）"""
 
-        # 判断键盘是否弹出
-        if self._is_keyboard_open():
-            # 键盘弹出，使用手机偏移
-            dropdown_height = self.dropdown_container.height
-            if dropdown_height == 50:
-                self._bottom_offset = 205 # 单个选项
-            else:
-                self._bottom_offset = 120 # 多个选项（高度>100，=135），底部偏移120
-        else:
-            # 键盘未弹出
-            self._bottom_offset = 404
-
-        print(f"键盘是否弹出: {self._is_keyboard_open()}")
+        # 获取当前下拉框高度
+        dropdown_height = self.dropdown_container.height
+        
+        # 多个选项（高度>100，=135），底部偏移120
+        self._bottom_offset = 120
 
         # ========== 显示调试信息（使用 SnackBar） ==========
         try:
             snack = ft.SnackBar(
-                content=ft.Text(f"多个项目高度: {dropdown_height}, 偏移: {self._bottom_offset}, 键盘是否弹出: {self._is_keyboard_open()}"),
+                content=ft.Text(f"获得焦点高度: {dropdown_height}, 偏移: {self._bottom_offset}, 获得焦点: {self._has_focus}"),
                 bgcolor=ft.Colors.BLUE_700,
                 duration=2000,
                 open=True,
@@ -619,7 +559,10 @@ class SearchableDropdownFl(ft.Column):
         # ========== 如果文本框为空，重置并显示完整列表 ==========
         if not search_text or len(search_text) == 0:
             self._filtered_options = None
-            self._bottom_offset = 404
+            if self._has_focus:
+                self._bottom_offset = 120
+            else:
+                self._bottom_offset = 120
             
             # 更新显示完整列表
             self.update_dropdown_content(self.options)
@@ -661,24 +604,17 @@ class SearchableDropdownFl(ft.Column):
                 else:
                     self.on_change_callback(None)
             return
-
-        # ========== 判断键盘是否弹出 ==========
-        if self._is_keyboard_open():
-            # 键盘弹出
-            if len(filtered) == 1:
-                self._bottom_offset = 205  # 单个选项
-            else:
-                self._bottom_offset = 120  # 多个选项
-        else:
-            # 键盘未弹出
-            self._bottom_offset = 404
         
-        print(f"键盘是否弹出: {self._is_keyboard_open()}")
+        # ========== 单个选项时，底部偏移205 ==========
+        if len(filtered) == 1:
+            self._bottom_offset = 205   # 单个选项
+        else:
+            self._bottom_offset = 120   # 多个选项
 
-        # ========== 显示调试信息 ==========
+        # ========== 显示调试信息（使用 SnackBar） ==========
         try:
             snack = ft.SnackBar(
-                content=ft.Text(f"多个项目高度: {dropdown_height}, 偏移: {self._bottom_offset}, 键盘是否弹出: {self._is_keyboard_open()}"),
+                content=ft.Text(f"文本内容变化高度: {dropdown_height}, 偏移: {self._bottom_offset}, 得焦点: {self._has_focus}"),
                 bgcolor=ft.Colors.BLUE_700,
                 duration=2000,
                 open=True,
@@ -713,30 +649,28 @@ class SearchableDropdownFl(ft.Column):
         """切换下拉列表显示（点击箭头时触发）"""
 
         #如果是手机平台，且已经弹出了手机输入法（屏幕高度小于600），则根据dropdown_height高度来判断底部偏移量：
-        # ========== 判断键盘是否弹出 ==========
-        if self._is_keyboard_open:
-            # 键盘弹出
+        # ========== 根据焦点状态决定偏移 ==========
+        if self._has_focus:
+            # 有焦点，键盘弹出
             dropdown_height = self.dropdown_container.height
-            # 手机端 + 文本框获得焦点（键盘弹出）
-            if dropdown_height == 50:
-                self._bottom_offset = 205 # 只有1个子项时的偏移量
-            elif dropdown_height == 135:
-                self._bottom_offset = 120 # 有多个子项时的偏移量
+            is_android = platform.system() == "Linux"
+            if is_android:
+                # 手机端 + 文本框获得焦点（键盘弹出）
+                if dropdown_height == 50:
+                    self._bottom_offset = 205 # 只有1个子项时的偏移量
+                elif dropdown_height == 135:
+                    self._bottom_offset = 120 # 有多个子项时的偏移量
+            else:
+                # 键盘未弹出或电脑端
+                self._bottom_offset = 120     # 正常情况下的偏移量
         else:
-            # 无焦点，键盘未弹出，使用默认偏移
+            # 无焦点，使用默认偏移
             self._bottom_offset = 404     # 正常情况下的偏移量
-        
-        # 清空过滤状态，显示完整列表
-        self._filtered_options = None
-        self.text_field.value = ""
-        self.text_field.update()
-        
-        print(f"键盘是否弹出: {self._is_keyboard_open()}")
 
         # ========== 显示调试信息（使用 SnackBar） ==========
         try:
             snack = ft.SnackBar(
-                content=ft.Text(f"点击右边下拉框按钮高度: {dropdown_height}, 偏移: {self._bottom_offset},键盘是否弹出: {self._is_keyboard_open()}"),
+                content=ft.Text(f"点击右边下拉框按钮高度: {dropdown_height}, 偏移: {self._bottom_offset},获得焦点: {self._has_focus}"),
                 bgcolor=ft.Colors.BLUE_700,
                 duration=2000,
                 open=True,
@@ -749,57 +683,14 @@ class SearchableDropdownFl(ft.Column):
         if self._is_open and self._overlay_container and self._overlay_container in self._page.overlay:
             self.hide_dropdown()
         else:
+            self._filtered_options = None
+            self.text_field.value = ""
+            self.text_field.update()
             self.show_dropdown()
     
     def show_dropdown(self):
         """显示下拉列表（使用 Overlay 悬浮）"""
         print(f"[创建Overlay] 底部偏移最新: {self._bottom_offset}")
-
-        # ========== 检查键盘状态 ==========
-        is_android = platform.system() == "Linux"
-        
-        if is_android:
-            # 获取当前容器高度
-            current_height = 0
-            if self._container is not None:
-                try:
-                    if hasattr(self._container, 'height') and self._container.height:
-                        current_height = self._container.height
-                except:
-                    pass
-            
-            # 保存初始高度
-            if not hasattr(self, '_initial_container_height'):
-                self._initial_container_height = current_height if current_height > 0 else 800
-                print(f"[容器高度] 初始: {self._initial_container_height}")
-            
-            # 判断键盘是否弹出
-            height_diff = self._initial_container_height - current_height
-            is_keyboard_open = height_diff > 30
-            
-            print(f"[容器高度] 当前: {current_height}, 差值: {height_diff}, 键盘: {is_keyboard_open}")
-            
-            # 根据键盘状态设置偏移
-            if is_keyboard_open:
-                dropdown_height = self.dropdown_container.height
-                if dropdown_height <= 50:
-                    self._bottom_offset = 205
-                else:
-                    self._bottom_offset = 120
-            else:
-                self._bottom_offset = 404
-
-        try:
-            snack = ft.SnackBar(
-                content=ft.Text(f"[容器高度] 当前: {current_height}, 差值: {height_diff}, 键盘: {is_keyboard_open}"),
-                bgcolor=ft.Colors.BLUE_700,
-                duration=2000,
-                open=True,
-            )
-            self._page.overlay.append(snack)
-            self._page.update()
-        except:
-            pass
         
         # 先移除旧的 Overlay
         if self._overlay_container and self._overlay_container in self._page.overlay:
@@ -5294,9 +5185,6 @@ def main(page: ft.Page):
                 right=20,
                 bottom=50,
             )
-            
-            # ========== 设置下拉框的容器引用 ==========
-            category_field.set_container(edit_dialog_container)
 
             page.overlay.append(edit_dialog_container)
             page.update()
@@ -6757,9 +6645,6 @@ def main(page: ft.Page):
                 right=20,
                 bottom=50,
             )
-
-            # ========== 设置下拉框的容器引用 ==========
-            category_field.set_container(dialog_container)
             
             page.overlay.append(dialog_container)
             page.update()
