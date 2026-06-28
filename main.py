@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.124"
-APP_VERSION_CODE = 124
+APP_VERSION = "1.0.125"
+APP_VERSION_CODE = 125
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -506,6 +506,7 @@ class SearchableDropdownFl(ft.Column):
             self.text_field,
             self.dropdown_container,
         ]
+        self.spacing = 1  # 让文本框和下拉框紧贴
     
     def on_text_change(self, e):
         """文本变化时过滤选项"""
