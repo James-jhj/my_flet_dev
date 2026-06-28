@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.128"
-APP_VERSION_CODE = 128
+APP_VERSION = "1.0.129"
+APP_VERSION_CODE = 129
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -287,7 +287,8 @@ class SearchableDropdown(ft.Column):
             value=value,
             height=45,
             expand=True,
-            read_only=True,  # 添加只读属性
+            read_only=True,   # 添加只读属性
+            on_blur=self.on_blur,  # 添加失去焦点事件
             #on_change=self.on_text_change,
             #on_focus=self.on_focus,
             suffix=ft.IconButton(ft.Icons.ARROW_DROP_DOWN, on_click=self.toggle_dropdown),
@@ -344,6 +345,9 @@ class SearchableDropdown(ft.Column):
     def on_focus(self, e):
         """获得焦点时显示下拉列表"""
         self.show_dropdown()
+
+    def on_blur(self, e):
+        pass
     
     def toggle_dropdown(self, e):
         """切换下拉列表显示"""
@@ -632,6 +636,7 @@ class SearchableDropdownEvtTp(ft.Column):
             height=56,
             expand=True,
             read_only=True,  # 添加只读属性
+            on_blur=self.on_blur,  # 添加失去焦点事件
             #on_change=self.on_text_change,
             #on_focus=self.on_focus,
             suffix=ft.IconButton(ft.Icons.ARROW_DROP_DOWN, on_click=self.toggle_dropdown),
@@ -676,6 +681,9 @@ class SearchableDropdownEvtTp(ft.Column):
     
     def on_focus(self, e):
         self.show_dropdown()
+
+    def on_blur(self, e):
+        pass
     
     def toggle_dropdown(self, e):
         if self._overlay_container and self._overlay_container in self._page.overlay:
@@ -808,6 +816,7 @@ class SearchableDropdownEvtLf(ft.Column):
             height=56,
             expand=True,
             read_only=True,  # 添加只读属性
+            on_blur=self.on_blur,  # 添加失去焦点事件
             #on_change=self.on_text_change,
             #on_focus=self.on_focus,
             suffix=ft.IconButton(ft.Icons.ARROW_DROP_DOWN, on_click=self.toggle_dropdown),
@@ -852,6 +861,9 @@ class SearchableDropdownEvtLf(ft.Column):
     
     def on_focus(self, e):
         self.show_dropdown()
+
+    def on_blur(self, e):
+        pass
     
     def toggle_dropdown(self, e):
         if self._overlay_container and self._overlay_container in self._page.overlay:
@@ -974,6 +986,7 @@ class SearchableDropdownEvtWeek(ft.Column):
             height=56,
             expand=True,
             read_only=True,  # 添加只读属性
+            on_blur=self.on_blur,  # 添加失去焦点事件
             #on_change=self.on_text_change,
             #on_focus=self.on_focus,
             suffix=ft.IconButton(ft.Icons.ARROW_DROP_DOWN, on_click=self.toggle_dropdown),
@@ -1018,6 +1031,9 @@ class SearchableDropdownEvtWeek(ft.Column):
     
     def on_focus(self, e):
         self.show_dropdown()
+
+    def on_blur(self, e):
+        pass
     
     def toggle_dropdown(self, e):
         if self._overlay_container and self._overlay_container in self._page.overlay:
@@ -4831,12 +4847,17 @@ def main(page: ft.Page):
             else:
                 title_text = "编辑支出"
                 title_icon = "💸"
-            
+
+            def on_date_field_blur(e):
+                # 名称输入框失去焦点时的操作
+                pass
+
             date_field = ft.TextField(
                 label="日期",
                 value=transaction.date,
                 read_only=True,
                 expand=True,
+                on_blur=on_date_field_blur,  # 添加失去焦点事件
             )
 
             category_field = SearchableDropdownFl(
@@ -4847,19 +4868,29 @@ def main(page: ft.Page):
                 on_change=lambda e: print(f"选择: {e}"),
             )
             
+            def on_amount_blur(e):
+                # 名称输入框失去焦点时的操作
+                pass
+
             amount_field = ft.TextField(
                 label="金额",
                 value=str(abs(transaction.amount)),
                 keyboard_type=ft.KeyboardType.NUMBER,
                 expand=True,
+                on_blur=on_amount_blur,  # 添加失去焦点事件
             )
+
+            def on_note_blur(e):
+                # 名称输入框失去焦点时的操作
+                pass
             
-            note_field = ft.TextField(
+            on_note_blur = ft.TextField(
                 label="备注",
                 value=transaction.note,
                 expand=True,
                 multiline=True,
                 max_lines=3,
+                on_blur=on_note_blur,  # 添加失去焦点事件
             )
             
             # ========== 修复日期选择器 ==========
@@ -5305,6 +5336,10 @@ def main(page: ft.Page):
                 close_bottom_sheet()
                 show_bottom_message(f"已切换到 {month_label}")
             
+            def on_start_date_field_bottom_blur(e):
+                # 名称输入框失去焦点时的操作
+                pass
+
             # ========== 自定义区间 ==========
             start_date_field_bottom = ft.TextField(
                 label="开始日期",
@@ -5313,8 +5348,13 @@ def main(page: ft.Page):
                 expand=True,
                 height=45,
                 on_click=lambda e: show_date_picker("start"),
+                on_blur=on_start_date_field_bottom_blur,  # 添加失去焦点事件
             )
             
+            def on_end_date_field_bottom_blur(e):
+                # 名称输入框失去焦点时的操作
+                pass
+
             end_date_field_bottom = ft.TextField(
                 label="结束日期",
                 value=custom_end,
@@ -5322,6 +5362,7 @@ def main(page: ft.Page):
                 expand=True,
                 height=45,
                 on_click=lambda e: show_date_picker("end"),
+                on_blur=on_end_date_field_bottom_blur,  # 添加失去焦点事件
             )
 
              # ========== 自定义区间内容 ==========
@@ -6144,6 +6185,11 @@ def main(page: ft.Page):
                 show_bottom_message(f"已查询 {start_date.strftime('%Y-%m-%d')} ~ {end_date.strftime('%Y-%m-%d')}")
             except ValueError:
                 show_bottom_message("日期格式错误，请选择有效日期", is_error=True)
+        
+
+        def on_start_date_field_blur(e):
+            # 名称输入框失去焦点时的操作
+            pass
 
         # ========== 区间查询控件 ==========
         start_date_field = ft.TextField(
@@ -6152,7 +6198,12 @@ def main(page: ft.Page):
             read_only=True,
             expand=True,
             on_click=lambda e: page.show_dialog(start_date_picker),
+            on_blur=on_start_date_field_blur,  # 添加失去焦点事件
         )
+
+        def on_end_date_field_blur(e):
+            # 名称输入框失去焦点时的操作
+            pass
 
         end_date_field = ft.TextField(
             label="结束日期",
@@ -6160,6 +6211,7 @@ def main(page: ft.Page):
             read_only=True,
             expand=True,
             on_click=lambda e: page.show_dialog(end_date_picker),
+            on_blur=on_end_date_field_blur,  # 添加失去焦点事件
         )
 
         range_row = ft.Row([
@@ -6286,12 +6338,17 @@ def main(page: ft.Page):
                 title_text = "添加支出"
                 title_icon = "💸"
             
+            def on_date_field_blur(e):
+                # 名称输入框失去焦点时的操作
+                pass
+
             # 日期字段
             date_field = ft.TextField(
                 label="日期",
                 value=datetime.now().strftime("%Y-%m-%d"),
                 read_only=True,
                 expand=True,
+                on_blur=on_date_field_blur,  # 添加失去焦点事件
             )
             
             # 根据收支类型显示不同的分类列表
@@ -6305,12 +6362,22 @@ def main(page: ft.Page):
                 on_change=lambda e: print(f"选择: {e}"),
             )
             
+
+            def on_amount_field_blur(e):
+                # 名称输入框失去焦点时的操作
+                pass
+
             amount_field = ft.TextField(
                 label="金额",
                 hint_text="请输入金额",
                 keyboard_type=ft.KeyboardType.NUMBER,
                 expand=True,
+                on_blur=on_amount_field_blur,  # 添加失去焦点事件
             )
+
+            def on_note_field_blur(e):
+                # 名称输入框失去焦点时的操作
+                pass
             
             note_field = ft.TextField(
                 label="备注",
@@ -6318,6 +6385,7 @@ def main(page: ft.Page):
                 expand=True,
                 multiline=True,
                 max_lines=3,
+                on_blur=on_note_field_blur,  # 添加失去焦点事件
             )
             
             # 日期选择器
@@ -8650,6 +8718,10 @@ def main(page: ft.Page):
             value=initial_date,  # 设置初始值
             on_change=lambda e: on_date_selected(e),
         )
+        
+        def on_date_display_field_blur(e):
+            # 名称输入框失去焦点时的操作
+            pass
 
         # 日期显示字段
         date_display_field = ft.TextField(
@@ -8659,6 +8731,7 @@ def main(page: ft.Page):
             expand=True,
             on_click=lambda e: page.show_dialog(date_picker),  # 使用 show_dialog
             visible=True,  # 默认可见，但会根据事件类型动态调整
+            on_blur=on_date_display_field_blur,  # 添加失去焦点事件
         )
         
         # 添加多个时间提醒的按钮和列表
@@ -8686,6 +8759,10 @@ def main(page: ft.Page):
 
             # 创建时间选择器
             time_picker = ft.TimePicker()
+            
+            def on_time_display_field_blur(e):
+                # 名称输入框失去焦点时的操作
+                pass
 
             # 时间显示字段
             time_display_field = ft.TextField(
@@ -8695,6 +8772,7 @@ def main(page: ft.Page):
                 #width=120,
                 expand=True,
                 value=time_str if time_str else "",  # 直接设置显示值
+                on_blur=on_time_display_field_blur,  # 添加失去焦点事件
             )
 
             # 如果传入了时间参数，设置显示值
@@ -9578,20 +9656,29 @@ def main(page: ft.Page):
             update_current_playing_info()
             page.update()
 
-        
+        def on_name_blur(e):
+            # 名称输入框失去焦点时的操作
+            pass
+
         # 定义所有控件
         # 名称输入框
         name_field = ft.TextField(
             label="姓名" if (selected_event and selected_event.event_type == "birthday") else "事件名称",
             value=selected_event.name if selected_event else "", 
-            expand=True
+            expand=True,
+            on_blur=on_name_blur,  # 添加失去焦点事件
         )
         
+        def on_music_blur(e):
+            # 名称输入框失去焦点时的操作
+            pass
+
         music_field = ft.TextField(
             label="音乐文件路径", 
             value=selected_event.sound_file if selected_event else "", 
             hint_text="可直接输入路径，或点击按钮选择",
             expand=True,
+            on_blur=on_music_blur,  # 添加失去焦点事件
         )
         
         # 提示文本
@@ -9611,13 +9698,19 @@ def main(page: ft.Page):
             ],
             spacing=5,
         )
-        
+
+        def on_search_keyword_blur(e):
+            # 名称输入框失去焦点时的操作
+            pass
+
         # ========== 音乐搜索相关控件 ==========
         search_keyword_field = ft.TextField(
             label="搜索歌曲", 
             hint_text="输入歌曲名或歌手名",
             expand=True,
+            on_blur=on_search_keyword_blur,  # 添加失去焦点事件
         )
+
         search_btn = ft.Button("🔍 搜索", expand=True)
         search_results_dropdown = ft.Dropdown(
             label="搜索结果",
