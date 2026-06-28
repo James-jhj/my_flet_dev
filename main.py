@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.120"
-APP_VERSION_CODE = 120
+APP_VERSION = "1.0.121"
+APP_VERSION_CODE = 121
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -754,6 +754,52 @@ class SearchableDropdownFl(ft.Column):
     def show_dropdown(self):
         """显示下拉列表（使用 Overlay 悬浮）"""
         print(f"[创建Overlay] 底部偏移最新: {self._bottom_offset}")
+
+        # ========== 检查键盘状态 ==========
+        is_android = platform.system() == "Linux"
+        
+        if is_android:
+            # 获取当前容器高度
+            current_height = 0
+            if self._container is not None:
+                try:
+                    if hasattr(self._container, 'height') and self._container.height:
+                        current_height = self._container.height
+                except:
+                    pass
+            
+            # 保存初始高度
+            if not hasattr(self, '_initial_container_height'):
+                self._initial_container_height = current_height if current_height > 0 else 800
+                print(f"[容器高度] 初始: {self._initial_container_height}")
+            
+            # 判断键盘是否弹出
+            height_diff = self._initial_container_height - current_height
+            is_keyboard_open = height_diff > 30
+            
+            print(f"[容器高度] 当前: {current_height}, 差值: {height_diff}, 键盘: {is_keyboard_open}")
+            
+            # 根据键盘状态设置偏移
+            if is_keyboard_open:
+                dropdown_height = self.dropdown_container.height
+                if dropdown_height <= 50:
+                    self._bottom_offset = 205
+                else:
+                    self._bottom_offset = 120
+            else:
+                self._bottom_offset = 404
+
+        try:
+            snack = ft.SnackBar(
+                content=ft.Text(f"[容器高度] 当前: {current_height}, 差值: {height_diff}, 键盘: {is_keyboard_open}"),
+                bgcolor=ft.Colors.BLUE_700,
+                duration=2000,
+                open=True,
+            )
+            self._page.overlay.append(snack)
+            self._page.update()
+        except:
+            pass
         
         # 先移除旧的 Overlay
         if self._overlay_container and self._overlay_container in self._page.overlay:
