@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.116"
-APP_VERSION_CODE = 116
+APP_VERSION = "1.0.117"
+APP_VERSION_CODE = 117
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -532,9 +532,6 @@ class SearchableDropdownFl(ft.Column):
         # 多个选项（高度>100，=135），底部偏移120
         self._bottom_offset = 120
 
-        # ========== 判断文本框是否获得焦点 ==========
-        is_focused = self.text_field.focused if hasattr(self.text_field, 'focused') else False
-
         # ========== 显示调试信息（使用 SnackBar） ==========
         try:
             snack = ft.SnackBar(
@@ -569,16 +566,23 @@ class SearchableDropdownFl(ft.Column):
         # 保存过滤结果
         self._filtered_options = filtered
 
-        # ========== 判断文本框是否获得焦点 ==========
-        is_focused = self.text_field.focused if hasattr(self.text_field, 'focused') else False
+        # ========== 根据筛选结果处理 ==========
+        if len(filtered) == 0:
+            # 没有匹配结果，隐藏下拉框
+            self.hide_dropdown()
+            if self.on_change_callback:
+                value = self.text_field.value
+                if value and value.strip():
+                    self.on_change_callback(value)
+                else:
+                    self.on_change_callback(None)
+            return
         
         # ========== 单个选项时，底部偏移205 ==========
         if len(filtered) == 1:
-            self._bottom_offset = 205
-        elif len(filtered) > 0:
-            self._bottom_offset = 120
+            self._bottom_offset = 205   # 单个选项
         else:
-            self._bottom_offset = 404
+            self._bottom_offset = 120   # 多个选项
 
         # ========== 显示调试信息（使用 SnackBar） ==========
         try:
