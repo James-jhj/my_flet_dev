@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.114"
-APP_VERSION_CODE = 114
+APP_VERSION = "1.0.115"
+APP_VERSION_CODE = 115
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -513,8 +513,8 @@ class SearchableDropdownFl(ft.Column):
         # 获取当前下拉框高度
         dropdown_height = self.dropdown_container.height
         
-        # 多个选项（高度>100，=135），底部偏移119
-        self._bottom_offset = 119
+        # 多个选项（高度>100，=135），底部偏移120
+        self._bottom_offset = 120
 
         # ========== 显示调试信息（使用 SnackBar） ==========
         try:
@@ -547,11 +547,11 @@ class SearchableDropdownFl(ft.Column):
         # 保存过滤结果
         self._filtered_options = filtered
         
-        # ========== 单个选项时，底部偏移204 ==========
+        # ========== 单个选项时，底部偏移205 ==========
         if len(filtered) == 1:
-            self._bottom_offset = 204
+            self._bottom_offset = 205
         elif len(filtered) > 0:
-            self._bottom_offset = 119
+            self._bottom_offset = 120
         else:
             self._bottom_offset = 404
         
@@ -581,14 +581,34 @@ class SearchableDropdownFl(ft.Column):
 
         # 获取当前下拉框高度
         dropdown_height = self.dropdown_container.height
-        
+
         # 点击右边下拉框按钮，底部偏移404
-        self._bottom_offset = 404
+        #self._bottom_offset = 404
+
+        is_android = platform.system() == "Linux"
+
+        # ========== 获取屏幕高度 ==========
+        screen_height = 800  # 默认值
+        try:
+            if hasattr(self._page, 'window_height') and self._page.window_height:
+                screen_height = self._page.window_height
+                print(f"[屏幕高度] 当前窗口高度: {screen_height}")
+        except:
+            pass
+        
+        #如果是手机平台，且已经弹出了手机输入法（屏幕高度小于600），则根据dropdown_height高度来判断底部偏移量：
+        if is_android and screen_height < 600:
+            if dropdown_height == 50:
+                self._bottom_offset = 205 # 只有1个子项时的偏移量
+            elif dropdown_height == 135:
+                self._bottom_offset = 120 # 有多个子项时的偏移量
+        else:
+            self._bottom_offset = 404     # 正常情况下的偏移量
 
         # ========== 显示调试信息（使用 SnackBar） ==========
         try:
             snack = ft.SnackBar(
-                content=ft.Text(f"点击右边下拉框按钮高度: {dropdown_height}, 偏移: {self._bottom_offset}"),
+                content=ft.Text(f"点击右边下拉框按钮高度: {dropdown_height}, 偏移: {self._bottom_offset},[屏幕高度] 当前窗口高度: {screen_height}"),
                 bgcolor=ft.Colors.BLUE_700,
                 duration=2000,
                 open=True,

@@ -1,0 +1,392 @@
+[
+  {
+    "id": "1781235253364",
+    "name": "爷爷",
+    "birth_date": "1937-10-17",
+    "calendar_type": "lunar",
+    "event_type": "birthday",
+    "repeat_type": "yearly",
+    "sound_file": "music\\难解-巴邓顿珠&自游诗.mp3",
+    "reminded_this_year": false,
+    "last_remind_year": 0,
+    "completed": false,
+    "reminders": [],
+    "workday_only": false
+  },
+  {
+    "id": "1781235253365",
+    "name": "爸爸",
+    "birth_date": "1961-05-20",
+    "calendar_type": "lunar",
+    "event_type": "birthday",
+    "repeat_type": "yearly",
+    "sound_file": "music\\阿嬷-周林枫.mp3",
+    "reminded_this_year": false,
+    "last_remind_year": 0,
+    "completed": false,
+    "reminders": [],
+    "workday_only": false
+  },
+  {
+    "id": "1781235253366",
+    "name": "妈妈",
+    "birth_date": "1963-09-29",
+    "calendar_type": "lunar",
+    "event_type": "birthday",
+    "repeat_type": "yearly",
+    "sound_file": "music\\阿嬷-周林枫.mp3",
+    "reminded_this_year": false,
+    "last_remind_year": 0,
+    "completed": false,
+    "reminders": [],
+    "workday_only": false
+  },
+  {
+    "id": "1781235253368",
+    "name": "蒋华杰",
+    "birth_date": "1983-12-29",
+    "calendar_type": "lunar",
+    "event_type": "birthday",
+    "repeat_type": "yearly",
+    "sound_file": "C:\\Users\\Lenovo\\Music\\BirthdayReminder\\要我怎么忘了他-谢霆锋.mp3",
+    "reminded_this_year": false,
+    "last_remind_year": 0,
+    "completed": false,
+    "reminders": [
+      {
+        "time": "13:19",
+        "enabled": true
+      }
+    ],
+    "workday_only": false
+  },
+  {
+    "id": "1781235253369",
+    "name": "蒋华文",
+    "birth_date": "1987-06-09",
+    "calendar_type": "lunar",
+    "event_type": "birthday",
+    "repeat_type": "yearly",
+    "sound_file": "music\\有心理准备-林芊瑩.mp3",
+    "reminded_this_year": false,
+    "last_remind_year": 0,
+    "completed": false,
+    "reminders": [],
+    "workday_only": false
+  },
+  {
+    "id": "1781235253370",
+    "name": "老婆",
+    "birth_date": "1989-04-21",
+    "calendar_type": "lunar",
+    "event_type": "birthday",
+    "repeat_type": "yearly",
+    "sound_file": "music\\青花-周传雄.mp3",
+    "reminded_this_year": true,
+    "last_remind_year": 2026,
+    "completed": false,
+    "reminders": [],
+    "workday_only": false
+  },
+  {
+    "id": "1781235253371",
+    "name": "梓欣",
+    "birth_date": "2009-07-07",
+    "calendar_type": "solar",
+    "event_type": "birthday",
+    "repeat_type": "yearly",
+    "sound_file": "music\\海浪-黄品源.mp3",
+    "reminded_this_year": false,
+    "last_remind_year": 0,
+    "completed": false,
+    "reminders": [],
+    "workday_only": false
+  },
+  {
+    "id": "1781235253372",
+    "name": "清竹",
+    "birth_date": "2025-05-07",
+    "calendar_type": "solar",
+    "event_type": "birthday",
+    "repeat_type": "yearly",
+    "sound_file": "music\\电台情歌-莫文蔚.mp3",
+    "reminded_this_year": false,
+    "last_remind_year": 0,
+    "completed": false,
+    "reminders": [],
+    "workday_only": false
+  },
+  {
+    "id": "1781235253373",
+    "name": "子浩",
+    "birth_date": "2016-03-18",
+    "calendar_type": "lunar",
+    "event_type": "birthday",
+    "repeat_type": "yearly",
+    "sound_file": "music\\转身即心痛-吉星出租.mp3",
+    "reminded_this_year": false,
+    "last_remind_year": 0,
+    "completed": false,
+    "reminders": [],
+    "workday_only": false
+  },
+  {
+    "id": "1781235253374",
+    "name": "陈娟",
+    "birth_date": "1990-03-19",
+    "calendar_type": "lunar",
+    "event_type": "birthday",
+    "repeat_type": "yearly",
+    "sound_file": "music\\黄诗扶 - 九万字.mp3",
+    "reminded_this_year": false,
+    "last_remind_year": 0,
+    "completed": false,
+    "reminders": [],
+    "workday_only": false
+  },
+  {
+    "id": "1781235253375",
+    "name": "移动话费领取",
+    "birth_date": "16",
+    "calendar_type": "solar",
+    "event_type": "monthly",
+    "repeat_type": "monthly",
+    "sound_file": "music\\有心理准备-林芊瑩.mp3",
+    "reminded_this_year": true,
+    "last_remind_year": 2026,
+    "completed": false,
+    "reminders": [],
+    "workday_only": false
+  },
+  {
+    "id": "1781235253376",
+    "name": "发工资",
+    "birth_date": "15",
+    "calendar_type": "solar",
+    "event_type": "monthly",
+    "repeat_type": "monthly",
+    "sound_file": "music\\ycccc - 转身即别离.mp3",
+    "reminded_this_year": true,
+    "last_remind_year": 2026,
+    "completed": false,
+    "reminders": [],
+    "workday_only": false
+  },
+  {
+    "id": "1781235253377",
+    "name": "上班时间",
+    "birth_date": "",
+    "calendar_type": "solar",
+    "event_type": "daily",
+    "repeat_type": "daily",
+    "sound_file": "C:\\Users\\Lenovo\\Music\\BirthdayReminder\\当你孤单你会想起谁-张栋梁.mp3",
+    "reminded_this_year": false,
+    "last_remind_year": 0,
+    "completed": false,
+    "reminders": [
+      {
+        "time": "08:30",
+        "enabled": true
+      }
+    ],
+    "workday_only": true
+  },
+  {
+    "id": "1781235253378",
+    "name": "下班时间",
+    "birth_date": "",
+    "calendar_type": "solar",
+    "event_type": "daily",
+    "repeat_type": "daily",
+    "sound_file": "music\\难解-巴邓顿珠&自游诗.mp3",
+    "reminded_this_year": false,
+    "last_remind_year": 0,
+    "completed": false,
+    "reminders": [
+      {
+        "time": "18:30",
+        "enabled": true
+      }
+    ],
+    "workday_only": true
+  },
+  {
+    "id": "1781235253379",
+    "name": "起床时间",
+    "birth_date": "",
+    "calendar_type": "solar",
+    "event_type": "daily",
+    "repeat_type": "daily",
+    "sound_file": "music\\大梦归离-李宇春.mp3",
+    "reminded_this_year": false,
+    "last_remind_year": 0,
+    "completed": false,
+    "reminders": [
+      {
+        "time": "07:30",
+        "enabled": true
+      }
+    ],
+    "workday_only": true
+  },
+  {
+    "id": "1781235253380",
+    "name": "开庭",
+    "birth_date": "2026-07-08",
+    "calendar_type": "solar",
+    "event_type": "once",
+    "repeat_type": "once",
+    "sound_file": "music\\Lonely-Nana.mp3",
+    "reminded_this_year": false,
+    "last_remind_year": 0,
+    "completed": false,
+    "reminders": [],
+    "workday_only": false
+  },
+  {
+    "id": "1781235253384",
+    "name": "中午吃饭",
+    "birth_date": "",
+    "calendar_type": "solar",
+    "event_type": "daily",
+    "repeat_type": "daily",
+    "sound_file": "music\\我们的爱-F.I.R.mp3",
+    "reminded_this_year": false,
+    "last_remind_year": 0,
+    "completed": false,
+    "reminders": [
+      {
+        "time": "12:00",
+        "enabled": true
+      }
+    ],
+    "workday_only": true
+  },
+  {
+    "id": "1781235253385",
+    "name": "放假啦",
+    "birth_date": "5",
+    "calendar_type": "solar",
+    "event_type": "weekly",
+    "repeat_type": "weekly",
+    "sound_file": "music\\电台情歌-莫文蔚.mp3",
+    "reminded_this_year": true,
+    "last_remind_year": 2026,
+    "completed": false,
+    "reminders": [
+      {
+        "time": "18:30",
+        "enabled": true
+      }
+    ],
+    "workday_only": true
+  },
+  {
+    "id": "1781235253388",
+    "name": "陈凡",
+    "birth_date": "2010-11-28",
+    "calendar_type": "lunar",
+    "event_type": "birthday",
+    "repeat_type": "yearly",
+    "sound_file": "music\\Wasted.mp3",
+    "reminded_this_year": false,
+    "last_remind_year": 0,
+    "completed": false,
+    "reminders": [],
+    "workday_only": false
+  },
+  {
+    "id": "1781329839",
+    "name": "睡觉时间",
+    "birth_date": "",
+    "calendar_type": "solar",
+    "event_type": "daily",
+    "repeat_type": "daily",
+    "sound_file": "C:\\Users\\Lenovo\\Music\\BirthdayReminder\\信仰-张信哲.mp3",
+    "reminded_this_year": false,
+    "last_remind_year": 0,
+    "completed": false,
+    "reminders": [
+      {
+        "time": "23:00",
+        "enabled": true
+      }
+    ],
+    "workday_only": false
+  },
+  {
+    "id": "1781330154",
+    "name": "下午上班",
+    "birth_date": "",
+    "calendar_type": "solar",
+    "event_type": "daily",
+    "repeat_type": "daily",
+    "sound_file": "music\\难解-巴邓顿珠&自游诗.mp3",
+    "reminded_this_year": false,
+    "last_remind_year": 0,
+    "completed": false,
+    "reminders": [
+      {
+        "time": "14:00",
+        "enabled": true
+      }
+    ],
+    "workday_only": true
+  },
+  {
+    "id": "1781680782",
+    "name": "买票回广州",
+    "birth_date": "2026-06-23",
+    "calendar_type": "solar",
+    "event_type": "once",
+    "repeat_type": "once",
+    "sound_file": "music\\大梦归离-李宇春.mp3",
+    "reminded_this_year": false,
+    "last_remind_year": 0,
+    "completed": true,
+    "reminders": [],
+    "workday_only": false
+  },
+  {
+    "id": "1781938386",
+    "name": "测试今日事件",
+    "birth_date": "20",
+    "calendar_type": "solar",
+    "event_type": "monthly",
+    "repeat_type": "monthly",
+    "sound_file": "music\\大梦归离-李宇春.mp3",
+    "reminded_this_year": true,
+    "last_remind_year": 2026,
+    "completed": false,
+    "reminders": [],
+    "workday_only": false
+  },
+  {
+    "id": "1782290074",
+    "name": "生理期",
+    "birth_date": "10",
+    "calendar_type": "solar",
+    "event_type": "monthly",
+    "repeat_type": "monthly",
+    "sound_file": "music\\我们的爱-F.I.R.mp3",
+    "reminded_this_year": false,
+    "last_remind_year": 0,
+    "completed": false,
+    "reminders": [],
+    "workday_only": false
+  },
+  {
+    "id": "1782291345",
+    "name": "测试每月",
+    "birth_date": "10",
+    "calendar_type": "solar",
+    "event_type": "monthly",
+    "repeat_type": "monthly",
+    "sound_file": "music\\大梦归离-李宇春.mp3",
+    "reminded_this_year": false,
+    "last_remind_year": 0,
+    "completed": false,
+    "reminders": [],
+    "workday_only": false
+  }
+]
