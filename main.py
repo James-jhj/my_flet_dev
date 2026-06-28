@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.111"
-APP_VERSION_CODE = 111
+APP_VERSION = "1.0.112"
+APP_VERSION_CODE = 112
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -777,7 +777,8 @@ class SearchableDropdownEvtTp(ft.Column):
         # 下拉列表容器
         self.dropdown_container = ft.Container(
             content=ft.Column([], spacing=2, scroll=ft.ScrollMode.AUTO),
-            width=300,
+            #width=300,
+            expand=True,
             height=50,
             bgcolor=ft.Colors.WHITE,
             border=border,
@@ -825,9 +826,12 @@ class SearchableDropdownEvtTp(ft.Column):
                 ft.Container(expand=True, on_click=lambda e: self.hide_dropdown()),
                 # 下拉框（在 Row 中居中）
                 ft.Row([
-                    ft.Container(expand=True),  # 左侧弹性空间
-                    self.dropdown_container,    # 下拉框居中
-                    ft.Container(expand=True),  # 右侧弹性空间
+                    ft.Container(width=30),  # 左边距
+                    ft.Container(
+                        content=self.dropdown_container,
+                        expand=True,  # 宽度填满剩余空间
+                    ),
+                    ft.Container(width=30),  # 右边距
                 ]),
                 # 下方空白
                 ft.Container(height=340, on_click=lambda e: self.hide_dropdown()),
@@ -1002,7 +1006,7 @@ class SearchableDropdownEvtLf(ft.Column):
                     ft.Container(expand=True),  # 右侧弹性空间
                 ]),
                 # 下方空白
-                ft.Container(height=306, on_click=lambda e: self.hide_dropdown()),
+                ft.Container(height=307, on_click=lambda e: self.hide_dropdown()),
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
@@ -1164,7 +1168,7 @@ class SearchableDropdownEvtWeek(ft.Column):
                     ft.Container(expand=True),  # 右侧弹性空间
                 ]),
                 # 下方空白
-                ft.Container(height=135, on_click=lambda e: self.hide_dropdown()),
+                ft.Container(height=136, on_click=lambda e: self.hide_dropdown()),
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
