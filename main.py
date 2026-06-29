@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.129"
-APP_VERSION_CODE = 129
+APP_VERSION = "1.0.130"
+APP_VERSION_CODE = 130
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -4884,7 +4884,7 @@ def main(page: ft.Page):
                 # 名称输入框失去焦点时的操作
                 pass
             
-            on_note_blur = ft.TextField(
+            note_field = ft.TextField(
                 label="备注",
                 value=transaction.note,
                 expand=True,
