@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.138"
-APP_VERSION_CODE = 138
+APP_VERSION = "1.0.139"
+APP_VERSION_CODE = 139
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -493,7 +493,6 @@ class SearchableDropdownFl(ft.Column):
             height=56,
             expand=True,
             on_change=self.on_text_change,
-            on_click=self.toggle_dropdown,  # 添加这行
             on_focus=self._on_focus,        # 获得焦点时记录
             on_blur=self._on_blur,          # 失去焦点时记录
             suffix=ft.IconButton(ft.Icons.ARROW_DROP_DOWN, on_click=self.toggle_dropdown),
