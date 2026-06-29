@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.133"
-APP_VERSION_CODE = 133
+APP_VERSION = "1.0.134"
+APP_VERSION_CODE = 134
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -472,23 +472,22 @@ class SearchableDropdown(ft.Column):
         self.text_field.update()
 
 class SearchableDropdownFl(ft.Column):
-    """可搜索的下拉选择框"""
+    """可搜索的下拉选择框（手机端支持点击外部关闭）"""
     def __init__(self, page, label, options, value=None, on_change=None, **kwargs):
         super().__init__(**kwargs)
         self._page = page
         self.options = options
         self.on_change_callback = on_change
-        self._has_focus = False  # 手动跟踪焦点状态
+        self._is_open = False
+        self._click_container = None  # 透明点击监听容器
         
         # 文本输入框
         self.text_field = ft.TextField(
             label=label,
             value=value,
-            height=56,  # Flet TextField 默认高度约 56
+            height=56,
             expand=True,
             on_change=self.on_text_change,
-            on_focus=self.on_focus,
-            on_blur=self.on_blur,  # 添加失去焦点事件
             on_click=self.toggle_dropdown,  # 添加这行
             suffix=ft.IconButton(ft.Icons.ARROW_DROP_DOWN, on_click=self.toggle_dropdown),
             **kwargs
@@ -502,7 +501,7 @@ class SearchableDropdownFl(ft.Column):
             bottom=BorderSide(1, ft.Colors.GREY_300),
         )
         
-        # 下拉列表容器（初始隐藏）
+        # 下拉列表容器
         self.dropdown_container = ft.Container(
             content=ft.Column([], spacing=2, scroll=ft.ScrollMode.AUTO),
             expand=True,
@@ -518,53 +517,65 @@ class SearchableDropdownFl(ft.Column):
             self.text_field,
             self.dropdown_container,
         ]
-        self.spacing = 1  # 让文本框和下拉框紧贴
+        self.spacing = 1
     
-    def on_focus(self, e):
-        """获得焦点时显示下拉列表"""
-        self._has_focus = True
-        #self.show_dropdown()
-
-    def on_blur(self, e):
-        """失去焦点时隐藏下拉列表"""
-        self._has_focus = False
-        self.hide_dropdown()
-
     def on_text_change(self, e):
         """文本变化时过滤选项"""
         search_text = self.text_field.value.lower()
         filtered = [opt for opt in self.options if search_text in opt.lower()]
-        self.update_dropdown(filtered)
+        self._update_dropdown_content(filtered)
         
         if self.on_change_callback:
             self.on_change_callback(e)
     
     def toggle_dropdown(self, e):
-        """切换下拉列表显示"""
-        if self.dropdown_container.visible:
-            self.hide_dropdown()
+        """切换下拉列表显示（点击箭头时触发）"""
+        if self._is_open:
+            self._hide_dropdown()
         else:
-            self.show_dropdown()
-            # 让文本框获得焦点
-            self.text_field.focus()
-
-    def show_dropdown(self):
+            self._show_dropdown()
+    
+    def _show_dropdown(self):
         """显示下拉列表"""
         if not self.options:
             return
-        self.update_dropdown(self.options)
+        
+        self._update_dropdown_content(self.options)
+        
+        if self._is_open:
+            return
+        
+        self._is_open = True
+        
+        # 显示下拉框
         self.dropdown_container.visible = True
         self.dropdown_container.update()
+        
+        # ========== 添加透明点击监听（点击外部关闭下拉框） ==========
+        self._click_container = ft.Container(
+            expand=True,
+            bgcolor=ft.Colors.TRANSPARENT,
+            on_click=lambda e: self._hide_dropdown(),
+        )
+        self._page.overlay.append(self._click_container)
+        
         self._page.update()
     
-    def hide_dropdown(self):
+    def _hide_dropdown(self):
         """隐藏下拉列表"""
+        self._is_open = False
         self.dropdown_container.visible = False
         self.dropdown_container.update()
+        
+        # 移除透明点击监听
+        if self._click_container and self._click_container in self._page.overlay:
+            self._page.overlay.remove(self._click_container)
+            self._click_container = None
+        
         self._page.update()
     
-    def update_dropdown(self, options):
-        """更新下拉列表"""
+    def _update_dropdown_content(self, options):
+        """更新下拉列表内容"""
         self.dropdown_container.content.controls.clear()
         
         if not options:
@@ -612,7 +623,7 @@ class SearchableDropdownFl(ft.Column):
     def select_option(self, value):
         """选择选项"""
         self.text_field.value = value
-        self.hide_dropdown()
+        self._hide_dropdown()
         self.text_field.update()
         
         if self.on_change_callback:
