@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.135"
-APP_VERSION_CODE = 135
+APP_VERSION = "1.0.136"
+APP_VERSION_CODE = 136
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -528,31 +528,11 @@ class SearchableDropdownFl(ft.Column):
         print(f"[焦点状态] 获得焦点: {self._has_focus}")
         # 调用原有的 on_focus 逻辑
         self.on_focus(e)
-
-    def _on_blur(self, e):
-        """失去焦点时记录状态"""
-        # ========== 延迟检测，避免点击下拉箭头时误触发 ==========
-        import asyncio
-        async def delayed_blur():
-            await asyncio.sleep(0.1)
-            # 检查是否真的失去焦点
-            try:
-                if hasattr(self.text_field, 'focused') and not self.text_field.focused:
-                    self._has_focus = False
-                    print(f"[焦点状态] 失去焦点: {self._has_focus}")
-                    # 隐藏下拉框
-                    if self._is_open:
-                        self.hide_dropdown()
-            except:
-                self._has_focus = False
-        asyncio.create_task(delayed_blur())
     
-    """ 
     def _on_blur(self, e):
         #失去焦点时记录状态
         self._has_focus = False
         print(f"[焦点状态] 失去焦点: {self._has_focus}")
-    """
     
     def on_focus(self, e):
         """获得焦点时，设置底部偏移为100（键盘弹出）"""
@@ -562,27 +542,13 @@ class SearchableDropdownFl(ft.Column):
         
         # 多个选项（高度>100，=135），底部偏移120
         self._bottom_offset = 120
-
-        # ========== 显示调试信息（使用 SnackBar） ==========
-        try:
-            snack = ft.SnackBar(
-                content=ft.Text(f"获得焦点高度: {dropdown_height}, 偏移: {self._bottom_offset}, 获得焦点: {self._has_focus}"),
-                bgcolor=ft.Colors.BLUE_700,
-                duration=2000,
-                open=True,
-            )
-            self._page.overlay.append(snack)
-            self._page.update()
-        except:
-            pass
         
         # 如果下拉框已打开，刷新显示
         if self._is_open and self._overlay_container and self._overlay_container in self._page.overlay:
             self._update_overlay_height()
         else:
             # 未打开则自动打开
-            #self.show_dropdown()
-            pass
+            self.show_dropdown()
     
     def on_text_change(self, e):
         """文本变化时过滤选项"""
@@ -642,19 +608,6 @@ class SearchableDropdownFl(ft.Column):
             self._bottom_offset = 205   # 单个选项
         else:
             self._bottom_offset = 120   # 多个选项
-
-        # ========== 显示调试信息（使用 SnackBar） ==========
-        try:
-            snack = ft.SnackBar(
-                content=ft.Text(f"文本内容变化高度: {dropdown_height}, 偏移: {self._bottom_offset}, 得焦点: {self._has_focus}"),
-                bgcolor=ft.Colors.BLUE_700,
-                duration=2000,
-                open=True,
-            )
-            self._page.overlay.append(snack)
-            self._page.update()
-        except:
-            pass
         
         # ========== 强制重新创建 Overlay ==========
         if self._is_open:
@@ -707,19 +660,6 @@ class SearchableDropdownFl(ft.Column):
         else:
             # 无焦点，使用默认偏移
             self._bottom_offset = 404     # 正常情况下的偏移量
-
-        # ========== 显示调试信息（使用 SnackBar） ==========
-        try:
-            snack = ft.SnackBar(
-                content=ft.Text(f"点击右边下拉框按钮高度: {dropdown_height}, 偏移: {self._bottom_offset},获得焦点: {self._has_focus}"),
-                bgcolor=ft.Colors.BLUE_700,
-                duration=2000,
-                open=True,
-            )
-            self._page.overlay.append(snack)
-            self._page.update()
-        except:
-            pass
 
         if self._is_open and self._overlay_container and self._overlay_container in self._page.overlay:
             self.hide_dropdown()
