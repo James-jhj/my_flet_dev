@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.132"
-APP_VERSION_CODE = 132
+APP_VERSION = "1.0.133"
+APP_VERSION_CODE = 133
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -478,6 +478,7 @@ class SearchableDropdownFl(ft.Column):
         self._page = page
         self.options = options
         self.on_change_callback = on_change
+        self._has_focus = False  # 手动跟踪焦点状态
         
         # 文本输入框
         self.text_field = ft.TextField(
@@ -519,6 +520,16 @@ class SearchableDropdownFl(ft.Column):
         ]
         self.spacing = 1  # 让文本框和下拉框紧贴
     
+    def on_focus(self, e):
+        """获得焦点时显示下拉列表"""
+        self._has_focus = True
+        #self.show_dropdown()
+
+    def on_blur(self, e):
+        """失去焦点时隐藏下拉列表"""
+        self._has_focus = False
+        self.hide_dropdown()
+
     def on_text_change(self, e):
         """文本变化时过滤选项"""
         search_text = self.text_field.value.lower()
@@ -528,34 +539,39 @@ class SearchableDropdownFl(ft.Column):
         if self.on_change_callback:
             self.on_change_callback(e)
     
-    def on_focus(self, e):
-        """获得焦点时显示下拉列表"""
-        #self.update_dropdown(self.options)
-        pass
-
-    def on_blur(self, e):
-        """失去焦点时隐藏下拉列表"""
-        self.dropdown_container.visible = False
-        self.dropdown_container.update()
-    
     def toggle_dropdown(self, e):
         """切换下拉列表显示"""
         if self.dropdown_container.visible:
-            self.dropdown_container.visible = False
-            self.dropdown_container.update()
+            self.hide_dropdown()
         else:
-            self.update_dropdown(self.options)
+            self.show_dropdown()
+            # 让文本框获得焦点
+            self.text_field.focus()
+
+    def show_dropdown(self):
+        """显示下拉列表"""
+        if not self.options:
+            return
+        self.update_dropdown(self.options)
+        self.dropdown_container.visible = True
+        self.dropdown_container.update()
+        self._page.update()
+    
+    def hide_dropdown(self):
+        """隐藏下拉列表"""
+        self.dropdown_container.visible = False
+        self.dropdown_container.update()
+        self._page.update()
     
     def update_dropdown(self, options):
         """更新下拉列表"""
+        self.dropdown_container.content.controls.clear()
+        
         if not options:
-            self.dropdown_container.visible = False
-            self.dropdown_container.update()
+            self.dropdown_container.height = 50
             return
         
-        self.dropdown_container.content.controls.clear()
         for i, opt in enumerate(options):
-            # 添加选项按钮
             btn = ft.Container(
                 content=ft.TextButton(
                     opt,
@@ -566,9 +582,8 @@ class SearchableDropdownFl(ft.Column):
                         overlay_color=ft.Colors.BLUE_50,
                     ),
                 ),
-                width=float("inf"),  # 宽度填满
+                width=float("inf"),
             )
-            # ========== 修改：让 TextButton 的内容左对齐 ==========
             btn.content.style = ft.ButtonStyle(
                 color=ft.Colors.BLACK,
                 bgcolor=ft.Colors.TRANSPARENT,
@@ -576,43 +591,28 @@ class SearchableDropdownFl(ft.Column):
             )
             btn.content.content = ft.Row([
                 ft.Text(opt, size=14),
-            ], alignment=ft.MainAxisAlignment.START)  # 左对齐
+            ], alignment=ft.MainAxisAlignment.START)
 
             self.dropdown_container.content.controls.append(btn)
             
-            # ========== 在选项之间添加分割线（最后一个不加） ==========
             if i < len(options) - 1:
                 divider = ft.Divider(height=1, color=ft.Colors.GREY_200)
                 self.dropdown_container.content.controls.append(divider)
         
-        # ========== 根据选项数量动态调整高度 ==========
-        # 计算内容高度：每个选项约40px + 分割线1px
-        item_height = 35
-        divider_height = 1
         total_items = len(options)
-        # 总高度 = 选项数 * 选项高度 + (选项数-1) * 分割线高度
-        content_height = total_items * item_height + (total_items - 1) * divider_height
-        # 加上上下内边距
-        content_height += 20
+        content_height = total_items * 35 + (total_items - 1) * 1 + 20
 
-        print(f"选项数: {total_items}, 计算高度: {content_height}")
-
-        # 设置容器高度：最小80px，最大300px
         if content_height < 70:
             self.dropdown_container.height = 50
         elif content_height > 200:
             self.dropdown_container.height = 155
-        
-        print(f"实际设置高度: {self.dropdown_container.height}")
-
-        self.dropdown_container.visible = True
-        self.dropdown_container.update()
+        else:
+            self.dropdown_container.height = content_height
     
     def select_option(self, value):
         """选择选项"""
         self.text_field.value = value
-        self.dropdown_container.visible = False
-        self.dropdown_container.update()
+        self.hide_dropdown()
         self.text_field.update()
         
         if self.on_change_callback:
