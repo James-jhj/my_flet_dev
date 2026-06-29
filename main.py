@@ -1,14 +1,18 @@
 import flet as ft
 import time
 
-APP_VERSION = "1.0.147"
-APP_VERSION_CODE = 147
+APP_VERSION = "1.0.148"
+APP_VERSION_CODE = 148
 
 def main(page: ft.Page):
     # 存储控件引用
+    global keyboard_visible
     main_textfield = None
     hidden_textfield = None
     keyboard_visible = False
+    # 设置亮色主题
+    page.theme_mode = ft.ThemeMode.LIGHT
+    page.bgcolor = ft.Colors.WHITE  # 设置背景色为白色
     
     def on_focus(e):
         global keyboard_visible
@@ -26,27 +30,16 @@ def main(page: ft.Page):
         except:
             pass
     
-    def on_blur(e):
-        global keyboard_visible
-        keyboard_visible = False
-        print("❌ 键盘收起")
-        try:
-            snack = ft.SnackBar(
-                content=ft.Text("键盘已收起"),
-                bgcolor=ft.Colors.GREEN_700,
-                duration=2000,
-                open=True,
-            )
-            page.overlay.append(snack)
-            page.update()
-        except:
-            pass
-    
     def hide_keyboard(e):
         """通过转移焦点到隐藏控件来隐藏键盘"""
         print("尝试隐藏键盘")
         if main_textfield and hidden_textfield:
             try:
+                # 步骤1: 清空主输入框内容
+                main_textfield.value = ""
+                page.update()
+                print("⏳ 已清空输入框内容")
+
                 # 步骤1: 将焦点转移到隐藏的 TextField
                 hidden_textfield.focus()
                 page.update()
@@ -55,19 +48,12 @@ def main(page: ft.Page):
                 # 步骤2: 短暂延迟
                 time.sleep(0.05)
                 
-                # 步骤3: 禁用隐藏控件（让它失去焦点）
+                # 步骤3: 禁用两个控件（让它们都失去焦点）
+                
+                main_textfield.disabled = True      # 🔑 关键：禁用主输入框
                 hidden_textfield.disabled = True
                 page.update()
-                print("⏳ 隐藏控件已禁用")
-                
-                # 步骤4: 等待系统响应
-                time.sleep(0.1)
-                
-                # 步骤5: 重新启用隐藏控件
-                hidden_textfield.disabled = False
-                page.update()
-                
-                print("✅ 键盘已隐藏")
+                print("⏳ 两个控件已禁用")
                 
                 # 显示成功提示
                 try:
@@ -81,6 +67,14 @@ def main(page: ft.Page):
                     page.update()
                 except:
                     pass
+
+                # 步骤4: 等待系统响应
+                time.sleep(0.1)
+
+                # 步骤5: 重新启用两个控件
+                #main_textfield.disabled = False     # 🔑 关键：恢复主输入框
+                #hidden_textfield.disabled = False
+                #page.update()
                     
             except Exception as ex:
                 print(f"❌ 隐藏键盘失败: {ex}")
@@ -89,7 +83,7 @@ def main(page: ft.Page):
     main_tf = ft.TextField(
         label="点击输入",
         on_focus=on_focus,
-        on_blur=on_blur,
+        #on_blur=on_blur,
         hint_text="点击我弹出键盘",
     )
     main_textfield = main_tf
