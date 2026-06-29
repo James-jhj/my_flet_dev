@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.130"
-APP_VERSION_CODE = 130
+APP_VERSION = "1.0.131"
+APP_VERSION_CODE = 131
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -636,6 +636,7 @@ class SearchableDropdownEvtTp(ft.Column):
             height=56,
             expand=True,
             read_only=True,  # 添加只读属性
+            on_click=self._on_text_click,  # 点击时阻止焦点
             on_blur=self.on_blur,  # 添加失去焦点事件
             #on_change=self.on_text_change,
             #on_focus=self.on_focus,
@@ -664,7 +665,18 @@ class SearchableDropdownEvtTp(ft.Column):
         )
         
         self.controls = [self.text_field]
-    
+
+    def _on_text_click(self, e):
+        """点击文本框时，阻止焦点，并打开下拉框"""
+        """点击文本框时阻止默认行为"""
+        try:
+            e.prevent_default()
+        except:
+            pass
+        # 让箭头按钮获得焦点
+        # 或者直接打开下拉框
+        self.toggle_dropdown(e)
+
     def on_text_change(self, e):
         search_text = self.text_field.value.lower()
         filtered = [opt for opt in self.options if search_text in opt.lower()]
