@@ -1,8 +1,9 @@
 import flet as ft
 import time
+import threading
 
-APP_VERSION = "1.0.150"
-APP_VERSION_CODE = 150
+APP_VERSION = "1.0.151"
+APP_VERSION_CODE = 151
 
 def main(page: ft.Page):
     # 存储控件引用
@@ -44,18 +45,22 @@ def main(page: ft.Page):
                 state["is_textfield_disabled"] = True
                 page.update()
                 print("⏳ 文本框已禁用")
+
+                # 🔑 步骤2: 使用 threading.Timer 延迟重新启用
+                def re_enable():
+                    try:
+                        main_textfield.disabled = False
+                        state["is_textfield_disabled"] = False
+                        page.update()
+                        print("⏳ 文本框已重新启用")
+                        print("✅ 键盘已隐藏")
+                    except Exception as ex:
+                        print(f"❌ 重新启用失败: {ex}")
                 
-                # 🔑 步骤2: 必须等待键盘完全收起（关键！）
-                # 键盘收起需要 100-200ms，等待 150ms 确保完全收起
-                time.sleep(0.15)
-                
-                # 步骤3: 重新启用文本框（但此时键盘已经收起，不会重新弹出）
-                main_textfield.disabled = False
-                state["is_textfield_disabled"] = False
-                page.update()
-                print("⏳ 文本框已重新启用")
-                
-                print("✅ 键盘已隐藏")
+                # 150ms 后重新启用
+                timer = threading.Timer(0.15, re_enable)
+                timer.daemon = True  # 设置为守护线程
+                timer.start()
                 
                 # 显示成功提示
                 try:
