@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.153"
-APP_VERSION_CODE = 153
+APP_VERSION = "1.0.154"
+APP_VERSION_CODE = 154
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -507,21 +507,16 @@ class SearchableDropdown(ft.Column):
         self.text_field.update()
 
 class SearchableDropdownFl(ft.Column):
-    """可搜索的下拉选择框（使用 Overlay 实现悬浮）"""
+    """可搜索的下拉选择框（支持移动端键盘控制）"""
+    
     def __init__(self, page, label, options, value=None, on_change=None, **kwargs):
         super().__init__(**kwargs)
         self._page = page
         self.options = options
-        self._filtered_options = options  # 初始化
         self.on_change_callback = on_change
-        self._overlay_container = None
         self._is_open = False
-        self._bottom_offset = 120
-
-        # ========== 手动记录焦点状态 ==========
-        self._has_focus = False
-		
-		# 状态管理
+        
+        # 状态管理
         self._is_textfield_disabled = False
         
         # 文本输入框
@@ -531,9 +526,9 @@ class SearchableDropdownFl(ft.Column):
             height=56,
             expand=True,
             on_change=self.on_text_change,
-            on_focus=self._on_focus,        # 获得焦点时记录
-            on_blur=self._on_blur,          # 失去焦点时记录
-            on_click=self._on_text_click,   # 🔑 点击文本框时处理
+            #on_click=self.on_text_click,
+            on_click=self.toggle_dropdown,  # 添加这行
+            on_focus=self.on_focus,
             suffix=ft.IconButton(ft.Icons.ARROW_DROP_DOWN, on_click=self.toggle_dropdown),
             **kwargs
         )
@@ -558,85 +553,53 @@ class SearchableDropdownFl(ft.Column):
             shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.BLACK12),
         )
         
-        self.controls = [self.text_field]
-
-    def _on_focus(self, e):
-        """获得焦点时记录状态"""
-        self._has_focus = True
-        print(f"[焦点状态] 获得焦点: {self._has_focus}")
-        # 调用原有的 on_focus 逻辑
-        self.on_focus(e)
-
-    def _on_blur(self, e):
-        """失去焦点时记录状态"""
-        # ========== 延迟检测，避免点击下拉箭头时误触发 ==========
-        import asyncio
-        async def delayed_blur():
-            await asyncio.sleep(0.1)
-            # 检查是否真的失去焦点
-            try:
-                if hasattr(self.text_field, 'focused') and not self.text_field.focused:
-                    self._has_focus = False
-                    print(f"[焦点状态] 失去焦点: {self._has_focus}")
-                    # 隐藏下拉框
-                    if self._is_open:
-                        self.hide_dropdown()
-            except:
-                self._has_focus = False
-        asyncio.create_task(delayed_blur())
+        self.controls = [
+            self.text_field,
+            self.dropdown_container,
+        ]
+        self.spacing = 1
     
-    def _on_text_click(self, e):
-        """🔑 点击文本框时处理（如果被禁用则恢复）"""
+    def on_focus(self, e):
+        """文本框获得焦点"""
+        print("✅ 下拉框键盘弹出")
+        if self._is_textfield_disabled:
+            self.text_field.disabled = False
+            self._is_textfield_disabled = False
+            self._page.update()
+    
+    def on_text_click(self, e):
+        """点击文本框"""
         print("点击下拉框文本框")
         if self._is_textfield_disabled:
             self.text_field.disabled = False
             self._is_textfield_disabled = False
             self._page.update()
             print("⏳ 文本框已启用")
-
-    def on_focus(self, e):
-        """获得焦点时，设置底部偏移为100（键盘弹出）"""
-
-        print("✅ 下拉框键盘弹出")
-        if self._is_textfield_disabled:
-            self.text_field.disabled = False
-            self._is_textfield_disabled = False
-            self._page.update()
-
-        # 多个选项（高度>100，=135），底部偏移120
-        self._bottom_offset = 120
-        
-        # 如果下拉框已打开，刷新显示
-        if self._is_open and self._overlay_container and self._overlay_container in self._page.overlay:
-            self._update_overlay_height()
-        else:
-            # 未打开则自动打开
-            self.show_dropdown()
-
+    
     def hide_keyboard(self, e=None):
-        """🔑 隐藏键盘并关闭下拉列表（外部调用）"""
+        """隐藏键盘（外部调用）"""
         print("尝试隐藏下拉框键盘")
         if self.text_field:
             try:
                 # 🔑 步骤1: 先关闭下拉列表
                 if self._is_open:
-                    self.hide_dropdown()
+                    self._hide_dropdown()
                     print("⏳ 下拉列表已关闭")
 
-                # 步骤2: 禁用文本框
-                self.text_field.disabled = True
-                self._is_textfield_disabled = True
-                self._page.update()
-                print("⏳ 下拉框文本框已禁用")
+                # 步骤2: 禁用文本框，这里无需禁用文本框，我只是想在点击空白区域时关闭下拉框
+                #self.text_field.disabled = True
+                #self._is_textfield_disabled = True
+                #self._page.update()
+                #print("⏳ 下拉框文本框已禁用")
                 
-                # 步骤3: 延迟重新启用（等待键盘完全收起）
+                # 步骤3: 延迟重新启用
                 def re_enable():
                     try:
                         self.text_field.disabled = False
                         self._is_textfield_disabled = False
                         self._page.update()
                         print("⏳ 下拉框文本框已重新启用")
-                        print("✅ 下拉框键盘已隐藏，下拉列表已关闭")
+                        print("✅ 下拉框键盘已隐藏")
                     except Exception as ex:
                         print(f"❌ 重新启用失败: {ex}")
                 
@@ -650,196 +613,48 @@ class SearchableDropdownFl(ft.Column):
     def on_text_change(self, e):
         """文本变化时过滤选项"""
         search_text = self.text_field.value.lower()
-        
-        # ========== 如果文本框为空，重置并显示完整列表 ==========
-        if not search_text or len(search_text) == 0:
-            self._filtered_options = None
-            if self._has_focus:
-                self._bottom_offset = 120
-            else:
-                self._bottom_offset = 120
-            
-            # 更新显示完整列表
-            self.update_dropdown_content(self.options)
-            
-            # ========== 强制重新显示下拉框 ==========
-            # 先移除旧的 Overlay
-            if self._overlay_container and self._overlay_container in self._page.overlay:
-                self._page.overlay.remove(self._overlay_container)
-                self._overlay_container = None
-            
-            # 重新打开下拉框
-            self._is_open = False  # 重置状态，让 show_dropdown 重新创建
-            self.show_dropdown()
-            
-            if self.on_change_callback:
-                self.on_change_callback("")
-            return
-        
-        # ========== 有搜索内容，进行过滤 ==========
         filtered = [opt for opt in self.options if search_text in opt.lower()]
-
-        # 更新下拉框内容
-        self.update_dropdown_content(filtered)
         
-        # 保存过滤结果
-        self._filtered_options = filtered
-
-        # ========== 根据筛选结果处理 ==========
         if len(filtered) == 0:
-            # 没有匹配结果，隐藏下拉框
-            self.hide_dropdown()
-            if self.on_change_callback:
-                value = self.text_field.value
-                if value and value.strip():
-                    self.on_change_callback(value)
-                else:
-                    self.on_change_callback(None)
-            return
-        
-        # ========== 单个选项时，底部偏移205 ==========
-        if len(filtered) == 1:
-            self._bottom_offset = 205   # 单个选项
+            self._hide_dropdown()
         else:
-            self._bottom_offset = 120   # 多个选项
-        
-        # ========== 强制重新创建 Overlay ==========
-        if self._is_open:
-            if self._overlay_container and self._overlay_container in self._page.overlay:
-                self._page.overlay.remove(self._overlay_container)
-                self._overlay_container = None
-            if len(filtered) > 0:
-                self.show_dropdown()
+            self._update_dropdown_content(filtered)
+            if not self._is_open:
+                self._show_dropdown()
             else:
-                self.hide_dropdown()
-        elif search_text and len(search_text) > 0 and len(filtered) > 0:
-            self.show_dropdown()
-        elif len(filtered) == 0:
-            self.hide_dropdown()
+                self.dropdown_container.update()
+                self._page.update()
         
         if self.on_change_callback:
-            value = self.text_field.value
-            if value and value.strip():
-                self.on_change_callback(value)
-            else:
-                self.on_change_callback(None)
+            self.on_change_callback(e)
     
     def toggle_dropdown(self, e):
-        """切换下拉列表显示（点击箭头时触发）"""
-
-        # ========== 阻止事件冒泡，避免触发 on_blur ==========
-        if hasattr(e, 'stop_propagation'):
-            e.stop_propagation()
-
-        # ========== 根据焦点状态决定偏移 ==========
-        if self._has_focus:
-            # 有焦点，键盘弹出
-            dropdown_height = self.dropdown_container.height
-            is_android = platform.system() == "Linux"
-            if is_android:
-                # 手机端 + 文本框获得焦点（键盘弹出）
-                if dropdown_height == 50:
-                    self._bottom_offset = 205 # 只有1个子项时的偏移量
-                elif dropdown_height == 135:
-                    self._bottom_offset = 120 # 有多个子项时的偏移量
-            else:
-                # 键盘未弹出或电脑端
-                self._bottom_offset = 120     # 正常情况下的偏移量
+        """切换下拉列表显示"""
+        if self._is_open:
+            self._hide_dropdown()
         else:
-            # 无焦点，使用默认偏移
-            self._bottom_offset = 404     # 正常情况下的偏移量
-
-        if self._is_open and self._overlay_container and self._overlay_container in self._page.overlay:
-            self.hide_dropdown()
-            # 隐藏后重新获取焦点，让键盘保持打开
-            self.text_field.focus()
-        else:
-            self._filtered_options = None
-            self.text_field.value = ""
-            self.text_field.update()
-            self.show_dropdown()
+            if self.options:
+                self._update_dropdown_content(self.options)
+                self._show_dropdown()
     
-    def show_dropdown(self):
-        """显示下拉列表（使用 Overlay 悬浮）"""
-        print(f"[创建Overlay] 底部偏移最新: {self._bottom_offset}")
-        
-        # 先移除旧的 Overlay
-        if self._overlay_container and self._overlay_container in self._page.overlay:
-            self._page.overlay.remove(self._overlay_container)
-            self._overlay_container = None
-        
-        # ========== 判断使用过滤结果还是完整列表 ==========
-        if hasattr(self, '_filtered_options') and self._filtered_options:
-            # 有过滤结果，使用过滤后的
-            self.update_dropdown_content(self._filtered_options)
-        else:
-            # 没有过滤结果，使用完整列表
-            self.update_dropdown_content(self.options)
-        
-        if self._is_open and self._overlay_container and self._overlay_container in self._page.overlay:
+    def _show_dropdown(self):
+        """显示下拉列表"""
+        if not self.options or self._is_open:
             return
         
         self._is_open = True
-
-        # ========== 使用最新的 _bottom_offset ==========
-        print(f"[创建Overlay] 底部偏移最新: {self._bottom_offset}")
-        
-        # 创建 Overlay 容器
-        self._overlay_container = ft.Container(
-            content=ft.Column([
-                ft.Container(expand=True, on_click=lambda e: self.hide_keyboard()),  # 🔑 点击空白区域调用 hide_keyboard
-                ft.Row([
-                    ft.Container(width=30),  # 左边距
-                    ft.Container(
-                        content=self.dropdown_container,
-                        expand=True,  # 宽度填满剩余空间
-                    ),
-                    ft.Container(width=30),  # 右边距
-                ]),
-                ft.Container(height=self._bottom_offset, on_click=lambda e: self.hide_keyboard()),  # 🔑 点击空白区域调用 hide_keyboard
-            ]),
-            expand=True,
-            bgcolor=ft.Colors.TRANSPARENT,
-        )
-        
-        # 添加到 Overlay
-        self._page.overlay.append(self._overlay_container)
         self.dropdown_container.visible = True
-        
-        # 更新页面
+        self.dropdown_container.update()
         self._page.update()
     
-    def _update_overlay_height(self):
-        """更新 Overlay 中的底部高度"""
-        if not self._overlay_container or self._overlay_container not in self._page.overlay:
-            return
-        
-        # 重新创建 Overlay 容器
-        self._overlay_container = ft.Container(
-            content=ft.Column([
-                ft.Container(expand=True, on_click=lambda e: self.hide_keyboard()),  # 🔑 点击空白区域调用 hide_keyboard
-                ft.Row([
-                    ft.Container(expand=True),
-                    self.dropdown_container,
-                    ft.Container(expand=True),
-                ]),
-                ft.Container(height=self._bottom_offset, on_click=lambda e: self.hide_keyboard()),  # 🔑 点击空白区域调用 hide_keyboard
-            ]),
-            expand=True,
-            bgcolor=ft.Colors.TRANSPARENT,
-        )
-        self._page.overlay.append(self._overlay_container)
-        self._page.update()
-    
-    def hide_dropdown(self):
+    def _hide_dropdown(self):
         """隐藏下拉列表"""
         self._is_open = False
-        if self._overlay_container and self._overlay_container in self._page.overlay:
-            self._page.overlay.remove(self._overlay_container)
-            self._overlay_container = None
-            self._page.update()
+        self.dropdown_container.visible = False
+        self.dropdown_container.update()
+        self._page.update()
     
-    def update_dropdown_content(self, options):
+    def _update_dropdown_content(self, options):
         """更新下拉列表内容"""
         self.dropdown_container.content.controls.clear()
         
@@ -849,55 +664,50 @@ class SearchableDropdownFl(ft.Column):
         
         for i, opt in enumerate(options):
             btn = ft.Container(
-                content=ft.Row([
-                    ft.Text(opt, size=14, color=ft.Colors.BLACK),
-                ], alignment=ft.MainAxisAlignment.START),
-                on_click=lambda e, val=opt: self.select_option(val),
-                ink=True,
-                expand=True,
-                height=40,
+                content=ft.TextButton(
+                    opt,
+                    on_click=lambda e, val=opt: self.select_option(val),
+                    style=ft.ButtonStyle(
+                        color=ft.Colors.BLACK,
+                        bgcolor=ft.Colors.TRANSPARENT,
+                        overlay_color=ft.Colors.BLUE_50,
+                    ),
+                ),
+                width=float("inf"),
             )
+            btn.content.style = ft.ButtonStyle(
+                color=ft.Colors.BLACK,
+                bgcolor=ft.Colors.TRANSPARENT,
+                overlay_color=ft.Colors.BLUE_50,
+            )
+            btn.content.content = ft.Row([
+                ft.Text(opt, size=14),
+            ], alignment=ft.MainAxisAlignment.START)
+
             self.dropdown_container.content.controls.append(btn)
             
             if i < len(options) - 1:
                 divider = ft.Divider(height=1, color=ft.Colors.GREY_200)
                 self.dropdown_container.content.controls.append(divider)
         
-        # ========== 高度 = 子项高度 * 子项个数 + 分割线高度 ==========
         total_items = len(options)
-        item_height = 40
-        divider_height = 1
-        
-        # 总高度 = 选项数 * 选项高度 + (选项数-1) * 分割线高度
-        total_height = total_items * item_height + (total_items - 1) * divider_height
-        
-        # 加上上下内边距（如果有）
-        total_height += 10
+        content_height = total_items * 35 + (total_items - 1) * 1 + 20
 
-        print(f"[高度计算] 选项数: {total_items}, 高度: {total_height}")
-        
-        # 限制最大高度（防止超出屏幕）
-        max_height = 150
-        if total_height > max_height:
-            total_height = max_height - 15  # 电脑展开下拉框刚刚好高度
-        
-        # 确保最小高度
-        min_height = 50
-        if total_height < min_height:
-            total_height = min_height
-        
-        self.dropdown_container.height = total_height
-        print(f"[高度计算] 选项数: {total_items}, 高度: {total_height}")
+        if content_height < 70:
+            self.dropdown_container.height = 50
+        elif content_height > 200:
+            self.dropdown_container.height = 155
+        else:
+            self.dropdown_container.height = content_height
     
     def select_option(self, value):
+        """选择选项"""
         self.text_field.value = value
-        self.hide_dropdown()
+        self._hide_dropdown()
+        self.text_field.update()
+        
         if self.on_change_callback:
-            if value and value.strip():
-                self.on_change_callback(value)
-            else:
-                self.on_change_callback(None)
-        self._page.update()
+            self.on_change_callback(value)
     
     @property
     def value(self):
