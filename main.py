@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.154"
-APP_VERSION_CODE = 154
+APP_VERSION = "1.0.155"
+APP_VERSION_CODE = 155
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -305,6 +305,39 @@ class KeyboardManager:
     def get_page_click_handler(self):
         """获取页面点击处理器"""
         return self._on_page_click
+    
+# ========== 全局下拉框管理器 ==========
+class DropdownManager:
+    """管理所有下拉框实例，确保同时只有一个打开"""
+    _instance = None
+    _dropdowns = []
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+    
+    def register(self, dropdown):
+        """注册下拉框实例"""
+        if dropdown not in self._dropdowns:
+            self._dropdowns.append(dropdown)
+    
+    def unregister(self, dropdown):
+        """注销下拉框实例"""
+        if dropdown in self._dropdowns:
+            self._dropdowns.remove(dropdown)
+    
+    def close_all_except(self, exclude=None):
+        """关闭所有下拉框（除了排除的）"""
+        for dropdown in self._dropdowns:
+            if dropdown is not exclude and dropdown._is_open:
+                dropdown._hide_dropdown()
+    
+    def close_all(self):
+        """关闭所有下拉框"""
+        for dropdown in self._dropdowns:
+            if dropdown._is_open:
+                dropdown._hide_dropdown()
 
 class SearchableDropdown(ft.Column):
     """可搜索的下拉选择框（使用 Overlay 实现悬浮）"""
@@ -518,6 +551,10 @@ class SearchableDropdownFl(ft.Column):
         
         # 状态管理
         self._is_textfield_disabled = False
+
+        # 🔑 注册到全局管理器
+        self._manager = DropdownManager()
+        self._manager.register(self)
         
         # 文本输入框
         self.text_field = ft.TextField(
@@ -526,9 +563,9 @@ class SearchableDropdownFl(ft.Column):
             height=56,
             expand=True,
             on_change=self.on_text_change,
-            #on_click=self.on_text_click,
-            on_click=self.toggle_dropdown,  # 添加这行
-            on_focus=self.on_focus,
+            on_click=self.on_text_click,
+            #on_click=self.toggle_dropdown,  # 添加这行
+            on_focus=self._on_focus,         # 🔑 获得焦点
             suffix=ft.IconButton(ft.Icons.ARROW_DROP_DOWN, on_click=self.toggle_dropdown),
             **kwargs
         )
@@ -558,10 +595,22 @@ class SearchableDropdownFl(ft.Column):
             self.dropdown_container,
         ]
         self.spacing = 1
+
+    def __del__(self):
+        """销毁时从管理器注销"""
+        try:
+            self._manager.unregister(self)
+        except:
+            pass
     
-    def on_focus(self, e):
-        """文本框获得焦点"""
-        print("✅ 下拉框键盘弹出")
+    def _on_focus(self, e):
+        """🔑 获得焦点时：关闭其他下拉框"""
+        print("✅ 下拉框获得焦点")
+        
+        # 关闭其他所有下拉框
+        self._manager.close_all_except(self)
+        
+        # 如果文本框被禁用，恢复它
         if self._is_textfield_disabled:
             self.text_field.disabled = False
             self._is_textfield_disabled = False
@@ -575,6 +624,9 @@ class SearchableDropdownFl(ft.Column):
             self._is_textfield_disabled = False
             self._page.update()
             print("⏳ 文本框已启用")
+
+        # 切换下拉框
+        self.toggle_dropdown(e)
     
     def hide_keyboard(self, e=None):
         """隐藏键盘（外部调用）"""
@@ -633,6 +685,8 @@ class SearchableDropdownFl(ft.Column):
         if self._is_open:
             self._hide_dropdown()
         else:
+            # 🔑 打开前关闭其他下拉框
+            self._manager.close_all_except(self)
             if self.options:
                 self._update_dropdown_content(self.options)
                 self._show_dropdown()
@@ -2590,7 +2644,10 @@ def main(page: ft.Page):
     reminder_flags = {}  # 存储提醒标记
 
     # 创建键盘管理器
-    keyboard_mgr = KeyboardManager(page)
+    #keyboard_mgr = KeyboardManager(page)
+
+    # 需要关闭下拉框的控件列表
+    keyboard_controls = []
 
     card_duration_texts = {}  # {event_id: Text控件}
 
@@ -2716,7 +2773,13 @@ def main(page: ft.Page):
         "其他支出",
     ]
 
-    
+    def on_page_click(e):
+        """点击页面空白区域时关闭所有下拉框"""
+        print("点击页面空白区域")
+        # 关闭所有下拉框
+        manager = DropdownManager()
+        manager.close_all()
+
     def debug_log(msg):
         """调试日志函数"""
         if debug_mode:
@@ -4977,6 +5040,7 @@ def main(page: ft.Page):
                 read_only=True,
                 expand=True,
                 on_blur=on_date_field_blur,  # 添加失去焦点事件
+                on_focus=lambda e: DropdownManager().close_all(),
             )
 
             category_field = SearchableDropdownFl(
@@ -4986,7 +5050,8 @@ def main(page: ft.Page):
                 value=transaction.category if transaction else None,
                 on_change=lambda e: print(f"选择: {e}"),
             )
-            keyboard_mgr.register(category_field)  # 注册
+            #keyboard_mgr.register(category_field)  # 注册
+            keyboard_controls.append(category_field)
             
             def on_amount_blur(e):
                 # 名称输入框失去焦点时的操作
@@ -4998,6 +5063,7 @@ def main(page: ft.Page):
                 keyboard_type=ft.KeyboardType.NUMBER,
                 expand=True,
                 on_blur=on_amount_blur,  # 添加失去焦点事件
+                on_focus=lambda e: DropdownManager().close_all(),
             )
 
             def on_note_blur(e):
@@ -5011,6 +5077,7 @@ def main(page: ft.Page):
                 multiline=True,
                 max_lines=3,
                 on_blur=on_note_blur,  # 添加失去焦点事件
+                on_focus=lambda e: DropdownManager().close_all(),
             )
             
             # ========== 修复日期选择器 ==========
@@ -5114,7 +5181,8 @@ def main(page: ft.Page):
                 top=50,
                 right=20,
                 bottom=50,
-                on_click=keyboard_mgr.get_page_click_handler(),  # 使用管理器的处理器
+                #on_click=keyboard_mgr.get_page_click_handler(),  # 使用管理器的处理器
+                on_click=on_page_click,
             )
 
             page.overlay.append(edit_dialog_container)
@@ -5124,8 +5192,7 @@ def main(page: ft.Page):
             """导出当前筛选后的记账数据到Excel"""
             global transactions
             
-            # ========== 获取当前列表的数据（与 refresh_records_list 相同的筛选逻辑） ==========
-            # 根据查询模式筛选记录
+            # ========== 获取当前列表的数据 ==========
             if query_mode == "month":
                 month_str = f"{current_year}-{current_month:02d}"
                 base_records = [t for t in transactions if t.date.startswith(month_str)]
@@ -5150,6 +5217,9 @@ def main(page: ft.Page):
                 show_bottom_message("当前没有可导出的记录", is_error=True)
                 return
             
+            # ========== 按日期排序（由近到远） ==========
+            base_records.sort(key=lambda x: x.date, reverse=True)
+            
             # ========== 计算统计信息 ==========
             total_income = sum(t.amount for t in base_records if t.type == "income")
             total_expense = sum(t.amount for t in base_records if t.type == "expense")
@@ -5161,7 +5231,6 @@ def main(page: ft.Page):
             # ========== 获取查询时间范围 ==========
             if query_mode == "month":
                 start_date_str = f"{current_year}-{current_month:02d}-01"
-                # 计算当月最后一天
                 import calendar
                 last_day = calendar.monthrange(current_year, current_month)[1]
                 end_date_str = f"{current_year}-{current_month:02d}-{last_day:02d}"
@@ -5223,7 +5292,7 @@ def main(page: ft.Page):
                     cell.fill = header_fill
                     cell.alignment = openpyxl.styles.Alignment(horizontal='center')
                 
-                # ========== 写入数据 ==========
+                # ========== 写入数据（已按日期由近到远排序） ==========
                 for t in base_records:
                     type_str = "收入" if t.type == "income" else "支出"
                     ws.append([
@@ -6526,6 +6595,7 @@ def main(page: ft.Page):
                 read_only=True,
                 expand=True,
                 on_blur=on_date_field_blur,  # 添加失去焦点事件
+                on_focus=lambda e: DropdownManager().close_all(),
             )
             
             # 根据收支类型显示不同的分类列表
@@ -6538,7 +6608,8 @@ def main(page: ft.Page):
                 value=categories[0] if categories else None,
                 on_change=lambda e: print(f"选择: {e}"),
             )
-            keyboard_mgr.register(category_field)  # 注册
+            #keyboard_mgr.register(category_field)  # 注册
+            keyboard_controls.append(category_field)
             
 
             def on_amount_field_blur(e):
@@ -6551,6 +6622,7 @@ def main(page: ft.Page):
                 keyboard_type=ft.KeyboardType.NUMBER,
                 expand=True,
                 on_blur=on_amount_field_blur,  # 添加失去焦点事件
+                on_focus=lambda e: DropdownManager().close_all(),
             )
 
             def on_note_field_blur(e):
@@ -6564,6 +6636,7 @@ def main(page: ft.Page):
                 multiline=True,
                 max_lines=3,
                 on_blur=on_note_field_blur,  # 添加失去焦点事件
+                on_focus=lambda e: DropdownManager().close_all(),
             )
             
             # 日期选择器
@@ -6669,7 +6742,8 @@ def main(page: ft.Page):
                 top=50,
                 right=20,
                 bottom=50,
-                on_click=keyboard_mgr.get_page_click_handler(),  # 使用管理器的处理器
+                #on_click=keyboard_mgr.get_page_click_handler(),  # 使用管理器的处理器
+                on_click=on_page_click,
             )
             
             page.overlay.append(dialog_container)
