@@ -1,8 +1,8 @@
 import flet as ft
 import time
 
-APP_VERSION = "1.0.150"
-APP_VERSION_CODE = 150
+APP_VERSION = "1.0.149"
+APP_VERSION_CODE = 149
 
 def main(page: ft.Page):
     # 存储控件引用
