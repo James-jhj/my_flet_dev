@@ -5150,6 +5150,30 @@ def main(page: ft.Page):
                 show_bottom_message("当前没有可导出的记录", is_error=True)
                 return
             
+            # ========== 计算统计信息 ==========
+            total_income = sum(t.amount for t in base_records if t.type == "income")
+            total_expense = sum(t.amount for t in base_records if t.type == "expense")
+            total_balance = total_income - total_expense
+            income_count = len([t for t in base_records if t.type == "income"])
+            expense_count = len([t for t in base_records if t.type == "expense"])
+            total_count = len(base_records)
+            
+            # ========== 获取查询时间范围 ==========
+            if query_mode == "month":
+                start_date_str = f"{current_year}-{current_month:02d}-01"
+                # 计算当月最后一天
+                import calendar
+                last_day = calendar.monthrange(current_year, current_month)[1]
+                end_date_str = f"{current_year}-{current_month:02d}-{last_day:02d}"
+                time_range = f"{start_date_str} ~ {end_date_str}"
+            else:
+                start_date_str = start_date.strftime("%Y-%m-%d")
+                end_date_str = end_date.strftime("%Y-%m-%d")
+                time_range = f"{start_date_str} ~ {end_date_str}"
+            
+            # 导出时间
+            export_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
             # ========== 创建Excel文件 ==========
             try:
                 temp_dir = get_data_file_path("")
@@ -5159,17 +5183,47 @@ def main(page: ft.Page):
                 ws = wb.active
                 ws.title = "记账明细"
                 
-                # 写入表头
+                # ========== 写入汇总信息 ==========
+                ws.merge_cells('A1:E1')
+                ws['A1'] = "📊 账单明细"
+                ws['A1'].font = openpyxl.styles.Font(size=16, bold=True)
+                ws['A1'].alignment = openpyxl.styles.Alignment(horizontal='center')
+                
+                # 起始时间和终止时间
+                ws['A2'] = "起始时间："
+                ws['B2'] = start_date_str
+                ws['A3'] = "终止时间："
+                ws['B3'] = end_date_str
+                ws['A4'] = "导出时间："
+                ws['B4'] = export_time
+                
+                # 统计信息
+                ws['A6'] = f"共计：{total_count}笔记录"
+                ws['A6'].font = openpyxl.styles.Font(bold=True)
+                ws['A7'] = f"收入：{income_count}笔  {total_income:,.2f}元"
+                ws['A7'].font = openpyxl.styles.Font(color="008000")
+                ws['A8'] = f"支出：{expense_count}笔  {total_expense:,.2f}元"
+                ws['A8'].font = openpyxl.styles.Font(color="FF0000")
+                ws['A9'] = f"结余：{total_balance:,.2f}元"
+                ws['A9'].font = openpyxl.styles.Font(bold=True, color="0000FF")
+                
+                # 空行
+                ws.append([])
+                
+                # ========== 写入表头 ==========
                 headers = ["日期", "类型", "分类", "金额", "备注"]
                 ws.append(headers)
                 
                 # 设置表头样式
+                header_font = openpyxl.styles.Font(bold=True, color="FFFFFF")
+                header_fill = openpyxl.styles.PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
                 for col in range(1, len(headers) + 1):
-                    cell = ws.cell(row=1, column=col)
-                    cell.font = openpyxl.styles.Font(bold=True)
-                    cell.fill = openpyxl.styles.PatternFill(start_color="CCE6FF", end_color="CCE6FF", fill_type="solid")
+                    cell = ws.cell(row=ws.max_row, column=col)
+                    cell.font = header_font
+                    cell.fill = header_fill
+                    cell.alignment = openpyxl.styles.Alignment(horizontal='center')
                 
-                # 写入数据
+                # ========== 写入数据 ==========
                 for t in base_records:
                     type_str = "收入" if t.type == "income" else "支出"
                     ws.append([
@@ -5180,11 +5234,16 @@ def main(page: ft.Page):
                         t.note,
                     ])
                 
+                # 设置金额列为数字格式
+                for row in range(ws.max_row - len(base_records) + 1, ws.max_row + 1):
+                    cell = ws.cell(row=row, column=4)
+                    cell.number_format = '#,##0.00'
+                
                 # 调整列宽
-                ws.column_dimensions['A'].width = 12
-                ws.column_dimensions['B'].width = 8
-                ws.column_dimensions['C'].width = 15
-                ws.column_dimensions['D'].width = 12
+                ws.column_dimensions['A'].width = 14
+                ws.column_dimensions['B'].width = 10
+                ws.column_dimensions['C'].width = 18
+                ws.column_dimensions['D'].width = 14
                 ws.column_dimensions['E'].width = 30
                 
                 # 保存临时文件
@@ -5214,10 +5273,7 @@ def main(page: ft.Page):
                 os.remove(temp_file)
                 
                 if result:
-                    # 显示导出的记录数量
-                    total_income = sum(t.amount for t in base_records if t.type == "income")
-                    total_expense = sum(t.amount for t in base_records if t.type == "expense")
-                    show_bottom_message(f"✅ 成功导出 {len(base_records)} 条记录 (收入: ¥{total_income:,.2f}, 支出: ¥{total_expense:,.2f})")
+                    show_bottom_message(f"✅ 成功导出 {total_count} 条记录 (收入: ¥{total_income:,.2f}, 支出: ¥{total_expense:,.2f})")
                 else:
                     show_bottom_message("已取消导出")
                 
