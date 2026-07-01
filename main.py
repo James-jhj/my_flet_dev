@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.155"
-APP_VERSION_CODE = 155
+APP_VERSION = "1.0.156"
+APP_VERSION_CODE = 156
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -11011,7 +11011,7 @@ def main(page: ft.Page):
                     print(f"[事件自动播放] 音乐正在播放中，跳过: {os.path.basename(music_file)}")
     
     def check_startup_events():
-        """启动时检查今日事件和预警事件"""
+        """启动时检查今日事件和预警事件（直接弹框）"""
         today = datetime.now().date()
         now = datetime.now()
         current_time = now.strftime("%H:%M")
@@ -11027,24 +11027,22 @@ def main(page: ft.Page):
             if event.event_type == "daily":
                 continue
             
+            # 跳过设置了提醒时间的事件
+            has_reminder = False
+            if event.reminders:
+                for reminder in event.reminders:
+                    if reminder.get("enabled"):
+                        has_reminder = True
+                        break
+            
+            if has_reminder:
+                print(f"[启动检查] 跳过 {event.name}（已设置提醒时间）")
+                continue
+            
             # 每周事件
             if event.event_type == "weekly":
                 target_weekday = int(event.birth_date) if event.birth_date else 1
-                if now.isoweekday() == target_weekday:
-                    # 每周事件：检查是否设置了提醒时间
-                    reminder_time = None
-                    if event.reminders:
-                        for reminder in event.reminders:
-                            if reminder.get("enabled"):
-                                reminder_time = reminder.get("time")
-                                break
-                    
-                    # 如果有提醒时间且还没到，跳过今日提醒
-                    if reminder_time and reminder_time > current_time:
-                        print(f"[启动检查] 每周事件今天: {event.name}，提醒时间 {reminder_time} 还没到，跳过今日提醒")
-                        # 但仍然加入预警？每周事件只在当天，所以如果时间没到就不提醒
-                        continue
-                    
+                if datetime.now().isoweekday() == target_weekday:
                     print(f"[启动检查] 每周事件今天: {event.name}")
                     today_events.append((event, 0))
                 continue
@@ -11052,52 +11050,71 @@ def main(page: ft.Page):
             # 获取事件信息
             month, day, year, base_year, days_until = event.get_next_date_info()
             
-            # 跳过已经完成的一次性事件
-            if event.repeat_type == "once" and event.completed:
+            # 一次性事件
+            if event.repeat_type == "once":
+                if event.completed:
+                    continue
+                if days_until == 0:
+                    print(f"[启动检查] 一次性事件今天: {event.name}")
+                    today_events.append((event, 0))
+                elif 0 < days_until <= 3:
+                    print(f"[启动检查] 一次性事件预警: {event.name}, {days_until}天后")
+                    upcoming_events.append((event, days_until))
                 continue
             
-            # 检查是否设置了提醒时间
-            reminder_time = None
-            has_reminder = False
-            if event.reminders:
-                for reminder in event.reminders:
-                    if reminder.get("enabled"):
-                        has_reminder = True
-                        reminder_time = reminder.get("time")
-                        break
+            # 每月事件
+            if event.event_type == "monthly":
+                if days_until == 0:
+                    print(f"[启动检查] 每月事件今天: {event.name}")
+                    today_events.append((event, 0))
+                elif 0 < days_until <= 3:
+                    print(f"[启动检查] 每月事件预警: {event.name}, {days_until}天后")
+                    upcoming_events.append((event, days_until))
+                continue
             
-            # ========== 今日事件 ==========
+            # 生日/纪念日
             if days_until == 0:
-                # 如果设置了提醒时间且还没到，跳过今日提醒
-                if has_reminder and reminder_time and reminder_time > current_time:
-                    print(f"[启动检查] {event.name} 今天发生，但提醒时间 {reminder_time} 还没到，跳过今日提醒")
-                    continue
-                
-                print(f"[启动检查] 今日事件: {event.name}")
-                today_events.append((event, 0))
-            
-            # ========== 预警事件（未来3天）：忽略提醒时间 ==========
+                if event.last_remind_year != today.year:
+                    print(f"[启动检查] 生日/纪念日今天: {event.name}")
+                    today_events.append((event, 0))
             elif 0 < days_until <= 3:
-                print(f"[启动检查] 预警事件: {event.name}, {days_until}天后")
+                print(f"[启动检查] 生日/纪念日预警: {event.name}, {days_until}天后")
                 upcoming_events.append((event, days_until))
         
         print(f"[启动检查] 今日事件: {len(today_events)}, 预警事件: {len(upcoming_events)}")
         
-        # 触发弹框
+        # ========== 触发弹框（使用 sent_notifications 去重） ==========
         if today_events:
-            print("[启动检查] 触发今日事件弹框")
-            grouped = group_events_by_date(today_events)
-            show_combined_reminder(grouped, is_today=True)
-            for event, _ in today_events:
-                if event.repeat_type != "once":
-                    event.last_remind_year = today.year
-                    event.reminded_this_year = True
-            _save_events_silent()
+            # 检查今天是否已经触发过
+            today_key = f"today_{today.strftime('%Y-%m-%d')}"
+            if today_key not in sent_notifications:
+                sent_notifications.add(today_key)
+                print("[启动检查] 触发今日事件弹框")
+                grouped = group_events_by_date(today_events)
+                show_combined_reminder(grouped, is_today=True)
+                for event, _ in today_events:
+                    if event.repeat_type != "once":
+                        event.last_remind_year = today.year
+                        event.reminded_this_year = True
+                _save_events_silent()
+            else:
+                print("[启动检查] 今日事件已触发过，跳过")
         
         if upcoming_events:
-            print("[启动检查] 触发预警弹框")
-            grouped = group_events_by_date(upcoming_events)
-            show_combined_reminder(grouped, is_today=False)
+            # 检查预警事件是否已经触发过（使用统一的 key 格式）
+            new_upcoming = []
+            for event, days in upcoming_events:
+                key = f"warning_{event.id}_{days}"
+                if key not in sent_notifications:
+                    sent_notifications.add(key)
+                    new_upcoming.append((event, days))
+                else:
+                    print(f"[启动检查] 预警事件 {event.name} 已触发过，跳过")
+            
+            if new_upcoming:
+                print("[启动检查] 触发预警弹框")
+                grouped = group_events_by_date(new_upcoming)
+                show_combined_reminder(grouped, is_today=False)
         
         print(f"[启动检查] ========== 完成 ==========")
 
@@ -11466,19 +11483,37 @@ def main(page: ft.Page):
             
             print(f"[定时检查] 今日事件: {len(today_events)}, 预警事件: {len(upcoming_events)}")
             
+            # ========== 触发弹框（使用 sent_notifications 去重） ==========
             if today_events:
-                grouped = group_events_by_date(today_events)
-                show_combined_reminder(grouped, is_today=True)
-                for event, _ in today_events:
-                    if event.repeat_type != "once":
-                        event.last_remind_year = today.year
-                        event.reminded_this_year = True
-                _save_events_silent()
+                today_key = f"today_{today.strftime('%Y-%m-%d')}"
+                if today_key not in sent_notifications:
+                    sent_notifications.add(today_key)
+                    print("[定时检查] 触发今日事件弹框")
+                    grouped = group_events_by_date(today_events)
+                    show_combined_reminder(grouped, is_today=True)
+                    for event, _ in today_events:
+                        if event.repeat_type != "once":
+                            event.last_remind_year = today.year
+                            event.reminded_this_year = True
+                    _save_events_silent()
+                else:
+                    print("[定时检查] 今日事件已触发过，跳过")
             
             if upcoming_events:
-                print(f"[定时检查] 触发预警弹框")
-                grouped = group_events_by_date(upcoming_events)
-                show_combined_reminder(grouped, is_today=False)
+                # 检查预警事件是否已经触发过（使用统一的 key 格式）
+                new_upcoming = []
+                for event, days in upcoming_events:
+                    key = f"warning_{event.id}_{days}"
+                    if key not in sent_notifications:
+                        sent_notifications.add(key)
+                        new_upcoming.append((event, days))
+                    else:
+                        print(f"[定时检查] 预警事件 {event.name} 已触发过，跳过")
+                
+                if new_upcoming:
+                    print(f"[定时检查] 触发预警弹框，事件数: {len(new_upcoming)}")
+                    grouped = group_events_by_date(new_upcoming)
+                    show_combined_reminder(grouped, is_today=False)
                 
             print(f"[定时检查] ========== 检查完成 ==========")
             
@@ -11531,16 +11566,16 @@ def main(page: ft.Page):
                     time.sleep(60)
         
         def time_reminder_loop():
-            """时间提醒循环 - 每10分钟检查"""
+            """时间提醒循环 - 每半小时检查"""
             while True:
                 try:
                     # ========== 只在非 Windows 平台发送保活通知 ==========
                     if not IS_WINDOWS:
-                        show_notification(page, "🔔 保活通知", f"当前时间: {datetime.now().strftime('%H:%M:%S')}")      # 10分钟发个通知
+                        show_notification(page, "🔔 保活通知", f"当前时间: {datetime.now().strftime('%H:%M:%S')}")      # 每半小时发个通知
                     else:
                         # Windows 平台只在控制台打印
                         print(f"[保活] 当前时间: {datetime.now().strftime('%H:%M:%S')}")
-                    time.sleep(600)           # 每10分钟检查一次
+                    time.sleep(1800)           # 每半小时检查一次
                 except Exception as e:
                     print(f"时间提醒循环出错: {e}")
                     time.sleep(30)
@@ -11553,7 +11588,7 @@ def main(page: ft.Page):
         time_thread.start()
         
         print("后台定时检查已启动（每小时检查事件）")
-        print("时间提醒检查已启动（每10分钟检查）")
+        print("时间提醒检查已启动（每半小时检查）")
 
     # ========== 农历日期辅助函数 ==========
     def get_lunar_date_str(year, month, day):
@@ -14035,13 +14070,13 @@ def main(page: ft.Page):
     # 1. 检查错过的提醒（设置了提醒时间且时间已过）
     check_missed_reminders()
     
-    # 2. 检查今日事件和预警事件（未设置提醒时间）- 使用 show_combined_reminder
+    # 2. 检查今日事件和预警事件（使用 check_startup_events）
     check_startup_events()
     
     # 3. 设置启动视图
     determine_startup_view()
     
-    # 4. 延迟执行首次检查
+    # 4. 延迟执行首次检查（但这次 check_events 会检查去重标记，不会重复弹框）
     debug_log("设置首次检查定时器（2秒后）")
     threading.Timer(2.0, check_events).start()
 
