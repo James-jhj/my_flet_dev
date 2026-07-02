@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.156"
-APP_VERSION_CODE = 156
+APP_VERSION = "1.0.157"
+APP_VERSION_CODE = 157
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -7508,6 +7508,36 @@ def main(page: ft.Page):
                 except:
                     return ""
 
+    def calculate_anniversary_years(event, today):
+        """计算纪念日/事件的实际年数（精确到天）"""
+        # 获取事件的起始日期
+        if event.event_type == "event":
+            # 如果是纪念日/事件，使用 birth_date 作为起始日期
+            try:
+                parts = event.birth_date.split("-")
+                start_date = datetime(int(parts[0]), int(parts[1]), int(parts[2])).date()
+                
+                # 计算天数差
+                delta = today - start_date
+                days = delta.days
+                
+                if days < 0:
+                    return 0
+                
+                # 计算年份（精确到年）
+                years = days / 365.25  # 考虑闰年
+                
+                # 如果是刚满整年，显示整数
+                if abs(years - round(years)) < 0.01:
+                    return int(round(years))
+                else:
+                    # 显示带一位小数
+                    return round(years, 1)
+            except:
+                pass
+        
+        return 0
+
     def display_event_card(event, is_filter_mode=False, custom_days_until=None):
         """显示单个事件卡片"""
         global current_playing_event_id, current_music_state, current_position_sec, events_list,card_duration_texts  # 添加 events_list
@@ -8023,7 +8053,12 @@ def main(page: ft.Page):
         """获取年龄或年份显示文本"""
         if event.event_type == "birthday":
             if base_year > 0 and base_year <= today.year:
-                return f"🎉 {today.year - base_year}岁"
+                # 检查今年生日是否已过
+                month, day, year, base_year, days_until = event.get_next_date_info()
+                if month < today.month or (month == today.month and day <= today.day):
+                    return f"🎉 {today.year - base_year}岁"
+                else:
+                    return f"🎉 {today.year - base_year - 1}岁"
             else:
                 return "🎉 生日"
         elif event.event_type == "monthly":
@@ -8051,11 +8086,13 @@ def main(page: ft.Page):
                     date_parts = event.birth_date.split("-")
                     return f"⏰ {date_parts[0]}年{date_parts[1]}月{date_parts[2]}日"
         else:
-            if base_year > 0 and base_year <= today.year:
-                years_passed = today.year - base_year + 1
-                if years_passed < 1:
-                    years_passed = 1
-                return f"💝 第{years_passed}年"
+            # 纪念日/事件：计算实际年数
+            years = calculate_anniversary_years(event, today)
+            if years > 0:
+                if years == int(years):
+                    return f"💝 {int(years)}周年"
+                else:
+                    return f"💝 {years}年"
             else:
                 return "💝 纪念日"
     
@@ -8690,13 +8727,26 @@ def main(page: ft.Page):
         for event in events.values():
             month, day, year, base_year, days_until = event.get_next_date_info()
             
-            # 根据事件类型计算年龄/年份显示
+            # ========== 根据事件类型计算年龄/年份显示 ==========
             if event.event_type == "birthday":
                 if base_year > 0 and base_year <= today.year:
-                    age = today.year - base_year
+                    # 检查今年生日是否已过
+                    if month < today.month or (month == today.month and day <= today.day):
+                        age = today.year - base_year
+                    else:
+                        age = today.year - base_year - 1
                     age_text = f"🎉 {age}岁"
                 else:
                     age_text = "🎉 生日"
+            elif event.event_type == "event":
+                years = calculate_anniversary_years(event, today)
+                if years > 0:
+                    if years == int(years):
+                        age_text = f"💝 {int(years)}周年"
+                    else:
+                        age_text = f"💝 {years}年"
+                else:
+                    age_text = "💝 纪念日"
             elif event.event_type == "monthly":
                 age_text = "🔄 每月提醒"
             elif event.event_type == "daily":
@@ -8706,11 +8756,12 @@ def main(page: ft.Page):
             elif event.repeat_type == "once":
                 age_text = ""
             else:  # event
-                if base_year > 0 and base_year <= today.year:
-                    years_passed = today.year - base_year + 1
-                    if years_passed < 1:
-                        years_passed = 1
-                    age_text = f"💝 第{years_passed}年"
+                years = calculate_anniversary_years(event, today)
+                if years > 0:
+                    if years == int(years):
+                        age_text = f"💝 {int(years)}周年"
+                    else:
+                        age_text = f"💝 {years}年"
                 else:
                     age_text = "💝 纪念日"
             
