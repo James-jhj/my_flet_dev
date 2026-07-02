@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.157"
-APP_VERSION_CODE = 157
+APP_VERSION = "1.0.158"
+APP_VERSION_CODE = 158
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -7538,6 +7538,52 @@ def main(page: ft.Page):
         
         return 0
 
+    def calculate_age_for_birthday(event, today):
+        """计算生日年龄（支持阳历和农历）"""
+        # 获取生日的阳历日期
+        if event.calendar_type == "solar":
+            # 阳历生日
+            parts = event.birth_date.split("-")
+            birth_month = int(parts[1])
+            birth_day = int(parts[2])
+            birth_year = int(parts[0])
+            
+            # 检查今年生日是否已过
+            if birth_month < today.month or (birth_month == today.month and birth_day <= today.day):
+                age = today.year - birth_year
+            else:
+                age = today.year - birth_year - 1
+            return age
+        else:
+            # 农历生日：需要将农历日期转换为阳历日期
+            try:
+                from lunardate import LunarDate
+                # 获取今年的农历日期对应的阳历日期
+                parts = event.birth_date.split("-")
+                lunar_month = int(parts[1])
+                lunar_day = int(parts[2])
+                lunar_year = int(parts[0])
+                
+                # 今年农历生日对应的阳历日期
+                lunar = LunarDate(today.year, lunar_month, lunar_day)
+                solar_date = lunar.toSolarDate()
+                
+                # 检查今年农历生日是否已过
+                if solar_date <= today:
+                    age = today.year - lunar_year
+                else:
+                    age = today.year - lunar_year - 1
+                return age
+            except Exception as e:
+                print(f"农历生日计算错误: {e}")
+                # 降级：用年份直接相减
+                parts = event.birth_date.split("-")
+                lunar_year = int(parts[0])
+                if today.month >= 1 and today.day >= 1:
+                    return today.year - lunar_year
+                else:
+                    return today.year - lunar_year - 1
+
     def display_event_card(event, is_filter_mode=False, custom_days_until=None):
         """显示单个事件卡片"""
         global current_playing_event_id, current_music_state, current_position_sec, events_list,card_duration_texts  # 添加 events_list
@@ -8052,13 +8098,9 @@ def main(page: ft.Page):
     def get_age_text(event, today, base_year):
         """获取年龄或年份显示文本"""
         if event.event_type == "birthday":
-            if base_year > 0 and base_year <= today.year:
-                # 检查今年生日是否已过
-                month, day, year, base_year, days_until = event.get_next_date_info()
-                if month < today.month or (month == today.month and day <= today.day):
-                    return f"🎉 {today.year - base_year}岁"
-                else:
-                    return f"🎉 {today.year - base_year - 1}岁"
+            age = calculate_age_for_birthday(event, today)
+            if age > 0:
+                return f"🎉 {age}岁"
             else:
                 return "🎉 生日"
         elif event.event_type == "monthly":
@@ -8729,12 +8771,8 @@ def main(page: ft.Page):
             
             # ========== 根据事件类型计算年龄/年份显示 ==========
             if event.event_type == "birthday":
-                if base_year > 0 and base_year <= today.year:
-                    # 检查今年生日是否已过
-                    if month < today.month or (month == today.month and day <= today.day):
-                        age = today.year - base_year
-                    else:
-                        age = today.year - base_year - 1
+                age = calculate_age_for_birthday(event, today)
+                if age > 0:
                     age_text = f"🎉 {age}岁"
                 else:
                     age_text = "🎉 生日"
