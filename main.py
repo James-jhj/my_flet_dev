@@ -21,7 +21,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from lunardate import LunarDate
 from urllib.parse import quote
-from typing import Optional
+from typing import List, Optional
 from zhdate import ZhDate
 import openpyxl
 from openpyxl import Workbook, load_workbook
@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.158"
-APP_VERSION_CODE = 158
+APP_VERSION = "1.0.159"
+APP_VERSION_CODE = 159
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -305,6 +305,55 @@ class KeyboardManager:
     def get_page_click_handler(self):
         """获取页面点击处理器"""
         return self._on_page_click
+
+# ========== 备忘录数据类 ==========
+class MemoNote:
+    """备忘录笔记类"""
+    def __init__(self, id: str, title: str, content: str, category: str = "未分类", 
+                 created_at: str = None, updated_at: str = None):
+        self.id = id
+        self.title = title
+        self.content = content
+        self.category = category  # 未分类、个人、工作、其他
+        self.created_at = created_at if created_at else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.updated_at = updated_at if updated_at else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "title": self.title,
+            "content": self.content,
+            "category": self.category,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
+    
+    @classmethod
+    def from_dict(cls, data):
+        return cls(
+            data["id"],
+            data["title"],
+            data["content"],
+            data.get("category", "未分类"),
+            data.get("created_at"),
+            data.get("updated_at"),
+        )
+    
+    def get_preview(self, max_length=30):
+        """获取内容预览（只显示第一行）"""
+        if not self.content:
+            return ""
+        
+        # 获取第一行内容
+        first_line = self.content.split('\n')[0].strip()
+        
+        if not first_line:
+            return ""
+        
+        # 如果第一行太长，截断
+        if len(first_line) > max_length:
+            return first_line[:max_length] + "..."
+        return first_line
     
 # ========== 全局下拉框管理器 ==========
 class DropdownManager:
@@ -338,6 +387,192 @@ class DropdownManager:
         for dropdown in self._dropdowns:
             if dropdown._is_open:
                 dropdown._hide_dropdown()
+
+class SearchableDropdownNtFl(ft.Column):
+    """可搜索的下拉选择框（使用 Overlay 实现悬浮，位置自动适配）"""
+    def __init__(self, page, label, options, value=None, on_change=None, **kwargs):
+        super().__init__(**kwargs)
+        self._page = page
+        self.options = options
+        self.on_change_callback = on_change
+        self._overlay_container = None
+        
+        # 文本输入框
+        self.text_field = ft.TextField(
+            label=label,
+            value=value,
+            height=56,
+            expand=True,
+            read_only=True,  # 添加只读属性
+            on_click=self._on_text_click,  # 点击时阻止焦点
+            on_blur=self.on_blur,  # 添加失去焦点事件
+            #on_change=self.on_text_change,
+            #on_focus=self.on_focus,
+            suffix=ft.IconButton(ft.Icons.ARROW_DROP_DOWN, on_click=self.toggle_dropdown),
+            **kwargs
+        )
+        
+        from flet import Border, BorderSide
+        border = Border(
+            left=BorderSide(1, ft.Colors.GREY_300),
+            top=BorderSide(1, ft.Colors.GREY_300),
+            right=BorderSide(1, ft.Colors.GREY_300),
+            bottom=BorderSide(1, ft.Colors.GREY_300),
+        )
+        
+        # 下拉列表容器
+        self.dropdown_container = ft.Container(
+            content=ft.Column([], spacing=2, scroll=ft.ScrollMode.AUTO),
+            #width=300,
+            expand=True,
+            height=50,
+            bgcolor=ft.Colors.WHITE,
+            border=border,
+            border_radius=4,
+            shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.BLACK12),
+        )
+        
+        self.controls = [self.text_field]
+
+    def _on_text_click(self, e):
+        """点击文本框时，打开下拉框"""
+        # 直接打开下拉框
+        self.toggle_dropdown(e)
+
+    def on_text_change(self, e):
+        search_text = self.text_field.value.lower()
+        filtered = [opt for opt in self.options if search_text in opt.lower()]
+        self.update_dropdown_content(filtered)
+        if self._overlay_container and self._overlay_container in self._page.overlay:
+            self._page.update()
+        
+        if self.on_change_callback:
+            value = self.text_field.value
+            if value and value.strip():
+                self.on_change_callback(value)
+            else:
+                self.on_change_callback(None)
+    
+    def on_focus(self, e):
+        self.show_dropdown()
+
+    def on_blur(self, e):
+        pass
+    
+    def toggle_dropdown(self, e):
+        if self._overlay_container and self._overlay_container in self._page.overlay:
+            self.hide_dropdown()
+        else:
+            self.show_dropdown()
+    
+    def show_dropdown(self):
+        """显示下拉列表（使用 Overlay 悬浮）"""
+        self.update_dropdown_content(self.options)
+        
+        if self._overlay_container and self._overlay_container in self._page.overlay:
+            return
+        
+        # ========== 使用 Column + Row 让下拉框出现在文本框下方 ==========
+        # 使用弹性布局，让下拉框在文本框正下方
+        self._overlay_container = ft.Container(
+            content=ft.Column([
+                # 上方空白（点击关闭）
+                ft.Container(expand=True, on_click=lambda e: self.hide_dropdown()),
+                # 下拉框（在 Row 中居中）
+                ft.Row([
+                    ft.Container(width=30),  # 左边距
+                    ft.Container(
+                        content=self.dropdown_container,
+                        expand=True,  # 宽度填满剩余空间
+                    ),
+                    ft.Container(width=30),  # 右边距
+                ]),
+                # 下方空白
+                ft.Container(height=341, on_click=lambda e: self.hide_dropdown()),
+            ]),
+            expand=True,
+            bgcolor=ft.Colors.TRANSPARENT,
+        )
+        self._page.overlay.append(self._overlay_container)
+        self.dropdown_container.visible = True
+        self._page.update()
+    
+    def hide_dropdown(self):
+        if self._overlay_container and self._overlay_container in self._page.overlay:
+            self._page.overlay.remove(self._overlay_container)
+            self._overlay_container = None
+            self._page.update()
+    
+    def update_dropdown_content(self, options):
+        """更新下拉列表内容"""
+        self.dropdown_container.content.controls.clear()
+        
+        if not options:
+            self.dropdown_container.height = 50
+            return
+        
+        for i, opt in enumerate(options):
+            btn = ft.Container(
+                content=ft.Row([
+                    ft.Text(opt, size=14, color=ft.Colors.BLACK),
+                ], alignment=ft.MainAxisAlignment.START),
+                on_click=lambda e, val=opt: self.select_option(val),
+                ink=True,
+                expand=True,
+                height=40,
+            )
+            self.dropdown_container.content.controls.append(btn)
+            
+            if i < len(options) - 1:
+                divider = ft.Divider(height=1, color=ft.Colors.GREY_200)
+                self.dropdown_container.content.controls.append(divider)
+        
+        # ========== 高度 = 子项高度 * 子项个数 + 分割线高度 ==========
+        total_items = len(options)
+        item_height = 40
+        divider_height = 1
+        
+        # 总高度 = 选项数 * 选项高度 + (选项数-1) * 分割线高度
+        total_height = total_items * item_height + (total_items - 1) * divider_height
+        
+        # 加上上下内边距（如果有）
+        total_height += 10
+
+        print(f"[高度计算] 选项数: {total_items}, 高度: {total_height}")
+        
+        # 限制最大高度（防止超出屏幕）
+        max_height = 300
+        if total_height > max_height:
+            total_height = max_height
+        else:
+            total_height +=14  # 电脑刚刚好高度，手机调高一点+2
+        
+        # 确保最小高度
+        min_height = 50
+        if total_height < min_height:
+            total_height = min_height
+        
+        self.dropdown_container.height = total_height
+        print(f"[高度计算] 选项数: {total_items}, 高度: {total_height}")
+    
+    def select_option(self, value):
+        self.text_field.value = value
+        self.hide_dropdown()
+        if self.on_change_callback:
+            if value and value.strip():
+                self.on_change_callback(value)
+            else:
+                self.on_change_callback(None)
+        self._page.update()
+    
+    @property
+    def value(self):
+        return self.text_field.value
+    
+    @value.setter
+    def value(self, val):
+        self.text_field.value = val
+        self.text_field.update()
 
 class SearchableDropdown(ft.Column):
     """可搜索的下拉选择框（使用 Overlay 实现悬浮）"""
@@ -2591,6 +2826,7 @@ def main(page: ft.Page):
     global auto_fullscreen_lyrics,hide_progress_timer,current_selected_lunar,last_card_update_time  # 添加这行
     global SLIDER_WIDTH, progress_slider, progress_bubble, progress_bubble_container, slider_wrapper,card_duration_texts
     global sent_reminders,sent_music_notifications
+    global memo_notes
 
 
     page.window_icon = "icon.png"
@@ -2693,6 +2929,12 @@ def main(page: ft.Page):
     
     # 记录程序启动时间
     start_time = datetime.now()
+
+    # ========== 备忘录全局变量 ==========
+    memo_notes = []  # 存储所有笔记
+    #current_memo_filter = "全部"  # 当前筛选分类
+    #memo_search_keyword = ""  # 搜索关键词
+    #memo_selected_ids = set()  # 批量删除时选中的ID
     
     # 音乐控制变量
     current_audio = None
@@ -4768,8 +5010,815 @@ def main(page: ft.Page):
                 events_list.controls.pop()
         
         page.update()
+
+    # ===========================  2.备忘录功能添加 ===================================
+    def get_memo_file_path():
+        """获取备忘录数据文件路径"""
+        return get_data_file_path("memo_notes.json")
+
+    def load_memo_notes():
+        """加载备忘录数据"""
+        global memo_notes
+        try:
+            json_path = get_memo_file_path()
+            if os.path.exists(json_path):
+                with open(json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    memo_notes = [MemoNote.from_dict(item) for item in data]
+                    print(f"加载 {len(memo_notes)} 条备忘录")
+            else:
+                memo_notes = []
+                save_memo_notes()
+        except Exception as e:
+            print(f"加载备忘录失败: {e}")
+            memo_notes = []
+
+    def save_memo_notes():
+        """保存备忘录数据"""
+        try:
+            json_path = get_memo_file_path()
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump([note.to_dict() for note in memo_notes], f, ensure_ascii=False, indent=2)
+            print(f"已保存 {len(memo_notes)} 条备忘录")
+        except Exception as e:
+            print(f"保存备忘录失败: {e}")
+
+    def show_memo_page(page: ft.Page):
+        """显示备忘录主界面"""
+        global memo_notes, memo_selected_ids, memo_page_mode
+        
+        load_memo_notes()
+        memo_selected_ids = set()
+        memo_page_mode = "normal"  # "normal" 或 "select"
+        
+        # ========== 构建普通模式界面 ==========
+        def build_normal_mode():
+            """构建普通模式界面"""
+            notes_list = ft.Column(spacing=8, scroll=ft.ScrollMode.AUTO, expand=True)
+            
+            # ========== 分类下拉框（PopupMenuButton 风格） ==========
+            category_options = ["全部笔记", "未分类", "个人", "工作", "其他"]
+            
+            # 构建 PopupMenuButton 的 items（带分割线）
+            category_popup_items = []
+            for i, cat in enumerate(category_options):
+                category_popup_items.append(
+                    ft.PopupMenuItem(
+                        content=ft.Container(
+                            content=ft.Text(cat, size=14),
+                            width=120,
+                        ),
+                        on_click=lambda e, val=cat: select_category_popup(val),
+                        height=40,
+                    )
+                )
+                if i < len(category_options) - 1:
+                    category_popup_items.append(
+                        ft.PopupMenuItem(
+                            content=ft.Divider(height=1, color=ft.Colors.GREY_300),
+                            disabled=True,
+                            height=2,
+                        )
+                    )
+            
+            category_popup = ft.PopupMenuButton(
+                content=ft.Row([
+                    ft.Text("全部笔记", size=14, weight=ft.FontWeight.BOLD),
+                    ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18),
+                ], spacing=5, alignment=ft.MainAxisAlignment.CENTER),
+                items=category_popup_items,
+                bgcolor=ft.Colors.WHITE,
+            )
+            
+            # 用 Container 包裹 PopupMenuButton，添加边框
+            category_dropdown = ft.Container(
+                content=category_popup,
+                border=None,
+                border_radius=6,
+                bgcolor=ft.Colors.WHITE,
+            )
+            
+            def select_category_popup(value):
+                global current_category
+                current_category = value
+                # 更新显示文本
+                category_popup.content.controls[0].value = value
+                category_popup.update()
+                render_notes()
+                page.update()
+            
+            search_field = ft.Container(
+                content=ft.TextField(
+                    label="搜索笔记",
+                    hint_text="输入标题或内容关键词",
+                    expand=True,
+                    on_change=lambda e: render_notes(),
+                    suffix=ft.IconButton(
+                        ft.Icons.CLEAR,
+                        on_click=lambda e: clear_search(),
+                        icon_color=ft.Colors.GREY_500,
+                    ),
+                    border=ft.InputBorder.NONE,  # 移除边框
+                    border_radius=20,
+                    bgcolor=ft.Colors.WHITE,
+                    content_padding=10,
+                ),
+                expand=True,
+                shadow=ft.BoxShadow(
+                    spread_radius=1,
+                    blur_radius=8,
+                    color=ft.Colors.BLACK12,
+                    offset=ft.Offset(0, 2),
+                ),
+                border_radius=20,
+            )
+            
+            count_text = ft.Text(f"共 {len(memo_notes)} 条笔记", size=12, color=ft.Colors.GREY_500)
+            
+            def get_category_label(category):
+                return ft.Container(
+                    content=ft.Text(category, size=10, color=ft.Colors.BLUE_700),
+                    bgcolor=ft.Colors.BLUE_50,
+                    border_radius=4,
+                )
+            
+            def create_normal_card(note):
+                display_date = note.updated_at if note.updated_at else note.created_at
+                preview_text = note.get_preview(35)
+                
+                return ft.Container(
+                    content=ft.Column([
+                        ft.Row([
+                            ft.Text(note.title, size=16, weight=ft.FontWeight.BOLD, expand=True),
+                            get_category_label(note.category),
+                        ]),
+                        ft.Row([
+                            ft.Text(f"📅 {display_date}", size=10, color=ft.Colors.GREY_500),
+                            ft.Text("|", size=10, color=ft.Colors.GREY_300),
+                            ft.Text(preview_text, size=12, color=ft.Colors.GREY_600, expand=True),
+                        ], spacing=5),
+                    ], spacing=4),
+                    padding=12,
+                    bgcolor=ft.Colors.WHITE,
+                    border_radius=8,
+                    border=ft.border.Border(bottom=ft.border.BorderSide(1, ft.Colors.GREY_200)),
+                    ink=True,
+                    on_click=lambda e: open_memo_edit_dialog(note.id),
+                    on_long_press=lambda e: enter_multi_select_mode(),
+                )
+            
+            def render_notes():
+                notes_list.controls.clear()
+                
+                # 从 PopupMenuButton 的 content 中获取显示的文本
+                current_category_text = category_popup.content.controls[0].value
+                category_filter = current_category_text if current_category_text else "全部笔记"
+
+                keyword = search_field.content.value if search_field.content.value else ""
+                
+                filtered_notes = []
+                for note in memo_notes:
+                    if category_filter != "全部笔记" and note.category != category_filter:
+                        continue
+                    if keyword:
+                        kw = keyword.lower()
+                        if kw not in note.title.lower() and kw not in note.content.lower():
+                            continue
+                    filtered_notes.append(note)
+                
+                filtered_notes.sort(key=lambda x: x.updated_at, reverse=True)
+                
+                count_text.value = f"共 {len(filtered_notes)} 条笔记"
+                count_text.update()
+                
+                if not filtered_notes:
+                    notes_list.controls.append(
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Text("📝 暂无笔记", size=16, color=ft.Colors.GREY_500),
+                                ft.Text("点击右下角「+」添加", size=12, color=ft.Colors.GREY_400),
+                            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                            padding=40,
+                        )
+                    )
+                    page.update()
+                    return
+                
+                for note in filtered_notes:
+                    notes_list.controls.append(create_normal_card(note))
+                
+                page.update()
+            
+            def clear_search():
+                search_field.content.value = ""
+                search_field.update()
+                render_notes()
+            
+            def enter_multi_select_mode():
+                print("[进入] 选择模式")
+                memo_selected_ids.clear()
+                # 重新构建选择模式界面
+                build_select_mode()
+            
+            # ========== 编辑笔记对话框 ==========
+            def open_memo_edit_dialog(note_id=None):
+                """打开笔记编辑对话框"""
+                edit_dialog_container = None
+                
+                # 如果是编辑模式，加载笔记数据
+                if note_id:
+                    note = next((n for n in memo_notes if n.id == note_id), None)
+                    if not note:
+                        show_bottom_message("笔记不存在")
+                        return
+                    title_text = "编辑笔记"
+                    initial_title = note.title
+                    initial_content = note.content
+                    initial_category = note.category
+                else:
+                    title_text = "添加笔记"
+                    initial_title = ""
+                    initial_content = ""
+                    initial_category = "未分类"
+                
+                def close_edit_dialog():
+                    nonlocal edit_dialog_container
+                    if edit_dialog_container and edit_dialog_container in page.overlay:
+                        page.overlay.remove(edit_dialog_container)
+                        edit_dialog_container = None
+                        page.update()
+                
+                def save_note(e):
+                    """保存笔记"""
+                    title = title_field.value.strip()
+                    content = content_field.value.strip()
+                    # ========== 获取分类值 ==========
+                    category = category_dropdown_edit.value if category_dropdown_edit.value else "未分类"
+                    
+                    if not title:
+                        show_bottom_message("请输入标题", is_error=True)
+                        return
+                    
+                    if not content:
+                        show_bottom_message("请输入内容", is_error=True)
+                        return
+                    
+                    if note_id:
+                        # 编辑模式：更新笔记
+                        note.title = title
+                        note.content = content
+                        note.category = category
+                        note.updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        show_bottom_message(f"✅ 已更新「{title}」")
+                    else:
+                        # 新增模式：创建笔记
+                        new_note = MemoNote(
+                            id=str(int(datetime.now().timestamp() * 1000)),
+                            title=title,
+                            content=content,
+                            category=category,
+                        )
+                        memo_notes.append(new_note)
+                        show_bottom_message(f"✅ 已添加「{title}」")
+                    
+                    save_memo_notes()
+                    close_edit_dialog()
+                    # 刷新列表
+                    render_notes()
+                
+                def delete_note(e):
+                    """删除笔记"""
+                    if not note_id:
+                        return
+                    
+                    def confirm_delete():
+                        global memo_notes
+                        memo_notes = [n for n in memo_notes if n.id != note_id]
+                        save_memo_notes()
+                        close_edit_dialog()
+                        render_notes()
+                        show_bottom_message("已删除笔记")
+                    
+                    show_delete_confirm_dialog("确定要删除这篇笔记吗？", confirm_delete)
+                
+                # 标题输入
+                title_field = ft.TextField(
+                    label="标题",
+                    value=initial_title,
+                    expand=True,
+                )
+                
+                # ========== 分类下拉框（使用 SearchableDropdownNtFl） ==========
+                category_options = ["未分类", "个人", "工作", "其他"]
+
+                # 分类下拉
+                category_dropdown_edit = SearchableDropdownNtFl(
+                        page=page,  # 传入 page
+                        label="分类",
+                        value=initial_category,
+                        options=category_options,  # 传入字符串列表
+                    )
+                
+                # 内容输入
+                content_field = ft.TextField(
+                    label="内容",
+                    value=initial_content,
+                    expand=True,
+                    multiline=True,
+                    min_lines=5,
+                    max_lines=15,
+                )
+                
+                # 顶部按钮栏
+                top_bar = ft.Row([
+                    ft.IconButton(
+                        icon=ft.Icons.CLOSE,
+                        icon_size=24,
+                        icon_color=ft.Colors.RED_700,
+                        tooltip="取消",
+                        on_click=lambda e: close_edit_dialog(),
+                    ),
+                    ft.Text(title_text, size=18, weight=ft.FontWeight.BOLD, expand=True, text_align=ft.TextAlign.CENTER),
+                    ft.IconButton(
+                        icon=ft.Icons.CHECK,
+                        icon_size=24,
+                        icon_color=ft.Colors.GREEN_700,
+                        tooltip="保存",
+                        on_click=save_note,
+                    ),
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+                
+                # 底部删除按钮（编辑模式）
+                bottom_delete = None
+                if note_id:
+                    bottom_delete = ft.Row([
+                        ft.Container(expand=True),
+                        ft.OutlinedButton(
+                            "🗑️ 删除",
+                            on_click=delete_note,
+                            style=ft.ButtonStyle(
+                                color=ft.Colors.RED_700,
+                            ),
+                        ),
+                        ft.Container(expand=True),
+                    ], spacing=10)
+                
+                # 可滚动内容
+                scrollable_content = ft.Column([
+                    title_field,
+                    category_dropdown_edit,
+                    content_field,
+                ], spacing=15, scroll=ft.ScrollMode.AUTO, expand=True)
+                
+                # 整体布局
+                dialog_content = ft.Column([
+                    top_bar,
+                    ft.Divider(height=5),
+                    scrollable_content,
+                    bottom_delete if bottom_delete else ft.Container(),
+                ], spacing=10, height=450)
+                
+                edit_dialog_container = ft.Container(
+                    content=ft.Container(
+                        content=dialog_content,
+                        bgcolor=ft.Colors.WHITE,
+                        padding=20,
+                        border_radius=12,
+                        shadow=ft.BoxShadow(
+                            spread_radius=1,
+                            blur_radius=15,
+                            color=ft.Colors.BLACK12,
+                        ),
+                        expand=True,
+                    ),
+                    left=20,
+                    top=50,
+                    right=20,
+                    bottom=50,
+                )
+                
+                page.overlay.append(edit_dialog_container)
+                page.update()
+            
+            # ========== 删除确认对话框 ==========
+            def show_delete_confirm_dialog(message, on_confirm):
+                """显示删除确认对话框"""
+                dialog_container = None
+                
+                def close_dialog():
+                    nonlocal dialog_container
+                    if dialog_container and dialog_container in page.overlay:
+                        page.overlay.remove(dialog_container)
+                        dialog_container = None
+                        page.update()
+                
+                def confirm(e):
+                    close_dialog()
+                    on_confirm()
+                
+                def cancel(e):
+                    close_dialog()
+                
+                dialog_content = ft.Container(
+                    content=ft.Column([
+                        ft.Container(
+                            content=ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, size=55, color=ft.Colors.RED_700),
+                            padding=10,
+                            bgcolor=ft.Colors.RED_50,
+                            border_radius=50,
+                        ),
+                        ft.Text("确认删除", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.RED_700, text_align=ft.TextAlign.CENTER),
+                        ft.Divider(height=1, color=ft.Colors.GREY_300),
+                        ft.Text(message, size=14, color=ft.Colors.GREY_700, text_align=ft.TextAlign.CENTER),
+                        ft.Text("此操作不可撤销！", size=12, color=ft.Colors.RED_500, text_align=ft.TextAlign.CENTER),
+                        ft.Divider(height=1, color=ft.Colors.GREY_300),
+                        ft.Row([
+                            ft.ElevatedButton(
+                                "取消", 
+                                on_click=cancel, 
+                                expand=True,
+                                style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.GREY_700),
+                            ),
+                            ft.ElevatedButton(
+                                "确认删除", 
+                                on_click=confirm, 
+                                expand=True,
+                                style=ft.ButtonStyle(bgcolor=ft.Colors.RED_700, color=ft.Colors.WHITE),
+                            ),
+                        ], spacing=12, alignment=ft.MainAxisAlignment.CENTER),
+                    ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                    width=320,
+                    padding=20,
+                    bgcolor=ft.Colors.WHITE,
+                    border_radius=16,
+                )
+                
+                dialog_container = ft.Container(
+                    content=ft.Column([
+                        ft.Container(expand=True),
+                        ft.Row([
+                            ft.Container(expand=True),
+                            dialog_content,
+                            ft.Container(expand=True),
+                        ]),
+                        ft.Container(expand=True),
+                    ]),
+                    expand=True,
+                    bgcolor=ft.Colors.BLACK26,
+                    on_click=lambda e: close_dialog(),
+                )
+                
+                page.overlay.append(dialog_container)
+                page.update()
+            
+            def back_to_main():
+                for overlay in page.overlay[:]:
+                    if overlay in page.overlay:
+                        page.overlay.remove(overlay)
+                page.clean()
+                page.add(main_stack)
+                page.update()
+            
+            # 悬浮按钮
+            memo_fab = ft.Container(
+                content=ft.Icon(ft.Icons.ADD, size=28, color=ft.Colors.WHITE),
+                bgcolor=ft.Colors.BLUE_700,
+                border_radius=30,
+                padding=14,
+                ink=True,
+                shadow=ft.BoxShadow(spread_radius=1, blur_radius=10, color=ft.Colors.BLACK26, offset=ft.Offset(0, 2)),
+                on_click=lambda e: open_memo_edit_dialog(None),
+            )
+            
+            back_btn_main = ft.IconButton(ft.Icons.ARROW_BACK, icon_size=28, on_click=lambda e: back_to_main(), tooltip="返回")
+            
+            main_content = ft.Column([
+                ft.Container(height=10),
+                ft.Row([
+                    back_btn_main,
+                    ft.Text("📝 备忘录", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, expand=True, text_align=ft.TextAlign.CENTER),
+                    ft.Container(width=48),
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                ft.Divider(),
+                ft.Row([
+                    category_dropdown,
+                ], alignment=ft.MainAxisAlignment.START, spacing=5),
+                ft.Row([count_text, ft.Container(expand=True)]),
+                #ft.Divider(),
+                ft.Row([
+                    search_field,
+                ], alignment=ft.MainAxisAlignment.START, spacing=5),
+                ft.Divider(height=5),
+                notes_list,
+            ], spacing=8, expand=True)
+            
+            memo_stack = ft.Stack([
+                main_content,
+                ft.Container(content=memo_fab, right=20, bottom=20),
+            ], expand=True)
+            
+            page.clean()
+            page.add(memo_stack)
+            page.update()
+            
+            render_notes()
+        
+        # ========== 构建选择模式界面 ==========
+        def build_select_mode():
+            """构建选择模式界面"""
+            print("[构建] 选择模式界面")
+            
+            select_list = ft.Column(spacing=8, scroll=ft.ScrollMode.AUTO, expand=True)
+            memo_selected_ids.clear()
+
+            # ========== 使用 Text 控件作为按钮内容 ==========
+            select_all_text = ft.Text("☑️ 全选", size=14, color=ft.Colors.WHITE)
+            
+            def get_category_label(category):
+                return ft.Container(
+                    content=ft.Text(category, size=10, color=ft.Colors.BLUE_700),
+                    bgcolor=ft.Colors.BLUE_50,
+                    border_radius=4,
+                )
+            
+            def update_selected_count():
+                """更新已选数量显示"""
+                selected_count_text.value = f"已选 {len(memo_selected_ids)} 条"
+                selected_count_text.update()
+            
+            def create_select_card(note):
+                is_selected = note.id in memo_selected_ids
+                
+                def on_click(e):
+                    if note.id in memo_selected_ids:
+                        memo_selected_ids.remove(note.id)
+                    else:
+                        memo_selected_ids.add(note.id)
+                    # 更新选中数量
+                    update_selected_count()
+                    render_select_list()
+                
+                display_date = note.updated_at if note.updated_at else note.created_at
+                preview_text = note.get_preview(35)
+                
+                return ft.Container(
+                    content=ft.Row([
+                        ft.Column([
+                            ft.Row([
+                                ft.Text(note.title, size=16, weight=ft.FontWeight.BOLD, expand=True),
+                                get_category_label(note.category),
+                            ]),
+                            ft.Row([
+                                ft.Text(f"📅 {display_date}", size=10, color=ft.Colors.GREY_500),
+                                ft.Text("|", size=10, color=ft.Colors.GREY_300),
+                                ft.Text(preview_text, size=12, color=ft.Colors.GREY_600, expand=True),
+                            ], spacing=5),
+                        ], expand=True),
+                        ft.Checkbox(
+                            value=is_selected,
+                            on_change=lambda e: on_click(e),
+                            active_color=ft.Colors.BLUE_700,
+                        ),
+                    ], spacing=8),
+                    padding=12,
+                    bgcolor=ft.Colors.BLUE_50 if is_selected else ft.Colors.WHITE,
+                    border_radius=8,
+                    border=ft.border.Border(bottom=ft.border.BorderSide(1, ft.Colors.GREY_200)),
+                    ink=True,
+                    on_click=on_click,
+                )
+            
+            def render_select_list():
+                select_list.controls.clear()
+                
+                # 获取所有笔记（不筛选，直接显示全部）
+                filtered_notes = memo_notes.copy()
+                filtered_notes.sort(key=lambda x: x.updated_at, reverse=True)
+                
+                if not filtered_notes:
+                    select_list.controls.append(
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Text("📝 暂无笔记", size=16, color=ft.Colors.GREY_500),
+                            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                            padding=40,
+                        )
+                    )
+                    page.update()
+                    return
+                
+                for note in filtered_notes:
+                    select_list.controls.append(create_select_card(note))
+                
+                # 更新选中数量
+                update_selected_count()
+                page.update()
+                print(f"[选择模式] 显示 {len(filtered_notes)} 张卡片")
+            
+            def exit_select_mode():
+                print("[退出] 选择模式")
+                memo_selected_ids.clear()
+                # 移除底部栏
+                for overlay in page.overlay[:]:
+                    if getattr(overlay, 'data', None) == 'memo_bottom_bar':
+                        page.overlay.remove(overlay)
+                # 回到普通模式
+                build_normal_mode()
+            
+            def delete_selected():
+                if not memo_selected_ids:
+                    show_bottom_message("请先选择要删除的笔记")
+                    return
+                
+                # ========== 显示确认对话框 ==========
+                def show_delete_confirm_dialog(message, on_confirm):
+                    """删除确认对话框"""
+                    dialog_container = None
+                    
+                    def close_dialog():
+                        nonlocal dialog_container
+                        if dialog_container and dialog_container in page.overlay:
+                            page.overlay.remove(dialog_container)
+                            dialog_container = None
+                            page.update()
+                    
+                    def confirm(e):
+                        close_dialog()
+                        on_confirm()
+                    
+                    def cancel(e):
+                        close_dialog()
+                    
+                    dialog_content = ft.Container(
+                        content=ft.Column([
+                            ft.Container(
+                                content=ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, size=55, color=ft.Colors.RED_700),
+                                padding=10,
+                                bgcolor=ft.Colors.RED_50,
+                                border_radius=50,
+                            ),
+                            ft.Text("确认删除", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.RED_700, text_align=ft.TextAlign.CENTER),
+                            ft.Divider(height=1, color=ft.Colors.GREY_300),
+                            ft.Text(message, size=14, color=ft.Colors.GREY_700, text_align=ft.TextAlign.CENTER),
+                            ft.Text("此操作不可撤销！", size=12, color=ft.Colors.RED_500, text_align=ft.TextAlign.CENTER),
+                            ft.Divider(height=1, color=ft.Colors.GREY_300),
+                            ft.Row([
+                                ft.Button(
+                                    "取消", 
+                                    on_click=cancel, 
+                                    expand=True,
+                                    style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.GREY_700),
+                                ),
+                                ft.Button(
+                                    "确认删除", 
+                                    on_click=confirm, 
+                                    expand=True,
+                                    style=ft.ButtonStyle(bgcolor=ft.Colors.RED_700, color=ft.Colors.WHITE),
+                                ),
+                            ], spacing=12, alignment=ft.MainAxisAlignment.CENTER),
+                        ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                        width=320,
+                        padding=20,
+                        bgcolor=ft.Colors.WHITE,
+                        border_radius=16,
+                    )
+                    
+                    dialog_container = ft.Container(
+                        content=ft.Column([
+                            ft.Container(expand=True),
+                            ft.Row([
+                                ft.Container(expand=True),
+                                dialog_content,
+                                ft.Container(expand=True),
+                            ]),
+                            ft.Container(expand=True),
+                        ]),
+                        expand=True,
+                        bgcolor=ft.Colors.BLACK26,
+                        on_click=lambda e: close_dialog(),
+                    )
+                    
+                    page.overlay.append(dialog_container)
+                    page.update()
+                
+                def confirm_delete():
+                    ids = list(memo_selected_ids)
+                    for nid in ids:
+                        memo_notes[:] = [n for n in memo_notes if n.id != nid]
+                    save_memo_notes()
+                    memo_selected_ids.clear()
+                    exit_select_mode()
+                    show_bottom_message(f"已删除 {len(ids)} 条笔记")
+                
+                show_delete_confirm_dialog(f"确定要删除选中的 {len(memo_selected_ids)} 条笔记吗？", confirm_delete)
+            
+            def toggle_all():
+                filtered_notes = memo_notes.copy()
+                all_selected = all(n.id in memo_selected_ids for n in filtered_notes)
+                
+                if all_selected:
+                    for n in filtered_notes:
+                        memo_selected_ids.discard(n.id)
+                    select_all_text.value = "☑️ 全选"
+                else:
+                    for n in filtered_notes:
+                        memo_selected_ids.add(n.id)
+                    select_all_text.value = "☑️ 取消全选"
+                
+                # 更新按钮
+                select_all_text.update()
+                update_selected_count()
+                render_select_list()
+            
+            def show_delete_confirm_dialog(message, on_confirm):
+                show_bottom_message(message)
+                on_confirm()
+            
+            def back_to_main():
+                for overlay in page.overlay[:]:
+                    if overlay in page.overlay:
+                        page.overlay.remove(overlay)
+                page.clean()
+                page.add(main_stack)
+                page.update()
+            
+            # 返回按钮
+            back_btn = ft.IconButton(
+                ft.Icons.ARROW_BACK,
+                icon_size=28,
+                on_click=lambda e: exit_select_mode(),
+                tooltip="返回",
+                width=48,
+            )
+
+            # 已选数量文本（需要引用，以便更新）
+            selected_count_text = ft.Text(f"已选 {len(memo_selected_ids)} 条", size=14, color=ft.Colors.GREY_700)
+            
+            # ========== 全选按钮使用 content 包裹 Text ==========
+            select_all_btn = ft.ElevatedButton(
+                content=select_all_text,
+                on_click=lambda e: toggle_all(),
+                style=ft.ButtonStyle(
+                    bgcolor=ft.Colors.BLUE_700,
+                    color=ft.Colors.WHITE,
+                ),
+            )
+            
+            # 删除按钮
+            delete_btn = ft.Button(
+                "🗑️ 删除",
+                on_click=lambda e: delete_selected(),
+                style=ft.ButtonStyle(bgcolor=ft.Colors.RED_700, color=ft.Colors.WHITE),
+            )
+            
+            # 底部栏（直接放在 Column 底部，不用 overlay）
+            bottom_bar = ft.Container(
+                content=ft.Row([
+                    select_all_btn,
+                    ft.Container(width=10),
+                    delete_btn,
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                padding=10,
+                bgcolor=ft.Colors.WHITE,
+                border=ft.border.Border(top=ft.border.BorderSide(1, ft.Colors.GREY_200)),
+                shadow=ft.BoxShadow(spread_radius=1, blur_radius=8, color=ft.Colors.BLACK12, offset=ft.Offset(0, -2)),
+            )
+            
+            # 标题栏
+            main_content = ft.Column([
+                ft.Container(height=10),
+                ft.Row([
+                    back_btn,
+                    ft.Text("📝 选择笔记", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, expand=True, text_align=ft.TextAlign.CENTER),
+                    ft.Container(width=48),
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                ft.Divider(),
+                ft.Row([
+                    selected_count_text,
+                    ft.Container(expand=True),
+                ]),
+                ft.Divider(height=5),
+                select_list,
+                bottom_bar,
+            ], spacing=8, expand=True)
+            
+            memo_stack = ft.Stack([
+                main_content,
+            ], expand=True)
+            
+            page.clean()
+            page.add(memo_stack)
+            page.update()
+            
+            render_select_list()
+            print("[选择模式] 界面加载完成")
+        
+        # ========== 启动 ==========
+        build_normal_mode()
+        print("[备忘录] 加载完成")
+
     
-    # ===========================  记账功能添加 ===================================
+    # ===========================  3.记账功能添加 ===================================
     # 加载记账数据
     def load_accounting_data():
         global transactions
@@ -11708,6 +12757,8 @@ def main(page: ft.Page):
 
     load_accounting_data()  # 加载记账列表
 
+    load_memo_notes()       # 加载备忘录数据
+
     # ========== 粘贴你提供的日历测试代码 ==========
     current_year = datetime.now().year
     current_month = datetime.now().month
@@ -13633,6 +14684,15 @@ def main(page: ft.Page):
             on_click=lambda e: show_accounting_page(page), 
             tooltip="账单",
             style=ft.ButtonStyle(color=ft.Colors.BLUE_700,text_style=ft.TextStyle(weight=ft.FontWeight.BOLD), ),
+        ),
+        ft.TextButton(
+            "📝 备忘录", 
+            on_click=lambda e: show_memo_page(page), 
+            tooltip="打开备忘录",
+            style=ft.ButtonStyle(
+                color=ft.Colors.BLUE_700,
+                text_style=ft.TextStyle(weight=ft.FontWeight.BOLD),
+            ),
         ),
         ft.TextButton("📥 导入", on_click=show_import_menu, tooltip="从Excel导入事件"),
         ft.TextButton("📤 导出", on_click=show_export_menu, tooltip="导出事件到Excel"),
