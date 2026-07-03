@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.159"
-APP_VERSION_CODE = 159
+APP_VERSION = "1.0.160"
+APP_VERSION_CODE = 160
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -339,8 +339,8 @@ class MemoNote:
             data.get("updated_at"),
         )
     
-    def get_preview(self, max_length=30):
-        """获取内容预览（只显示第一行）"""
+    def get_preview(self, max_length=15):
+        """获取内容预览（只显示第一行，最多15个汉字）"""
         if not self.content:
             return ""
         
@@ -350,7 +350,7 @@ class MemoNote:
         if not first_line:
             return ""
         
-        # 如果第一行太长，截断
+        # 如果第一行太长，截断（汉字算1个字符）
         if len(first_line) > max_length:
             return first_line[:max_length] + "..."
         return first_line
@@ -488,7 +488,7 @@ class SearchableDropdownNtFl(ft.Column):
                     ft.Container(width=30),  # 右边距
                 ]),
                 # 下方空白
-                ft.Container(height=341, on_click=lambda e: self.hide_dropdown()),
+                ft.Container(height=360, on_click=lambda e: self.hide_dropdown()), # 备忘录的分类下拉框高度根据手机进行调整
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
@@ -5109,19 +5109,28 @@ def main(page: ft.Page):
             
             search_field = ft.Container(
                 content=ft.TextField(
-                    label="搜索笔记",
-                    hint_text="输入标题或内容关键词",
+                    hint_text="搜索笔记",
                     expand=True,
-                    on_change=lambda e: render_notes(),
+                    height=30,
+                    on_change=lambda e: on_search_change(),
                     suffix=ft.IconButton(
                         ft.Icons.CLEAR,
                         on_click=lambda e: clear_search(),
                         icon_color=ft.Colors.GREY_500,
+                        icon_size=16,
+                        visible=False,
+                        height=30,  # 与 TextField 高度一致
+                        padding=1,
                     ),
-                    border=ft.InputBorder.NONE,  # 移除边框
+                    border=ft.InputBorder.NONE,
                     border_radius=20,
                     bgcolor=ft.Colors.WHITE,
                     content_padding=10,
+                    text_size=16,
+                    text_vertical_align=0.5,
+                    fill_color=ft.Colors.WHITE,  # 填充颜色始终为白色
+                    hover_color=ft.Colors.WHITE,  # 悬停颜色白色
+                    focus_color=ft.Colors.WHITE,  # 焦点颜色白色
                 ),
                 expand=True,
                 shadow=ft.BoxShadow(
@@ -5131,7 +5140,29 @@ def main(page: ft.Page):
                     offset=ft.Offset(0, 2),
                 ),
                 border_radius=20,
+                #on_click=lambda e: search_field.content.focus(),  # 点击空白区域失去焦点
             )
+
+            def on_search_change():
+                """搜索内容变化时"""
+                # 获取搜索框内的文本
+                search_text = search_field.content.value if search_field.content.value else ""
+                
+                # 控制清除按钮的显示/隐藏
+                if search_text:
+                    search_field.content.suffix.visible = True
+                else:
+                    search_field.content.suffix.visible = False
+                
+                search_field.content.update()
+                render_notes()
+
+            def clear_search():
+                """清除搜索"""
+                search_field.content.value = ""
+                search_field.content.suffix.visible = False
+                search_field.content.update()
+                render_notes()
             
             count_text = ft.Text(f"共 {len(memo_notes)} 条笔记", size=12, color=ft.Colors.GREY_500)
             
@@ -5153,7 +5184,7 @@ def main(page: ft.Page):
                             get_category_label(note.category),
                         ]),
                         ft.Row([
-                            ft.Text(f"📅 {display_date}", size=10, color=ft.Colors.GREY_500),
+                            ft.Text(f"{display_date}", size=10, color=ft.Colors.GREY_500),
                             ft.Text("|", size=10, color=ft.Colors.GREY_300),
                             ft.Text(preview_text, size=12, color=ft.Colors.GREY_600, expand=True),
                         ], spacing=5),
@@ -5209,10 +5240,10 @@ def main(page: ft.Page):
                 
                 page.update()
             
-            def clear_search():
-                search_field.content.value = ""
-                search_field.update()
-                render_notes()
+            #def clear_search():
+                #search_field.content.value = ""
+                #search_field.update()
+                #render_notes()
             
             def enter_multi_select_mode():
                 print("[进入] 选择模式")
@@ -14694,8 +14725,8 @@ def main(page: ft.Page):
                 text_style=ft.TextStyle(weight=ft.FontWeight.BOLD),
             ),
         ),
-        ft.TextButton("📥 导入", on_click=show_import_menu, tooltip="从Excel导入事件"),
         ft.TextButton("📤 导出", on_click=show_export_menu, tooltip="导出事件到Excel"),
+        ft.TextButton("📥 导入", on_click=show_import_menu, tooltip="从Excel导入事件"),
         #ft.TextButton("🔔 通知", on_click=test_notification)
     ], spacing=0)
 
