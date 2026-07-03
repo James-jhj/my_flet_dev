@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.160"
-APP_VERSION_CODE = 160
+APP_VERSION = "1.0.161"
+APP_VERSION_CODE = 161
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -271,20 +271,58 @@ class Transaction:
             data.get("note", ""),
         )
 
+""" 
 class KeyboardManager:
-    """键盘管理器"""
+    #键盘管理器
     def __init__(self, page):
         self._page = page
         self._controls = []
         self._setup_page_handler()
     
     def _setup_page_handler(self):
-        """设置页面点击处理"""
+        #设置页面点击处理
         # 保存原始容器点击事件
         original_click = None
         
         def on_page_click(e):
-            """点击页面空白区域"""
+            #点击页面空白区域
+            print("点击页面空白区域 - 隐藏所有键盘")
+            for control in self._controls:
+                if hasattr(control, 'hide_keyboard'):
+                    control.hide_keyboard()
+            # 调用原始点击事件
+            if original_click:
+                original_click(e)
+        
+        # 监听页面的容器点击
+        # 注意：需要在页面添加容器时设置
+        self._on_page_click = on_page_click
+    
+    def register(self, control):
+        #注册需要键盘控制的控件
+        if hasattr(control, 'hide_keyboard'):
+            self._controls.append(control)
+    
+    def get_page_click_handler(self):
+        #获取页面点击处理器
+        return self._on_page_click
+"""
+
+class KeyboardManager:
+    """键盘管理器 - 点击空白区域隐藏键盘"""
+    def __init__(self, page):
+        self._page = page
+        self._controls = []
+        self._original_on_click = None
+        self._setup_page_handler()
+    
+    def _setup_page_handler(self):
+        #设置页面点击处理
+        # 保存原始容器点击事件
+        original_click = None
+        
+        def on_page_click(e):
+            #点击页面空白区域
             print("点击页面空白区域 - 隐藏所有键盘")
             for control in self._controls:
                 if hasattr(control, 'hide_keyboard'):
@@ -299,12 +337,31 @@ class KeyboardManager:
     
     def register(self, control):
         """注册需要键盘控制的控件"""
-        if hasattr(control, 'hide_keyboard'):
+        if control not in self._controls:
             self._controls.append(control)
+            print(f"[键盘管理器] 注册控件: {control}")
     
-    def get_page_click_handler(self):
-        """获取页面点击处理器"""
-        return self._on_page_click
+    def unregister(self, control):
+        """取消注册控件"""
+        if control in self._controls:
+            self._controls.remove(control)
+    
+    def hide_all_keyboards(self):
+        """手动隐藏所有键盘"""
+        for control in self._controls:
+            if hasattr(control, 'hide_keyboard'):
+                control.hide_keyboard()
+        try:
+            self._page.focus(None)
+        except:
+            pass
+    
+    def dispose(self):
+        """清理资源"""
+        # 恢复原始点击事件
+        if self._original_on_click:
+            self._page.on_click = self._original_on_click
+        self._controls.clear()
 
 # ========== 备忘录数据类 ==========
 class MemoNote:
@@ -488,7 +545,7 @@ class SearchableDropdownNtFl(ft.Column):
                     ft.Container(width=30),  # 右边距
                 ]),
                 # 下方空白
-                ft.Container(height=360, on_click=lambda e: self.hide_dropdown()), # 备忘录的分类下拉框高度根据手机进行调整
+                ft.Container(height=368, on_click=lambda e: self.hide_dropdown()), # 备忘录的分类下拉框高度根据手机进行调整
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
@@ -2880,7 +2937,7 @@ def main(page: ft.Page):
     reminder_flags = {}  # 存储提醒标记
 
     # 创建键盘管理器
-    #keyboard_mgr = KeyboardManager(page)
+    keyboard_mgr = KeyboardManager(page)
 
     # 需要关闭下拉框的控件列表
     keyboard_controls = []
@@ -5047,6 +5104,7 @@ def main(page: ft.Page):
         """显示备忘录主界面"""
         global memo_notes, memo_selected_ids, memo_page_mode
         
+        
         load_memo_notes()
         memo_selected_ids = set()
         memo_page_mode = "normal"  # "normal" 或 "select"
@@ -5106,32 +5164,59 @@ def main(page: ft.Page):
                 category_popup.update()
                 render_notes()
                 page.update()
+
+            # ========== 创建搜索框 ==========
+            search_text_field = ft.TextField(
+                hint_text="搜索笔记",
+                expand=True,
+                height=45,
+                on_change=lambda e: on_search_change(),
+                suffix=ft.IconButton(
+                    ft.Icons.CLEAR,
+                    on_click=lambda e: clear_search(),
+                    icon_color=ft.Colors.GREY_500,
+                    icon_size=16,
+                    visible=False,
+                    height=45,
+                    padding=0,
+                ),
+                border=ft.InputBorder.NONE,
+                border_radius=20,
+                bgcolor=ft.Colors.WHITE,
+                content_padding=10,
+                text_size=16,
+                text_vertical_align=0.5,
+                focused_bgcolor=ft.Colors.WHITE,
+            )
+            
+            def hide_search_keyboard():
+                """隐藏搜索框键盘 - 使用禁用/启用方法"""
+                try:
+                    # 禁用文本框
+                    search_text_field.disabled = True
+                    search_text_field.update()
+                    print("[搜索框] 文本框已禁用")
+                    
+                    # 延迟重新启用（等待键盘完全收起）
+                    def re_enable():
+                        try:
+                            search_text_field.disabled = False
+                            search_text_field.update()
+                            print("[搜索框] 文本框已重新启用")
+                            print("[搜索框] ✅ 键盘已隐藏")
+                        except Exception as ex:
+                            print(f"[搜索框] 重新启用失败: {ex}")
+                    
+                    timer = threading.Timer(0.15, re_enable)
+                    timer.daemon = True
+                    timer.start()
+                    
+                except Exception as ex:
+                    print(f"[搜索框] 隐藏键盘失败: {ex}")
+            search_text_field.hide_keyboard = hide_search_keyboard
             
             search_field = ft.Container(
-                content=ft.TextField(
-                    hint_text="搜索笔记",
-                    expand=True,
-                    height=30,
-                    on_change=lambda e: on_search_change(),
-                    suffix=ft.IconButton(
-                        ft.Icons.CLEAR,
-                        on_click=lambda e: clear_search(),
-                        icon_color=ft.Colors.GREY_500,
-                        icon_size=16,
-                        visible=False,
-                        height=30,  # 与 TextField 高度一致
-                        padding=1,
-                    ),
-                    border=ft.InputBorder.NONE,
-                    border_radius=20,
-                    bgcolor=ft.Colors.WHITE,
-                    content_padding=10,
-                    text_size=16,
-                    text_vertical_align=0.5,
-                    fill_color=ft.Colors.WHITE,  # 填充颜色始终为白色
-                    hover_color=ft.Colors.WHITE,  # 悬停颜色白色
-                    focus_color=ft.Colors.WHITE,  # 焦点颜色白色
-                ),
+                content=search_text_field,
                 expand=True,
                 shadow=ft.BoxShadow(
                     spread_radius=1,
@@ -5140,7 +5225,7 @@ def main(page: ft.Page):
                     offset=ft.Offset(0, 2),
                 ),
                 border_radius=20,
-                #on_click=lambda e: search_field.content.focus(),  # 点击空白区域失去焦点
+                on_click=lambda e: search_text_field.focus(),
             )
 
             def on_search_change():
@@ -5523,28 +5608,41 @@ def main(page: ft.Page):
             
             back_btn_main = ft.IconButton(ft.Icons.ARROW_BACK, icon_size=28, on_click=lambda e: back_to_main(), tooltip="返回")
             
-            main_content = ft.Column([
-                ft.Container(height=10),
-                ft.Row([
-                    back_btn_main,
-                    ft.Text("📝 备忘录", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, expand=True, text_align=ft.TextAlign.CENTER),
-                    ft.Container(width=48),
-                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                ft.Divider(),
-                ft.Row([
-                    category_dropdown,
-                ], alignment=ft.MainAxisAlignment.START, spacing=5),
-                ft.Row([count_text, ft.Container(expand=True)]),
-                #ft.Divider(),
-                ft.Row([
-                    search_field,
-                ], alignment=ft.MainAxisAlignment.START, spacing=5),
-                ft.Divider(height=5),
-                notes_list,
-            ], spacing=8, expand=True)
+            main_content = ft.Container(
+                content=ft.Column([
+                    ft.Container(height=10),
+                    ft.Row([
+                        back_btn_main,
+                        ft.Text("📝 备忘录", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, expand=True, text_align=ft.TextAlign.CENTER),
+                        ft.Container(width=48),
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                    ft.Divider(),
+                    ft.Row([
+                        category_dropdown,
+                    ], alignment=ft.MainAxisAlignment.START, spacing=5),
+                    ft.Row([count_text, ft.Container(expand=True)]),
+                    #ft.Divider(),
+                    ft.Row([
+                        search_field,
+                    ], alignment=ft.MainAxisAlignment.START, spacing=5),
+                    ft.Divider(height=5),
+                    notes_list,
+                ], spacing=8, expand=True)
+                , 
+                expand=True,
+                on_click=lambda e: hide_search_keyboard() if hasattr(search_text_field, 'hide_keyboard') else None,
+            )
+
+            # 在 build_normal_mode 中，在 Stack 最上层添加透明容器监听点击
+            page_click_listener = ft.Container(
+                expand=True,
+                bgcolor=ft.Colors.TRANSPARENT,
+                on_click=lambda e: hide_search_keyboard() if hasattr(search_text_field, 'hide_keyboard') else None,
+            )
             
             memo_stack = ft.Stack([
-                main_content,
+                #page_click_listener,  # 放在最上层，透明监听点击
+                main_content,         # 放在上层，可以接收点击
                 ft.Container(content=memo_fab, right=20, bottom=20),
             ], expand=True)
             
