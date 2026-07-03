@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.161"
-APP_VERSION_CODE = 161
+APP_VERSION = "1.0.162"
+APP_VERSION_CODE = 162
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -545,7 +545,7 @@ class SearchableDropdownNtFl(ft.Column):
                     ft.Container(width=30),  # 右边距
                 ]),
                 # 下方空白
-                ft.Container(height=368, on_click=lambda e: self.hide_dropdown()), # 备忘录的分类下拉框高度根据手机进行调整
+                ft.Container(height=370, on_click=lambda e: self.hide_dropdown()), # 备忘录的分类下拉框高度根据手机进行调整
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
@@ -5260,7 +5260,7 @@ def main(page: ft.Page):
             
             def create_normal_card(note):
                 display_date = note.updated_at if note.updated_at else note.created_at
-                preview_text = note.get_preview(35)
+                preview_text = note.get_preview(15)
                 
                 return ft.Container(
                     content=ft.Column([
@@ -5271,7 +5271,14 @@ def main(page: ft.Page):
                         ft.Row([
                             ft.Text(f"{display_date}", size=10, color=ft.Colors.GREY_500),
                             ft.Text("|", size=10, color=ft.Colors.GREY_300),
-                            ft.Text(preview_text, size=12, color=ft.Colors.GREY_600, expand=True),
+                            ft.Text(
+                                preview_text, 
+                                size=12, 
+                                color=ft.Colors.GREY_600, 
+                                expand=True,
+                                max_lines=1,  # 强制单行显示
+                                overflow=ft.TextOverflow.ELLIPSIS,  # 超出显示省略号
+                            ),
                         ], spacing=5),
                     ], spacing=4),
                     padding=12,
@@ -5688,7 +5695,7 @@ def main(page: ft.Page):
                     render_select_list()
                 
                 display_date = note.updated_at if note.updated_at else note.created_at
-                preview_text = note.get_preview(35)
+                preview_text = note.get_preview(15)
                 
                 return ft.Container(
                     content=ft.Row([
@@ -5698,9 +5705,16 @@ def main(page: ft.Page):
                                 get_category_label(note.category),
                             ]),
                             ft.Row([
-                                ft.Text(f"📅 {display_date}", size=10, color=ft.Colors.GREY_500),
+                                ft.Text(f"{display_date}", size=10, color=ft.Colors.GREY_500),
                                 ft.Text("|", size=10, color=ft.Colors.GREY_300),
-                                ft.Text(preview_text, size=12, color=ft.Colors.GREY_600, expand=True),
+                                ft.Text(
+                                    preview_text, 
+                                    size=12, 
+                                    color=ft.Colors.GREY_600, 
+                                    expand=True,
+                                    max_lines=1,
+                                    overflow=ft.TextOverflow.ELLIPSIS,
+                                ),
                             ], spacing=5),
                         ], expand=True),
                         ft.Checkbox(
