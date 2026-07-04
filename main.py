@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.174"
-APP_VERSION_CODE = 174
+APP_VERSION = "1.0.175"
+APP_VERSION_CODE = 175
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5176,7 +5176,7 @@ def main(page: ft.Page):
             search_text_field = ft.TextField(
                 hint_text="搜索笔记",
                 expand=True,
-                height=45,
+                #height=45,
                 on_change=lambda e: on_search_change(),
                 on_focus=on_search_focus,
                 on_blur=on_search_blur,
@@ -5186,7 +5186,7 @@ def main(page: ft.Page):
                     icon_color=ft.Colors.GREY_500,
                     icon_size=16,
                     visible=False,  # 初始隐藏，可根据逻辑动态显示
-                    height=45,
+                    #height=45,
                     padding=0,
                 ),
                 border=ft.InputBorder.OUTLINE,
@@ -5202,7 +5202,7 @@ def main(page: ft.Page):
                 
                 # 【关键修改2】调整 content_padding 确保垂直居中且不裁剪
                 # 垂直方向 padding 设为 0 或较小值，让文字在 45px 高度内居中
-                #content_padding=10,
+                content_padding=10,
                 
                 # 确保 hint_text 也可见
                 hint_style=ft.TextStyle(color=ft.Colors.GREY_400, size=16),
@@ -5248,6 +5248,7 @@ def main(page: ft.Page):
             search_field = ft.Container(
                 content=search_text_field,
                 expand=True,
+                height=45,
                 shadow=ft.BoxShadow(
                     spread_radius=1,
                     blur_radius=8,
@@ -15240,7 +15241,7 @@ def main(page: ft.Page):
             ft.TextButton("📥 导入", on_click=show_import_menu, tooltip="从Excel导入事件"),
             ft.TextButton("📤 导出", on_click=show_export_menu, tooltip="导出事件到Excel"),
         ],
-        spacing=13,
+        spacing=15,
         scroll=ft.ScrollMode.HIDDEN,  # 允许水平滚动
         width=410,
     )
