@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.176"
-APP_VERSION_CODE = 176
+APP_VERSION = "1.0.177"
+APP_VERSION_CODE = 177
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5233,6 +5233,9 @@ def main(page: ft.Page):
                     def re_enable():
                         try:
                             search_text_field.disabled = False
+                            search_text_field.border = ft.InputBorder.OUTLINE
+                            search_text_field.border_color = ft.Colors.TRANSPARENT
+                            search_text_field.focused_border_color = ft.Colors.TRANSPARENT
                             search_text_field.update()
                             print("[搜索框] 文本框已重新启用")
                             print("[搜索框] ✅ 键盘已隐藏")
