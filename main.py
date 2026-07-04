@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.167"
-APP_VERSION_CODE = 167
+APP_VERSION = "1.0.168"
+APP_VERSION_CODE = 168
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5184,7 +5184,7 @@ def main(page: ft.Page):
             search_text_field = ft.TextField(
                 hint_text="搜索笔记",
                 expand=True,
-                height=45,
+                #height=45,
                 on_change=lambda e: on_search_change(),
                 on_focus=on_search_focus,  # 获得焦点
                 on_blur=on_search_blur,    # 失去焦点
@@ -5194,7 +5194,7 @@ def main(page: ft.Page):
                     icon_color=ft.Colors.GREY_500,
                     icon_size=16,
                     visible=False,
-                    height=45,
+                    #height=45,
                     padding=0,
                 ),
                 border=ft.InputBorder.NONE,
