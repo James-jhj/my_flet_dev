@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.172"
-APP_VERSION_CODE = 172
+APP_VERSION = "1.0.173"
+APP_VERSION_CODE = 173
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -15229,7 +15229,7 @@ def main(page: ft.Page):
             ft.TextButton("📥 导入", on_click=show_import_menu, tooltip="从Excel导入事件"),
             ft.TextButton("📤 导出", on_click=show_export_menu, tooltip="导出事件到Excel"),
         ],
-        spacing=0,
+        spacing=13,
         scroll=ft.ScrollMode.HIDDEN,  # 允许水平滚动
         width=410,
     )
