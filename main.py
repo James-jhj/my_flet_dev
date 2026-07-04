@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.162"
-APP_VERSION_CODE = 162
+APP_VERSION = "1.0.163"
+APP_VERSION_CODE = 163
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5204,6 +5204,7 @@ def main(page: ft.Page):
                             search_text_field.update()
                             print("[搜索框] 文本框已重新启用")
                             print("[搜索框] ✅ 键盘已隐藏")
+                            show_snack_bar("[搜索框] ✅ 键盘已隐藏")
                         except Exception as ex:
                             print(f"[搜索框] 重新启用失败: {ex}")
                     
@@ -5238,6 +5239,8 @@ def main(page: ft.Page):
                     search_field.content.suffix.visible = True
                 else:
                     search_field.content.suffix.visible = False
+                    # ========== 搜索框为空时，隐藏键盘 ==========
+                    hide_search_keyboard()
                 
                 search_field.content.update()
                 render_notes()
@@ -5247,6 +5250,7 @@ def main(page: ft.Page):
                 search_field.content.value = ""
                 search_field.content.suffix.visible = False
                 search_field.content.update()
+                hide_search_keyboard()  # 清除后隐藏键盘
                 render_notes()
             
             count_text = ft.Text(f"共 {len(memo_notes)} 条笔记", size=12, color=ft.Colors.GREY_500)
@@ -5332,11 +5336,6 @@ def main(page: ft.Page):
                 
                 page.update()
             
-            #def clear_search():
-                #search_field.content.value = ""
-                #search_field.update()
-                #render_notes()
-            
             def enter_multi_select_mode():
                 print("[进入] 选择模式")
                 memo_selected_ids.clear()
@@ -5346,6 +5345,9 @@ def main(page: ft.Page):
             # ========== 编辑笔记对话框 ==========
             def open_memo_edit_dialog(note_id=None):
                 """打开笔记编辑对话框"""
+                # ========== 隐藏搜索框键盘 ==========
+                hide_search_keyboard()
+
                 edit_dialog_container = None
                 
                 # 如果是编辑模式，加载笔记数据
@@ -5595,12 +5597,44 @@ def main(page: ft.Page):
                 page.update()
             
             def back_to_main():
+                """返回主界面"""
+                # 清理 Overlay
                 for overlay in page.overlay[:]:
                     if overlay in page.overlay:
                         page.overlay.remove(overlay)
+                
+                # 清除页面点击事件
+                page.on_click = None
+                
+                # 清理键盘管理器
+                if hasattr(page, '_keyboard_mgr'):
+                    page._keyboard_mgr.dispose()
+                    delattr(page, '_keyboard_mgr')
+                
                 page.clean()
                 page.add(main_stack)
                 page.update()
+                
+                # ========== 恢复音乐播放状态 ==========
+                if current_music_state in ["playing", "paused"] and current_music_file:
+                    # 更新播放信息显示
+                    update_current_playing_info()
+                    # 如果音乐正在播放，启动字幕滚动
+                    if current_music_state == "playing":
+                        # 延迟一小段时间启动，确保界面已加载
+                        import asyncio
+                        async def start_marquee():
+                            await asyncio.sleep(0.3)
+                            marquee_text.start()
+                        asyncio.create_task(start_marquee())
+                    else:
+                        # 暂停状态：停止滚动
+                        marquee_text.stop()
+                else:
+                    # 没有音乐播放，显示默认状态
+                    marquee_text.update_text("🎵 未播放")
+                    marquee_text.color = ft.Colors.GREY_600
+                    marquee_text.stop()
             
             # 悬浮按钮
             memo_fab = ft.Container(
@@ -5873,17 +5907,6 @@ def main(page: ft.Page):
                 update_selected_count()
                 render_select_list()
             
-            def show_delete_confirm_dialog(message, on_confirm):
-                show_bottom_message(message)
-                on_confirm()
-            
-            def back_to_main():
-                for overlay in page.overlay[:]:
-                    if overlay in page.overlay:
-                        page.overlay.remove(overlay)
-                page.clean()
-                page.add(main_stack)
-                page.update()
             
             # 返回按钮
             back_btn = ft.IconButton(
@@ -12308,28 +12331,49 @@ def main(page: ft.Page):
             if event.event_type == "daily":
                 continue
             
-            # 跳过设置了提醒时间的事件
+            # 检查是否设置了提醒时间
             has_reminder = False
+            reminder_time = None
             if event.reminders:
                 for reminder in event.reminders:
                     if reminder.get("enabled"):
                         has_reminder = True
+                        reminder_time = reminder.get("time")
                         break
             
             if has_reminder:
                 print(f"[启动检查] 跳过 {event.name}（已设置提醒时间）")
                 continue
             
+            # ========== 打印所有事件信息 ==========
+            month, day, year, base_year, days_until = event.get_next_date_info()
+            print(f"[启动检查] 事件: {event.name}, 类型: {event.event_type}, 日期: {month}月{day}日, 剩余: {days_until}天, 有提醒: {has_reminder}")
+            
+            # 如果是今日事件
+            if month == today.month and day == today.day:
+                print(f"[启动检查] ★★★ {event.name} 是今日事件! ★★★")
+                if has_reminder and reminder_time and reminder_time > current_time:
+                    print(f"[启动检查] 跳过 {event.name}（提醒时间 {reminder_time} 还没到）")
+                    continue
+                today_events.append((event, 0))
+
             # 每周事件
             if event.event_type == "weekly":
                 target_weekday = int(event.birth_date) if event.birth_date else 1
                 if datetime.now().isoweekday() == target_weekday:
+                    if has_reminder and reminder_time and reminder_time > current_time:
+                        print(f"[启动检查] 每周事件今天: {event.name}，提醒时间 {reminder_time} 还没到，跳过")
+                        continue
                     print(f"[启动检查] 每周事件今天: {event.name}")
                     today_events.append((event, 0))
                 continue
             
-            # 获取事件信息
-            month, day, year, base_year, days_until = event.get_next_date_info()
+            # 预警事件（未来3天）
+            if 0 < days_until <= 3:
+                print(f"[启动检查] 预警事件: {event.name}, {days_until}天后")
+                upcoming_events.append((event, days_until))
+        
+            print(f"[启动检查] 今日事件: {len(today_events)}, 预警事件: {len(upcoming_events)}")
             
             # 一次性事件
             if event.repeat_type == "once":
