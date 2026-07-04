@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.163"
-APP_VERSION_CODE = 163
+APP_VERSION = "1.0.164"
+APP_VERSION_CODE = 164
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -2883,7 +2883,7 @@ def main(page: ft.Page):
     global auto_fullscreen_lyrics,hide_progress_timer,current_selected_lunar,last_card_update_time  # 添加这行
     global SLIDER_WIDTH, progress_slider, progress_bubble, progress_bubble_container, slider_wrapper,card_duration_texts
     global sent_reminders,sent_music_notifications
-    global memo_notes
+    global memo_notes,search_focused
 
 
     page.window_icon = "icon.png"
@@ -2941,6 +2941,9 @@ def main(page: ft.Page):
 
     # 需要关闭下拉框的控件列表
     keyboard_controls = []
+
+    # ========== 手动跟踪焦点状态 ==========
+    search_focused = False
 
     card_duration_texts = {}  # {event_id: Text控件}
 
@@ -5164,6 +5167,18 @@ def main(page: ft.Page):
                 category_popup.update()
                 render_notes()
                 page.update()
+            
+            
+
+            def on_search_focus(e):
+                global search_focused
+                search_focused = True
+                print("[搜索框] 获得焦点")
+
+            def on_search_blur(e):
+                global search_focused
+                search_focused = False
+                print("[搜索框] 失去焦点")
 
             # ========== 创建搜索框 ==========
             search_text_field = ft.TextField(
@@ -5171,6 +5186,8 @@ def main(page: ft.Page):
                 expand=True,
                 height=45,
                 on_change=lambda e: on_search_change(),
+                on_focus=on_search_focus,  # 获得焦点
+                on_blur=on_search_blur,    # 失去焦点
                 suffix=ft.IconButton(
                     ft.Icons.CLEAR,
                     on_click=lambda e: clear_search(),
@@ -5188,13 +5205,21 @@ def main(page: ft.Page):
                 text_vertical_align=0.5,
                 focused_bgcolor=ft.Colors.WHITE,
             )
-            
+    
             def hide_search_keyboard():
-                """隐藏搜索框键盘 - 使用禁用/启用方法"""
+                """隐藏搜索框键盘（只有获得焦点时才触发）"""
+                global search_focused
+                
+                if search_focused == False:
+                    print (search_focused)
+                    show_snack_bar("[搜索框] 未获得焦点，跳过隐藏键盘")
+                    return
+
                 try:
                     # 禁用文本框
                     search_text_field.disabled = True
                     search_text_field.update()
+                    search_focused = False
                     print("[搜索框] 文本框已禁用")
                     
                     # 延迟重新启用（等待键盘完全收起）
