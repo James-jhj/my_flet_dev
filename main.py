@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.173"
-APP_VERSION_CODE = 173
+APP_VERSION = "1.0.174"
+APP_VERSION_CODE = 174
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5176,25 +5176,36 @@ def main(page: ft.Page):
             search_text_field = ft.TextField(
                 hint_text="搜索笔记",
                 expand=True,
-                #height=45,
+                height=45,
                 on_change=lambda e: on_search_change(),
-                on_focus=on_search_focus,  # 获得焦点
-                on_blur=on_search_blur,    # 失去焦点
+                on_focus=on_search_focus,
+                on_blur=on_search_blur,
                 suffix=ft.IconButton(
                     ft.Icons.CLEAR,
                     on_click=lambda e: clear_search(),
                     icon_color=ft.Colors.GREY_500,
                     icon_size=16,
-                    visible=False,
-                    #height=45,
+                    visible=False,  # 初始隐藏，可根据逻辑动态显示
+                    height=45,
                     padding=0,
                 ),
-                border=ft.InputBorder.NONE,
-                border_radius=20,
+                border=ft.InputBorder.OUTLINE,
+                border_color=ft.Colors.TRANSPARENT,
+                focused_border_color=ft.Colors.TRANSPARENT,
                 bgcolor=ft.Colors.WHITE,
-                #content_padding=10, #  不管用
-                text_size=16,
-                #text_vertical_align=0.5,
+                
+                # 【关键修改1】使用 text_style 明确设置文本颜色和大小
+                text_style=ft.TextStyle(
+                    color=ft.Colors.BLACK_54,  # 确保文字是红色，方便调试可见性
+                    size=16,
+                ),
+                
+                # 【关键修改2】调整 content_padding 确保垂直居中且不裁剪
+                # 垂直方向 padding 设为 0 或较小值，让文字在 45px 高度内居中
+                #content_padding=10,
+                
+                # 确保 hint_text 也可见
+                hint_style=ft.TextStyle(color=ft.Colors.GREY_400, size=16),
                 focused_bgcolor=ft.Colors.WHITE,
             )
     
@@ -5258,7 +5269,7 @@ def main(page: ft.Page):
                 else:
                     search_field.content.suffix.visible = False
                     # ========== 搜索框为空时，隐藏键盘 ==========
-                    hide_search_keyboard()
+                    #hide_search_keyboard()
                 
                 search_field.content.update()
                 render_notes()
