@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.175"
-APP_VERSION_CODE = 175
+APP_VERSION = "1.0.176"
+APP_VERSION_CODE = 176
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5159,8 +5159,6 @@ def main(page: ft.Page):
                 category_popup.update()
                 render_notes()
                 page.update()
-            
-            
 
             def on_search_focus(e):
                 global search_focused
@@ -5220,6 +5218,11 @@ def main(page: ft.Page):
                     return
 
                 try:
+                    # ========== 禁用前先设置边框透明 ==========
+                    search_text_field.border = ft.InputBorder.NONE
+                    search_text_field.border_color = ft.Colors.TRANSPARENT
+                    search_text_field.focused_border_color = ft.Colors.TRANSPARENT
+
                     # 禁用文本框
                     search_text_field.disabled = True
                     search_text_field.update()
