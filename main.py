@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.168"
-APP_VERSION_CODE = 168
+APP_VERSION = "1.0.169"
+APP_VERSION_CODE = 169
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5200,7 +5200,7 @@ def main(page: ft.Page):
                 border=ft.InputBorder.NONE,
                 border_radius=20,
                 bgcolor=ft.Colors.WHITE,
-                content_padding=10, #  不管用
+                #content_padding=10, #  不管用
                 text_size=16,
                 #text_vertical_align=0.5,
                 focused_bgcolor=ft.Colors.WHITE,
