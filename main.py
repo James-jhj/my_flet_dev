@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.171"
-APP_VERSION_CODE = 171
+APP_VERSION = "1.0.172"
+APP_VERSION_CODE = 172
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -15229,16 +15229,9 @@ def main(page: ft.Page):
             ft.TextButton("📥 导入", on_click=show_import_menu, tooltip="从Excel导入事件"),
             ft.TextButton("📤 导出", on_click=show_export_menu, tooltip="导出事件到Excel"),
         ],
-        spacing=10,
-        scroll=ft.ScrollMode.AUTO,  # 允许水平滚动
-        expand=True,
-    )
-
-    # ========== 用 Container 包裹，裁剪超出部分，隐藏滚动条 ==========
-    all_buttons_container = ft.Container(
-        content=all_buttons,
-        expand=True,
-        clip_behavior=ft.ClipBehavior.HARD_EDGE,
+        spacing=0,
+        scroll=ft.ScrollMode.HIDDEN,  # 允许水平滚动
+        width=410,
     )
 
 
@@ -15323,7 +15316,7 @@ def main(page: ft.Page):
             music_section_container,
 
             # 所有按钮行（播放控制按钮 + 导入导出按钮 + 记账 + 备忘录），支持左右滑动
-            all_buttons_container,
+            all_buttons,
 
             ft.Divider(),
             
