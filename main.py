@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.169"
-APP_VERSION_CODE = 169
+APP_VERSION = "1.0.170"
+APP_VERSION_CODE = 170
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -2876,7 +2876,7 @@ def main(page: ft.Page):
     global last_check_date,reminder_flags,music_title_container, main_content, marquee_text # 添加这两个变量
     global selected_date,three_days_events, date_text,current_view   # 添加 date_text
     global month_text, current_year, current_month, today_circle_button  # 添加 today_circle_button
-    global music_control_container, playback_buttons, music_section_container  # 修改这里
+    global music_control_container, music_section_container  # 修改这里
     global sent_notifications,events_list,filter_date
     global transactions  # 添加这行
     global current_page, floating_add_button,show_scroll_top_btn  # 添加这行，用于记录当前页面
@@ -4097,7 +4097,7 @@ def main(page: ft.Page):
         global current_audio, is_playing, current_music_file, current_duration, current_lyrics
         global current_playing_event_id, current_music_state, music_state_update_callback
         global current_lyrics  # 添加 current_lyrics
-        global music_section_container, playback_buttons
+        global music_section_container
         
         print(f"[play_music] 接收到参数 - event_name: {event_name}, event_id: {event_id},sound_file: {sound_file}")
 
@@ -4281,11 +4281,6 @@ def main(page: ft.Page):
             music_section_container.visible = True
             music_section_container.update()
             #print("[play_music] 已显示音乐区域")
-        
-        if playback_buttons:
-            playback_buttons.visible = True
-            playback_buttons.update()
-            #print("[play_music] 已显示播放按钮")
         
         # 设置状态（即使是试听，也要设置状态）
         current_playing_event_id = event_id
@@ -4581,7 +4576,7 @@ def main(page: ft.Page):
 
     def stop_music():
         global current_audio, is_playing, current_music_file, current_lyrics
-        global current_playing_event_id, current_music_state, music_section_container, playback_buttons,card_duration_texts
+        global current_playing_event_id, current_music_state, music_section_container, card_duration_texts
         global sent_music_notifications
         
         print("停止音乐")
@@ -4654,9 +4649,6 @@ def main(page: ft.Page):
             if music_section_container:
                 music_section_container.visible = False
                 music_section_container.update()
-            if playback_buttons:
-                playback_buttons.visible = False
-                playback_buttons.update()
             
             # 重置状态
             current_music_file = None
@@ -8105,9 +8097,6 @@ def main(page: ft.Page):
                 if music_section_container:
                     music_section_container.visible = False
                     music_section_container.update()
-                if playback_buttons:
-                    playback_buttons.visible = False
-                    playback_buttons.update()
                 marquee_text.update_text("🎵 未播放")
                 marquee_text.color = ft.Colors.GREY_600
 
@@ -11184,7 +11173,7 @@ def main(page: ft.Page):
         
         # 试听
         def test_play(e):
-            global music_section_container,playback_buttons, current_music_state, current_playing_event_id, current_music_file
+            global music_section_container, current_music_state, current_playing_event_id, current_music_file
             file_path = music_field.value.strip()
 
             if not file_path:
@@ -11223,9 +11212,6 @@ def main(page: ft.Page):
             if music_section_container:
                 music_section_container.visible = True
                 music_section_container.update()
-            if playback_buttons:
-                playback_buttons.visible = True
-                playback_buttons.update()
 
             # 设置状态
             current_music_state = "playing"
@@ -15082,7 +15068,7 @@ def main(page: ft.Page):
     # ========== 添加 update_current_playing_info 函数在这里 ==========
     def update_current_playing_info():
         """更新顶部当前播放信息显示"""
-        global current_playing_event_id, current_music_state, marquee_text, music_section_container, playback_buttons
+        global current_playing_event_id, current_music_state, marquee_text, music_section_container
         
         #print(f"[update_current_playing_info] 被调用 - event_id: {current_playing_event_id}, state: {current_music_state}")
         
@@ -15092,9 +15078,6 @@ def main(page: ft.Page):
             if music_section_container:
                 music_section_container.visible = True
                 music_section_container.update()
-            if playback_buttons:
-                playback_buttons.visible = True
-                playback_buttons.update()
             
             # 获取音乐名称
             if current_music_file and os.path.exists(current_music_file):
@@ -15163,9 +15146,6 @@ def main(page: ft.Page):
             if music_section_container:
                 music_section_container.visible = False
                 music_section_container.update()
-            if playback_buttons:
-                playback_buttons.visible = False
-                playback_buttons.update()
             marquee_text.update_text("🎵 未播放")
             marquee_text.color = ft.Colors.GREY_600
             page.run_task(async_stop_marquee)
@@ -15222,34 +15202,37 @@ def main(page: ft.Page):
         border_radius=10,
         visible=False,
     )
-
-    # 创建播放控制按钮（可隐藏）
-    playback_buttons = ft.Row([
-        ft.TextButton("⏸️ 暂停", on_click=pause_music, tooltip="暂停音乐"),
-        ft.TextButton("⏹️ 停止", on_click=lambda e: stop_music(), tooltip="停止音乐"),
-    ], spacing=0, visible=False)  # 初始隐藏
-
-    # 创建导入导出按钮（始终显示）
-    import_export_buttons = ft.Row([
-        ft.TextButton(
-            "💰 账单", 
-            on_click=lambda e: show_accounting_page(page), 
-            tooltip="账单",
-            style=ft.ButtonStyle(color=ft.Colors.BLUE_700,text_style=ft.TextStyle(weight=ft.FontWeight.BOLD), ),
-        ),
-        ft.TextButton(
-            "📝 备忘录", 
-            on_click=lambda e: show_memo_page(page), 
-            tooltip="打开备忘录",
-            style=ft.ButtonStyle(
-                color=ft.Colors.BLUE_700,
-                text_style=ft.TextStyle(weight=ft.FontWeight.BOLD),
+    
+    # =========== 创建6个按钮 暂停、停止、账单、备忘录、导入、导出 ===========
+    all_buttons = ft.Row(
+        [
+            ft.TextButton("⏸️ 暂停", on_click=pause_music, tooltip="暂停音乐"),
+            ft.TextButton("⏹️ 停止", on_click=lambda e: stop_music(), tooltip="停止音乐"),
+            ft.TextButton(
+                "📝 备忘录", 
+                on_click=lambda e: show_memo_page(page), 
+                tooltip="打开备忘录",
+                style=ft.ButtonStyle(
+                    color=ft.Colors.BLUE_700,
+                    text_style=ft.TextStyle(weight=ft.FontWeight.BOLD),
+                ),
             ),
-        ),
-        ft.TextButton("📤 导出", on_click=show_export_menu, tooltip="导出事件到Excel"),
-        ft.TextButton("📥 导入", on_click=show_import_menu, tooltip="从Excel导入事件"),
-        #ft.TextButton("🔔 通知", on_click=test_notification)
-    ], spacing=0)
+            ft.TextButton(
+                "💰 记账本", 
+                on_click=lambda e: show_accounting_page(page), 
+                tooltip="记账本",
+                style=ft.ButtonStyle(
+                    color=ft.Colors.RED_700,
+                    text_style=ft.TextStyle(weight=ft.FontWeight.BOLD),
+                ),
+            ),
+            ft.TextButton("📥 导入", on_click=show_import_menu, tooltip="从Excel导入事件"),
+            ft.TextButton("📤 导出", on_click=show_export_menu, tooltip="导出事件到Excel"),
+        ],
+        spacing=0,
+        scroll=ft.ScrollMode.AUTO,  # 允许水平滚动
+        expand=True,
+    )
 
 
     # 创建音乐播放相关内容的容器
@@ -15260,7 +15243,6 @@ def main(page: ft.Page):
 
     # 确保内部控件的可见性初始为 True
     music_control_container.visible = True
-    #playback_buttons.visible=True
 
     # 创建一个变量记录日历是否显示
     calendar_visible = True
@@ -15333,11 +15315,8 @@ def main(page: ft.Page):
             # 音乐相关区域（整个区域统一控制显示/隐藏）
             music_section_container,
 
-            # 所有按钮行（播放控制按钮 + 导入导出按钮）
-            ft.Row([
-                playback_buttons,
-                import_export_buttons,
-            ], alignment=ft.MainAxisAlignment.CENTER, spacing=0),
+            # 所有按钮行（播放控制按钮 + 导入导出按钮 + 记账 + 备忘录），支持左右滑动
+            all_buttons,
 
             ft.Divider(),
             
