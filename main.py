@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.164"
-APP_VERSION_CODE = 164
+APP_VERSION = "1.0.165"
+APP_VERSION_CODE = 165
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5211,8 +5211,9 @@ def main(page: ft.Page):
                 global search_focused
                 
                 if search_focused == False:
-                    print (search_focused)
-                    show_snack_bar("[搜索框] 未获得焦点，跳过隐藏键盘")
+                    print(search_focused)
+                    #show_snack_bar("[搜索框] 未获得焦点，跳过隐藏键盘")
+                    print("[搜索框] 未获得焦点，跳过隐藏键盘")
                     return
 
                 try:
@@ -5229,7 +5230,7 @@ def main(page: ft.Page):
                             search_text_field.update()
                             print("[搜索框] 文本框已重新启用")
                             print("[搜索框] ✅ 键盘已隐藏")
-                            show_snack_bar("[搜索框] ✅ 键盘已隐藏")
+                            #show_snack_bar("[搜索框] ✅ 键盘已隐藏")
                         except Exception as ex:
                             print(f"[搜索框] 重新启用失败: {ex}")
                     
@@ -14003,7 +14004,6 @@ def main(page: ft.Page):
             import traceback
             traceback.print_exc()
 
-
     async def import_accounting_async(e):
         """从Excel导入记账数据"""
         global transactions  # 添加这行
@@ -14245,6 +14245,324 @@ def main(page: ft.Page):
         page.overlay.append(menu_container)
         page.update()
 
+    async def export_memo_async(e):
+        """导出备忘录数据到Excel"""
+        global memo_notes
+        
+        if not memo_notes:
+            show_bottom_message("没有备忘录数据可导出", is_error=True)
+            return
+        
+        try:
+            temp_dir = get_data_file_path("")
+            temp_file = os.path.join(temp_dir, f"memo_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
+            
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "备忘录"
+            
+            # ========== 写入汇总信息 ==========
+            ws.merge_cells('A1:E1')
+            ws['A1'] = "📝 备忘录"
+            ws['A1'].font = openpyxl.styles.Font(size=16, bold=True)
+            ws['A1'].alignment = openpyxl.styles.Alignment(horizontal='center')
+            
+            ws['A2'] = "导出时间："
+            ws['B2'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            ws['A3'] = f"共计：{len(memo_notes)} 条笔记"
+            ws['A3'].font = openpyxl.styles.Font(bold=True)
+            
+            # 空行
+            ws.append([])
+            
+            # ========== 写入表头 ==========
+            headers = ["标题", "内容", "分类", "创建时间", "更新时间"]
+            ws.append(headers)
+            
+            # 设置表头样式
+            header_font = openpyxl.styles.Font(bold=True, color="FFFFFF")
+            header_fill = openpyxl.styles.PatternFill(start_color="9B59B6", end_color="9B59B6", fill_type="solid")
+            for col in range(1, len(headers) + 1):
+                cell = ws.cell(row=ws.max_row, column=col)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = openpyxl.styles.Alignment(horizontal='center')
+            
+            # ========== 写入数据 ==========
+            for note in memo_notes:
+                ws.append([
+                    note.title,
+                    note.content,
+                    note.category,
+                    note.created_at,
+                    note.updated_at,
+                ])
+            
+            # 调整列宽
+            ws.column_dimensions['A'].width = 20
+            ws.column_dimensions['B'].width = 40
+            ws.column_dimensions['C'].width = 12
+            ws.column_dimensions['D'].width = 20
+            ws.column_dimensions['E'].width = 20
+            
+            # 保存临时文件
+            wb.save(temp_file)
+            
+            # 读取文件内容
+            with open(temp_file, 'rb') as f:
+                file_bytes = f.read()
+            
+            # 创建 FilePicker
+            file_picker = ft.FilePicker()
+            page.services.append(file_picker)
+            page.update()
+            
+            # 选择保存位置
+            result = await file_picker.save_file(
+                file_name=f"备忘录_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                src_bytes=file_bytes,
+                dialog_title="保存备忘录"
+            )
+            
+            # 移除 FilePicker
+            page.services.remove(file_picker)
+            page.update()
+            
+            # 删除临时文件
+            os.remove(temp_file)
+            
+            if result:
+                show_bottom_message(f"✅ 成功导出 {len(memo_notes)} 条备忘录")
+            else:
+                show_bottom_message("已取消导出")
+            
+            page.update()
+            
+        except Exception as ex:
+            show_bottom_message(f"导出失败: {str(ex)}", is_error=True)
+            print(f"导出错误: {ex}")
+            import traceback
+            traceback.print_exc()
+    
+    async def import_memo_async(e):
+        """导入备忘录数据"""
+        global memo_notes
+        
+        menu_container = None
+        
+        def close_menu():
+            nonlocal menu_container
+            if menu_container and menu_container in page.overlay:
+                page.overlay.remove(menu_container)
+                menu_container = None
+                page.update()
+        
+        async def select_file_and_import():
+            file_picker = None
+            try:
+                file_picker = ft.FilePicker()
+                page.services.append(file_picker)
+                page.update()
+                
+                result = await file_picker.pick_files(
+                    allow_multiple=False,
+                    allowed_extensions=["xlsx", "xls"],
+                    dialog_title="选择备忘录Excel文件"
+                )
+                
+                if file_picker and file_picker in page.overlay:
+                    page.services.remove(file_picker)
+                page.update()
+                
+                if not result or len(result) == 0:
+                    show_bottom_message("未选择文件")
+                    return
+                
+                if hasattr(result[0], 'path'):
+                    file_path = result[0].path
+                elif hasattr(result[0], 'bytes'):
+                    temp_dir = get_data_file_path("")
+                    temp_file = os.path.join(temp_dir, f"temp_memo_import_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
+                    with open(temp_file, 'wb') as f:
+                        f.write(result[0].bytes)
+                    file_path = temp_file
+                else:
+                    file_path = str(result[0])
+                
+                await do_import_memo(file_path)
+                
+                if 'temp_file' in locals() and os.path.exists(temp_file):
+                    os.remove(temp_file)
+                
+            except Exception as ex:
+                show_bottom_message(f"导入失败: {str(ex)}", is_error=True)
+                print(f"导入错误: {ex}")
+                import traceback
+                traceback.print_exc()
+            finally:
+                if file_picker and file_picker in page.overlay:
+                    page.overlay.remove(file_picker)
+                page.update()
+        
+        async def do_import_memo(file_path):
+            """执行备忘录导入"""
+            show_bottom_message(f"正在导入: {os.path.basename(file_path)}")
+            page.update()
+            
+            wb = load_workbook(file_path)
+            ws = wb.active
+            
+            imported_count = 0
+            new_notes = []
+            
+            # 从第6行开始读取（跳过标题和汇总信息）
+            for row_idx, row in enumerate(ws.iter_rows(min_row=6, values_only=True), start=6):
+                if not row or len(row) < 3:
+                    continue
+                
+                title = str(row[0]).strip() if row[0] else ""
+                content = str(row[1]).strip() if row[1] else ""
+                category = str(row[2]).strip() if row[2] else "未分类"
+                created_at = str(row[3]).strip() if len(row) > 3 and row[3] else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                updated_at = str(row[4]).strip() if len(row) > 4 and row[4] else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
+                if not title:
+                    continue
+                
+                new_note = MemoNote(
+                    id=str(int(datetime.now().timestamp() * 1000) + imported_count),
+                    title=title,
+                    content=content,
+                    category=category if category in ["未分类", "个人", "工作", "其他"] else "未分类",
+                    created_at=created_at,
+                    updated_at=updated_at,
+                )
+                new_notes.append(new_note)
+                imported_count += 1
+            
+            if imported_count == 0:
+                show_bottom_message("没有导入任何备忘录")
+                return
+            
+            # 确认替换
+            def show_confirm_dialog():
+                confirm_dialog_container = None
+                
+                def close_confirm_dialog():
+                    nonlocal confirm_dialog_container
+                    if confirm_dialog_container and confirm_dialog_container in page.overlay:
+                        page.overlay.remove(confirm_dialog_container)
+                        confirm_dialog_container = None
+                        page.update()
+                
+                def confirm_replace():
+                    close_confirm_dialog()
+                    global memo_notes
+                    memo_notes = new_notes
+                    save_memo_notes()
+                    show_bottom_message(f"成功导入 {imported_count} 条备忘录")
+                    page.update()
+                
+                def cancel_replace():
+                    close_confirm_dialog()
+                    show_bottom_message("已取消导入")
+                    page.update()
+                
+                confirm_content = ft.Container(
+                    content=ft.Column([
+                        ft.Container(
+                            content=ft.Icon(ft.Icons.INFO, size=55, color=ft.Colors.PURPLE_700),
+                            padding=10,
+                            bgcolor=ft.Colors.PURPLE_50,
+                            border_radius=50,
+                        ),
+                        ft.Text("确认导入备忘录", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.PURPLE_700),
+                        ft.Divider(),
+                        ft.Text(f"即将导入 {imported_count} 条备忘录", size=14),
+                        ft.Text(f"当前有 {len(memo_notes)} 条备忘录将被替换", size=12, color=ft.Colors.ORANGE_700),
+                        ft.Divider(),
+                        ft.Row([
+                            ft.Button("取消", on_click=lambda e: cancel_replace(), expand=True),
+                            ft.Button("确认导入", on_click=lambda e: confirm_replace(), expand=True,
+                                    style=ft.ButtonStyle(bgcolor=ft.Colors.PURPLE_700, color=ft.Colors.WHITE)),
+                        ], spacing=12),
+                    ], spacing=15),
+                    width=320, padding=20, bgcolor=ft.Colors.WHITE, border_radius=16,
+                )
+                
+                confirm_dialog_container = ft.Container(
+                    content=ft.Column([
+                        ft.Container(expand=True),
+                        ft.Row([ft.Container(expand=True), confirm_content, ft.Container(expand=True)]),
+                        ft.Container(expand=True),
+                    ]),
+                    expand=True, bgcolor=ft.Colors.BLACK26, on_click=lambda e: close_confirm_dialog(),
+                )
+                
+                page.overlay.append(confirm_dialog_container)
+                page.update()
+            
+            show_confirm_dialog()
+        
+        # 显示文件选择菜单
+        menu_content = ft.Container(
+            content=ft.Column([
+                ft.Container(
+                    content=ft.Icon(ft.Icons.FOLDER_OPEN, size=48, color=ft.Colors.PURPLE_700),
+                    padding=10,
+                    bgcolor=ft.Colors.PURPLE_50,
+                    border_radius=50,
+                ),
+                ft.Text("导入备忘录", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.PURPLE_700),
+                ft.Divider(),
+                ft.Text("请选择备忘录Excel文件", size=14),
+                ft.Text("支持格式: .xlsx, .xls", size=12, color=ft.Colors.GREY_500),
+                ft.Divider(),
+                ft.Button(
+                    "选择文件", 
+                    on_click=lambda e: [close_menu(), asyncio.create_task(select_file_and_import())], 
+                    expand=True,
+                    style=ft.ButtonStyle(
+                        bgcolor=ft.Colors.PURPLE_700,
+                        color=ft.Colors.WHITE,
+                        shape=ft.RoundedRectangleBorder(radius=8),
+                    ),
+                ),
+                ft.Button(
+                    "取消", 
+                    on_click=lambda e: close_menu(), 
+                    expand=True,
+                    style=ft.ButtonStyle(
+                        bgcolor=ft.Colors.GREY_100,
+                        color=ft.Colors.GREY_700,
+                        shape=ft.RoundedRectangleBorder(radius=8),
+                    ),
+                ),
+            ], spacing=12, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+            width=320,
+            padding=20,
+            bgcolor=ft.Colors.WHITE,
+            border_radius=20,
+            shadow=ft.BoxShadow(
+                spread_radius=1,
+                blur_radius=15,
+                color=ft.Colors.BLACK12,
+                offset=ft.Offset(0, 4),
+            ),
+        )
+        
+        menu_container = ft.Container(
+            content=ft.Column([
+                ft.Container(expand=True),
+                ft.Row([ft.Container(expand=True), menu_content, ft.Container(expand=True)]),
+                ft.Container(expand=True),
+            ]),
+            expand=True, bgcolor=ft.Colors.BLACK26, on_click=lambda e: close_menu(),
+        )
+        
+        page.overlay.append(menu_container)
+        page.update()
+
     # 导入导出包装函数，增加选择菜单
     def show_export_menu(e):
         """显示导出选择菜单"""
@@ -14285,6 +14603,17 @@ def main(page: ft.Page):
                     expand=True,
                     style=ft.ButtonStyle(
                         bgcolor=ft.Colors.GREEN_700,
+                        color=ft.Colors.WHITE,
+                        shape=ft.RoundedRectangleBorder(radius=8),
+                    ),
+                ),
+                # ========== 新增：备忘录列表导出 ==========
+                ft.Button(
+                    "📝 备忘录列表", 
+                    on_click=lambda e: [close_menu(), asyncio.create_task(export_memo_async(e))], 
+                    expand=True,
+                    style=ft.ButtonStyle(
+                        bgcolor=ft.Colors.PURPLE_700,
                         color=ft.Colors.WHITE,
                         shape=ft.RoundedRectangleBorder(radius=8),
                     ),
@@ -14361,6 +14690,17 @@ def main(page: ft.Page):
                     expand=True,
                     style=ft.ButtonStyle(
                         bgcolor=ft.Colors.GREEN_700,
+                        color=ft.Colors.WHITE,
+                        shape=ft.RoundedRectangleBorder(radius=8),
+                    ),
+                ),
+                # ========== 新增：备忘录列表导入 ==========
+                ft.Button(
+                    "📝 备忘录列表", 
+                    on_click=lambda e: [close_menu(), asyncio.create_task(import_memo_async(e))], 
+                    expand=True,
+                    style=ft.ButtonStyle(
+                        bgcolor=ft.Colors.PURPLE_700,
                         color=ft.Colors.WHITE,
                         shape=ft.RoundedRectangleBorder(radius=8),
                     ),
