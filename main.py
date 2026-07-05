@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.178"
-APP_VERSION_CODE = 178
+APP_VERSION = "1.0.179"
+APP_VERSION_CODE = 179
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5689,7 +5689,7 @@ def main(page: ft.Page):
             
             main_content = ft.Container(
                 content=ft.Column([
-                    ft.Container(height=10),
+                    ft.Container(height=16),
                     ft.Row([
                         back_btn_main,
                         ft.Text("📝 备忘录", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, expand=True, text_align=ft.TextAlign.CENTER),
@@ -8163,7 +8163,7 @@ def main(page: ft.Page):
                         content=back_btn,
                         width=40,
                     ),
-                    ft.Text("💰 账单", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, expand=True, text_align=ft.TextAlign.CENTER),
+                    ft.Text("💰 记账单", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, expand=True, text_align=ft.TextAlign.CENTER),
                     ft.Container(width=40),
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                 ft.Divider(),
@@ -8173,7 +8173,7 @@ def main(page: ft.Page):
                 ft.Divider(),
                 ft.Row([
                     ft.Icon(ft.Icons.LIST, size=18, color=ft.Colors.BLUE_700),
-                    ft.Text("记录列表", size=16, weight=ft.FontWeight.BOLD),
+                    ft.Text("账单列表", size=16, weight=ft.FontWeight.BOLD),
                     ft.Container(expand=True),
                     filter_btn,  # 添加筛选按钮
                     export_btn,  # 添加导出按钮
