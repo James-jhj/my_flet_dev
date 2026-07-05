@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.177"
-APP_VERSION_CODE = 177
+APP_VERSION = "1.0.178"
+APP_VERSION_CODE = 178
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5172,6 +5172,7 @@ def main(page: ft.Page):
 
             # ========== 创建搜索框 ==========
             search_text_field = ft.TextField(
+                prefix_icon=ft.Icons.SEARCH_OUTLINED,
                 hint_text="搜索笔记",
                 expand=True,
                 #height=45,
@@ -5464,7 +5465,7 @@ def main(page: ft.Page):
                 
                 # 标题输入
                 title_field = ft.TextField(
-                    label="标题",
+                    hint_text="标题",
                     value=initial_title,
                     expand=True,
                 )
@@ -5482,7 +5483,7 @@ def main(page: ft.Page):
                 
                 # 内容输入
                 content_field = ft.TextField(
-                    label="内容",
+                    hint_text="内容",
                     value=initial_content,
                     expand=True,
                     multiline=True,
@@ -5513,15 +5514,16 @@ def main(page: ft.Page):
                 bottom_delete = None
                 if note_id:
                     bottom_delete = ft.Row([
-                        ft.Container(expand=True),
+                        #ft.Container(expand=True),
                         ft.OutlinedButton(
                             "🗑️ 删除",
                             on_click=delete_note,
+                            expand=True,  # 撑满宽度
                             style=ft.ButtonStyle(
                                 color=ft.Colors.RED_700,
                             ),
                         ),
-                        ft.Container(expand=True),
+                        #ft.Container(expand=True),
                     ], spacing=10)
                 
                 # 可滚动内容
@@ -15247,7 +15249,7 @@ def main(page: ft.Page):
             ft.TextButton("📥 导入", on_click=show_import_menu, tooltip="从Excel导入事件"),
             ft.TextButton("📤 导出", on_click=show_export_menu, tooltip="导出事件到Excel"),
         ],
-        spacing=15,
+        spacing=19,
         scroll=ft.ScrollMode.HIDDEN,  # 允许水平滚动
         width=410,
     )
