@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.179"
-APP_VERSION_CODE = 179
+APP_VERSION = "1.0.180"
+APP_VERSION_CODE = 180
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -531,6 +531,11 @@ class SearchableDropdownNtFl(ft.Column):
         
         # ========== 使用 Column + Row 让下拉框出现在文本框下方 ==========
         # 使用弹性布局，让下拉框在文本框正下方
+        # 根据平台设置弹出来的下拉框距离底部的高度
+        if platform.system() == "Windows":
+            bottomHeight = 350
+        else:
+            bottomHeight = 370
         self._overlay_container = ft.Container(
             content=ft.Column([
                 # 上方空白（点击关闭）
@@ -545,7 +550,7 @@ class SearchableDropdownNtFl(ft.Column):
                     ft.Container(width=30),  # 右边距
                 ]),
                 # 下方空白
-                ft.Container(height=370, on_click=lambda e: self.hide_dropdown()), # 备忘录的分类下拉框高度根据手机进行调整
+                ft.Container(height=bottomHeight, on_click=lambda e: self.hide_dropdown()), # 备忘录的分类下拉框高度根据手机进行调整
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
@@ -1150,6 +1155,11 @@ class SearchableDropdownEvtTp(ft.Column):
         
         # ========== 使用 Column + Row 让下拉框出现在文本框下方 ==========
         # 使用弹性布局，让下拉框在文本框正下方
+        # 根据平台设置弹出来的下拉框距离底部的高度
+        if platform.system() == "Windows":
+            bottomHeight = 316
+        else:
+            bottomHeight = 341
         self._overlay_container = ft.Container(
             content=ft.Column([
                 # 上方空白（点击关闭）
@@ -1164,7 +1174,7 @@ class SearchableDropdownEvtTp(ft.Column):
                     ft.Container(width=30),  # 右边距
                 ]),
                 # 下方空白
-                ft.Container(height=341, on_click=lambda e: self.hide_dropdown()),
+                ft.Container(height=bottomHeight, on_click=lambda e: self.hide_dropdown()),
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
@@ -1336,6 +1346,11 @@ class SearchableDropdownEvtLf(ft.Column):
         
         # ========== 使用 Column + Row 让下拉框出现在文本框下方 ==========
         # 使用弹性布局，让下拉框在文本框正下方
+        # 根据平台设置弹出来的下拉框距离底部的高度
+        if platform.system() == "Windows":
+            bottomHeight = 313
+        else:
+            bottomHeight = 309
         self._overlay_container = ft.Container(
             content=ft.Column([
                 # 上方空白（点击关闭）
@@ -1350,7 +1365,7 @@ class SearchableDropdownEvtLf(ft.Column):
                     ft.Container(width=30),  # 右边距
                 ]),
                 # 下方空白
-                ft.Container(height=309, on_click=lambda e: self.hide_dropdown()),
+                ft.Container(height=bottomHeight, on_click=lambda e: self.hide_dropdown()),
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
@@ -1512,6 +1527,11 @@ class SearchableDropdownEvtWeek(ft.Column):
         
         # ========== 使用 Column + Row 让下拉框出现在文本框下方 ==========
         # 使用弹性布局，让下拉框在文本框正下方
+        # 根据平台设置弹出来的下拉框距离底部的高度
+        if platform.system() == "Windows":
+            bottomHeight = 120
+        else:
+            bottomHeight = 137
         self._overlay_container = ft.Container(
             content=ft.Column([
                 # 上方空白（点击关闭）
@@ -1526,7 +1546,7 @@ class SearchableDropdownEvtWeek(ft.Column):
                     ft.Container(width=30),  # 右边距
                 ]),
                 # 下方空白
-                ft.Container(height=137, on_click=lambda e: self.hide_dropdown()),
+                ft.Container(height=bottomHeight, on_click=lambda e: self.hide_dropdown()),
             ]),
             expand=True,
             bgcolor=ft.Colors.TRANSPARENT,
@@ -2894,6 +2914,28 @@ def main(page: ft.Page):
     page.window_resizable = True
     #page.scroll = ft.ScrollMode.AUTO
     page.theme_mode = ft.ThemeMode.LIGHT
+    
+    # ========== Windows 平台模拟手机尺寸(华为mate60 RS) ==========
+    if platform.system() == "Windows":
+        page.window.width = 410
+        page.window.height = 840
+        page.window.resizable = False
+
+        # ========== 窗口居中 ==========
+        try:
+            import tkinter as tk
+            root = tk.Tk()
+            screen_width = root.winfo_screenwidth()
+            screen_height = root.winfo_screenheight()
+            root.destroy()
+            
+            page.window.left = (screen_width - 410) // 2
+            page.window.top = (screen_height - 840) // 2
+        except:
+            # 如果 tkinter 不可用，使用默认值
+            page.window.left = 200
+            page.window.top = 100
+    
 
     # ========== 添加这段代码来修复状态栏 ==========
     # 创建样式：透明背景 + 深色图标
