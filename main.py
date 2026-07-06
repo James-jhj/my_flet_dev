@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.181"
-APP_VERSION_CODE = 181
+APP_VERSION = "1.0.182"
+APP_VERSION_CODE = 182
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -242,13 +242,15 @@ else:
 
 class Transaction:
     """记账记录"""
-    def __init__(self, id: str, date: str, type: str, category: str, amount: float, note: str = ""):
+    def __init__(self, id: str, date: str, type: str, category: str, amount: float, note: str = "", time: str = None):
         self.id = id
         self.date = date  # 格式: YYYY-MM-DD
         self.type = type  # "income" 或 "expense"
         self.category = category  # 分类
         self.amount = amount
         self.note = note
+        # ========== 新增：时间字段 ==========
+        self.time = time if time else datetime.now().strftime("%H:%M")
     
     def to_dict(self):
         return {
@@ -258,6 +260,7 @@ class Transaction:
             "category": self.category,
             "amount": self.amount,
             "note": self.note,
+            "time": self.time,  # 新增
         }
     
     @classmethod
@@ -269,6 +272,7 @@ class Transaction:
             data["category"],
             data["amount"],
             data.get("note", ""),
+            data.get("time", "00:00"),  # 新增，兼容旧数据
         )
 
 """ 
@@ -6316,6 +6320,7 @@ def main(page: ft.Page):
                     edit_dialog_container = None
                     page.update()
             
+            # 确定分类列表
             categories = INCOME_CATEGORIES if transaction.type == "income" else EXPENSE_CATEGORIES
 
             # ========== 确定标题 ==========
@@ -6338,6 +6343,66 @@ def main(page: ft.Page):
                 on_blur=on_date_field_blur,  # 添加失去焦点事件
                 on_focus=lambda e: DropdownManager().close_all(),
             )
+
+            # ========== 时间字段（修复版） ==========
+            existing_time = getattr(transaction, 'time', None)
+            if not existing_time:
+                existing_time = datetime.now().strftime("%H:%M")
+
+            time_field = ft.TextField(
+                label="时间",
+                value=existing_time,
+                read_only=True,
+                expand=True,
+            )
+
+            # 时间选择器
+            try:
+                initial_time = datetime.strptime(existing_time, "%H:%M")
+            except:
+                initial_time = datetime.now()
+
+            time_picker = ft.TimePicker(
+                value=initial_time,
+                on_change=lambda e: on_time_selected(e),
+            )
+
+            def open_time_picker(e):
+                """打开时间选择器，并用当前显示的时间初始化"""
+                try:
+                    # 从显示字段读取当前时间
+                    current_time = time_field.value
+                    if current_time:
+                        # 如果已有时间，用该时间初始化选择器
+                        h, m = map(int, current_time.split(":"))
+                        from datetime import time
+                        time_picker.value = time(h, m)
+                    else:
+                        # 如果没有时间，使用默认时间
+                        from datetime import time
+                        time_picker.value = time(initial_time.hour, initial_time.minute)
+                    
+                    # 显示时间选择器
+                    page.show_dialog(time_picker)
+                except (ValueError, TypeError, AttributeError):
+                    # 如果解析失败，使用默认时间
+                    from datetime import time
+                    time_picker.value = time(initial_time.hour, initial_time.minute)
+                    page.show_dialog(time_picker)
+
+            def on_time_selected(e):
+                """时间选择后的回调"""
+                if time_picker.value:
+                    time_str = time_picker.value.strftime("%H:%M")
+                    time_field.value = time_str
+                    time_field.update()
+                    page.update()
+
+            # 绑定事件
+            time_picker.on_change = on_time_selected
+
+            # 设置点击字段时打开选择器
+            time_field.on_click = open_time_picker
 
             category_field = SearchableDropdownFl(
                 page=page,  # 传入 page
@@ -6413,6 +6478,7 @@ def main(page: ft.Page):
                     transaction.category = category_field.value
                     transaction.amount = amount
                     transaction.note = note_field.value
+                    transaction.time = time_field.value  # 新增时间
                     save_accounting_data()
                     refresh_records_list()
                     refresh_summary()
@@ -6546,7 +6612,11 @@ def main(page: ft.Page):
             # 可滚动的内容区域
             scrollable_content = ft.Column([
                 ft.Container(height=1),
-                date_field,
+                ft.Row([
+                    date_field,
+                    ft.Container(width=10),
+                    time_field,  # 新增时间字段
+                ], spacing=5),
                 category_field,
                 amount_field,
                 note_field,
@@ -6589,7 +6659,7 @@ def main(page: ft.Page):
             page.update()
 
         async def export_filtered_accounting(e):
-            """导出当前筛选后的记账数据到Excel"""
+            """导出当前筛选后的记账数据到Excel（包含时间，修正结余计算）"""
             global transactions
             
             # ========== 获取当前列表的数据 ==========
@@ -6617,16 +6687,45 @@ def main(page: ft.Page):
                 show_bottom_message("当前没有可导出的记录", is_error=True)
                 return
             
-            # ========== 按日期排序（由近到远） ==========
-            base_records.sort(key=lambda x: x.date, reverse=True)
+            # ========== 按日期+时间排序（由近到远） ==========
+            def get_sort_key(record):
+                time_str = getattr(record, 'time', '00:00')
+                return f"{record.date} {time_str}"
+            
+            base_records.sort(key=get_sort_key, reverse=True)
             
             # ========== 计算统计信息 ==========
             total_income = sum(t.amount for t in base_records if t.type == "income")
             total_expense = sum(t.amount for t in base_records if t.type == "expense")
-            total_balance = total_income - total_expense
+            total_balance = total_income - total_expense  # 这是筛选范围内的结余
+            
             income_count = len([t for t in base_records if t.type == "income"])
             expense_count = len([t for t in base_records if t.type == "expense"])
             total_count = len(base_records)
+            
+            # ========== 计算累计结余（从所有记录累计到筛选范围的最后一条） ==========
+            # 获取筛选范围内最后一条记录的日期（最晚的日期）
+            if base_records:
+                # 按日期正序排列，找到最后一条记录
+                sorted_by_date = sorted(base_records, key=lambda x: x.date)
+                last_record = sorted_by_date[-1]
+                last_date = last_record.date
+                
+                # 计算到该日期为止的累计结余（所有记录，不限筛选）
+                running_balance = 0
+                for t in sorted(transactions, key=lambda x: x.date):
+                    if t.type == "income":
+                        running_balance += t.amount
+                    else:
+                        running_balance -= t.amount
+                    if t.date == last_date and t.id == last_record.id:
+                        cumulative_balance = running_balance
+                        break
+                else:
+                    # 如果没找到，使用筛选范围内的结余
+                    cumulative_balance = total_income - total_expense
+            else:
+                cumulative_balance = 0
             
             # ========== 获取查询时间范围 ==========
             if query_mode == "month":
@@ -6653,34 +6752,33 @@ def main(page: ft.Page):
                 ws.title = "记账明细"
                 
                 # ========== 写入汇总信息 ==========
-                ws.merge_cells('A1:E1')
+                ws.merge_cells('A1:F1')
                 ws['A1'] = "📊 账单明细"
                 ws['A1'].font = openpyxl.styles.Font(size=16, bold=True)
                 ws['A1'].alignment = openpyxl.styles.Alignment(horizontal='center')
                 
-                # 起始时间和终止时间
-                ws['A2'] = "起始时间："
-                ws['B2'] = start_date_str
-                ws['A3'] = "终止时间："
-                ws['B3'] = end_date_str
-                ws['A4'] = "导出时间："
-                ws['B4'] = export_time
+                ws['A2'] = "查询范围："
+                ws['B2'] = time_range
+                ws['A3'] = "导出时间："
+                ws['B3'] = export_time
                 
                 # 统计信息
-                ws['A6'] = f"共计：{total_count}笔记录"
-                ws['A6'].font = openpyxl.styles.Font(bold=True)
-                ws['A7'] = f"收入：{income_count}笔  {total_income:,.2f}元"
-                ws['A7'].font = openpyxl.styles.Font(color="008000")
-                ws['A8'] = f"支出：{expense_count}笔  {total_expense:,.2f}元"
-                ws['A8'].font = openpyxl.styles.Font(color="FF0000")
-                ws['A9'] = f"结余：{total_balance:,.2f}元"
-                ws['A9'].font = openpyxl.styles.Font(bold=True, color="0000FF")
+                ws['A5'] = f"共计：{total_count}笔记录"
+                ws['A5'].font = openpyxl.styles.Font(bold=True)
+                ws['A6'] = f"收入：{income_count}笔  {total_income:,.2f}元"
+                ws['A6'].font = openpyxl.styles.Font(color="008000")
+                ws['A7'] = f"支出：{expense_count}笔  {total_expense:,.2f}元"
+                ws['A7'].font = openpyxl.styles.Font(color="FF0000")
+                ws['A8'] = f"筛选范围结余：{total_balance:,.2f}元"
+                ws['A8'].font = openpyxl.styles.Font(bold=True, color="0000FF")
+                ws['A9'] = f"累计结余（截至{end_date_str}）：{cumulative_balance:,.2f}元"
+                ws['A9'].font = openpyxl.styles.Font(bold=True, color="800080")
                 
                 # 空行
                 ws.append([])
                 
-                # ========== 写入表头 ==========
-                headers = ["日期", "类型", "分类", "金额", "备注"]
+                # ========== 写入表头（添加时间列） ==========
+                headers = ["日期", "时间", "类型", "分类", "金额", "备注"]
                 ws.append(headers)
                 
                 # 设置表头样式
@@ -6692,11 +6790,13 @@ def main(page: ft.Page):
                     cell.fill = header_fill
                     cell.alignment = openpyxl.styles.Alignment(horizontal='center')
                 
-                # ========== 写入数据（已按日期由近到远排序） ==========
+                # ========== 写入数据（包含时间） ==========
                 for t in base_records:
                     type_str = "收入" if t.type == "income" else "支出"
+                    time_str = getattr(t, 'time', '00:00')
                     ws.append([
                         t.date,
+                        time_str,
                         type_str,
                         t.category,
                         t.amount,
@@ -6705,15 +6805,16 @@ def main(page: ft.Page):
                 
                 # 设置金额列为数字格式
                 for row in range(ws.max_row - len(base_records) + 1, ws.max_row + 1):
-                    cell = ws.cell(row=row, column=4)
+                    cell = ws.cell(row=row, column=5)
                     cell.number_format = '#,##0.00'
                 
                 # 调整列宽
                 ws.column_dimensions['A'].width = 14
                 ws.column_dimensions['B'].width = 10
-                ws.column_dimensions['C'].width = 18
-                ws.column_dimensions['D'].width = 14
-                ws.column_dimensions['E'].width = 30
+                ws.column_dimensions['C'].width = 10
+                ws.column_dimensions['D'].width = 18
+                ws.column_dimensions['E'].width = 14
+                ws.column_dimensions['F'].width = 30
                 
                 # 保存临时文件
                 wb.save(temp_file)
@@ -7217,6 +7318,7 @@ def main(page: ft.Page):
             base_records = []  # 初始化为空列表
             if query_mode == "month":
                 month_str = f"{current_year}-{current_month:02d}"
+                month_records = [t for t in transactions if t.date.startswith(month_str)]
                 month_income = sum(t.amount for t in transactions if t.type == "income" and t.date.startswith(month_str))
                 month_expense = sum(t.amount for t in transactions if t.type == "expense" and t.date.startswith(month_str))
                 month_balance = month_income - month_expense
@@ -7225,12 +7327,14 @@ def main(page: ft.Page):
                 # 区间查询
                 start_str = start_date.strftime("%Y-%m-%d")
                 end_str = end_date.strftime("%Y-%m-%d")
+                month_records = [t for t in transactions if start_str <= t.date <= end_str]
                 month_income = sum(t.amount for t in transactions if t.type == "income" and start_str <= t.date <= end_str)
                 month_expense = sum(t.amount for t in transactions if t.type == "expense" and start_str <= t.date <= end_str)
                 month_balance = month_income - month_expense
                 date_label = f"📅 {start_date.strftime('%Y-%m-%d')} ~ {end_date.strftime('%Y-%m-%d')}"
 
             # ========== 应用分类筛选 ==========
+            filtered_records = month_records  # 默认使用全部
             if is_filter_active:
                 filtered_records = []
                 for t in base_records:
@@ -7241,11 +7345,54 @@ def main(page: ft.Page):
                         if filter_expense_categories and t.category in filter_expense_categories:
                             filtered_records.append(t)
                 base_records = filtered_records
+
+
+            # ========== 修改排序：先按日期降序，再按时间降序 ==========
+            def sort_key(record):
+                """排序键：日期 + 时间（降序）"""
+                # 获取时间，如果没有则使用 "00:00"
+                time_str = getattr(record, 'time', '00:00')
+                # 组合成可排序的字符串：日期 + 时间
+                return f"{record.date} {time_str}"
             
-            # 计算总收支
-            total_income = sum(t.amount for t in transactions if t.type == "income")
-            total_expense = sum(t.amount for t in transactions if t.type == "expense")
-            total_balance = total_income - total_expense
+            # 按日期+时间降序排序（最新的在前）
+            filtered_records.sort(key=sort_key, reverse=True)
+            
+            # ========== 计算统计信息 ==========
+            month_income = sum(t.amount for t in filtered_records if t.type == "income")
+            month_expense = sum(t.amount for t in filtered_records if t.type == "expense")
+
+            # ========== 计算本月结余（继承上个月余额） ==========
+            # 获取筛选范围内最后一条记录的ID，计算到该记录的累计余额
+            if filtered_records:
+                # 按日期正序排列
+                filtered_sorted = sorted(filtered_records, key=lambda x: x.date)
+                last_record = filtered_sorted[-1]  # 最后一条记录
+                
+                # 计算到该记录的累计余额
+                temp_balance = 0
+                for t in sorted(transactions, key=lambda x: x.date):
+                    if t.type == "income":
+                        temp_balance += t.amount
+                    else:
+                        temp_balance -= t.amount
+                    if t.id == last_record.id:
+                        month_balance = temp_balance
+                        break
+                else:
+                    month_balance = month_income - month_expense
+            else:
+                month_balance = month_income - month_expense
+
+            # ========== 计算累计结余（从所有记录累计） ==========
+            all_transactions_sorted = sorted(transactions, key=lambda x: x.date)
+            running_balance = 0
+            for t in all_transactions_sorted:
+                if t.type == "income":
+                    running_balance += t.amount
+                else:
+                    running_balance -= t.amount
+            total_balance = running_balance
             
             # ========== 日期标题（可点击，弹出日期选择器） ==========
             if query_mode == "month":
@@ -7553,12 +7700,57 @@ def main(page: ft.Page):
                         if filter_expense_categories and t.category in filter_expense_categories:
                             filtered_records.append(t)
 
-            filtered_records.sort(key=lambda x: x.date, reverse=True)
+            #filtered_records.sort(key=lambda x: x.date, reverse=True)
+
+            # ========== 修改排序：先按日期降序，再按时间降序 ==========
+            def sort_key(record):
+                """排序键：日期 + 时间（降序）"""
+                # 获取时间，如果没有则使用 "00:00"
+                time_str = getattr(record, 'time', '00:00')
+                # 组合成可排序的字符串：日期 + 时间
+                return f"{record.date} {time_str}"
+            
+            # 按日期+时间降序排序（最新的在前）
+            filtered_records.sort(key=sort_key, reverse=True)
 
             # ========== 计算统计信息 ==========
-            total_income = sum(t.amount for t in filtered_records if t.type == "income")
-            total_expense = sum(t.amount for t in filtered_records if t.type == "expense")
-            total_balance = total_income - total_expense
+            month_income = sum(t.amount for t in filtered_records if t.type == "income")
+            month_expense = sum(t.amount for t in filtered_records if t.type == "expense")
+
+            # ========== 计算本月结余（继承上个月余额） ==========
+            # 获取筛选范围内最后一条记录的ID，计算到该记录的累计余额
+            if filtered_records:
+                # 按日期正序排列
+                filtered_sorted = sorted(filtered_records, key=lambda x: x.date)
+                last_record = filtered_sorted[-1]  # 最后一条记录
+                
+                # 计算到该记录的累计余额
+                temp_balance = 0
+                for t in sorted(transactions, key=lambda x: x.date):
+                    if t.type == "income":
+                        temp_balance += t.amount
+                    else:
+                        temp_balance -= t.amount
+                    if t.id == last_record.id:
+                        month_balance = temp_balance
+                        break
+                else:
+                    month_balance = month_income - month_expense
+            else:
+                month_balance = month_income - month_expense
+
+            # ========== 计算累计结余（从所有记录累计） ==========
+            all_transactions_sorted = sorted(transactions, key=lambda x: x.date)
+            running_balance = 0
+            for t in all_transactions_sorted:
+                if t.type == "income":
+                    running_balance += t.amount
+                else:
+                    running_balance -= t.amount
+            total_balance = running_balance
+
+            #print (f"本月结余：{month_balance}")
+            #print (f"累计结余：{total_balance}")
             
             if not filtered_records:
                 records_list.controls.append(
@@ -7580,11 +7772,11 @@ def main(page: ft.Page):
                             ft.Row([
                                 ft.Column([
                                     ft.Text("收入", size=12, color=ft.Colors.GREY_600),
-                                    ft.Text(f"¥ {total_income:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_700),
+                                    ft.Text(f"¥ {month_income:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_700),
                                 ], expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                                 ft.Column([
                                     ft.Text("支出", size=12, color=ft.Colors.GREY_600),
-                                    ft.Text(f"¥ {total_expense:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.RED_700),
+                                    ft.Text(f"¥ {month_expense:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.RED_700),
                                 ], expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                                 ft.Column([
                                     ft.Text("结余", size=12, color=ft.Colors.GREY_600),
@@ -7600,18 +7792,51 @@ def main(page: ft.Page):
                 page.update()
                 return
             
-            # ========== 计算实时余额（按日期累计） ==========
-            # 从最早的记录开始累计
+            # ========== 计算实时余额（从最早记录开始累计） ==========
+            # 1. 先获取所有交易记录（不限日期），按日期正序排序
+            all_transactions_sorted = sorted(transactions, key=lambda x: x.date)
+            
+            # 2. 计算每条记录的累计余额
             running_balance = 0
-            # 按日期正序排序（从旧到新）计算余额
-            sorted_asc = sorted(filtered_records, key=lambda x: x.date)
-            balance_map = {}
-            for t in sorted_asc:
+            balance_map = {}  # {记录ID: 累计余额}
+            
+            for t in all_transactions_sorted:
                 if t.type == "income":
                     running_balance += t.amount
                 else:
                     running_balance -= t.amount
                 balance_map[t.id] = running_balance
+            
+            # 3. 如果有分类筛选，需要重新计算筛选后的余额（基于全部记录）
+            if is_filter_active:
+                # 重新计算筛选后的余额
+                # 按日期正序排序筛选后的记录
+                filtered_sorted = sorted(filtered_records, key=lambda x: x.date)
+                #filtered_balance = 0
+                filtered_balance_map = {}
+                
+                # 获取所有筛选记录之前的累计余额
+                for t in filtered_sorted:
+                    # 计算该记录之前的累计余额（所有记录，不限筛选）
+                    # 找到该记录之前的所有记录（包括未筛选的）
+                    prev_balance = 0
+                    for prev_t in all_transactions_sorted:
+                        if prev_t.date < t.date:
+                            if prev_t.type == "income":
+                                prev_balance += prev_t.amount
+                            else:
+                                prev_balance -= prev_t.amount
+                        elif prev_t.date == t.date and prev_t.id == t.id:
+                            break
+                    
+                    # 然后加上当前记录之前的筛选记录余额
+                    # 但这里简单处理：直接用全部余额
+                    # 更准确的方式：筛选后的余额 = 全部余额 - 被筛选掉的记录余额
+                    filtered_balance_map[t.id] = balance_map.get(t.id, 0)
+                
+                # 使用全部余额（因为筛选只是显示过滤，余额应该是真实余额）
+                # 所以直接使用 balance_map
+                pass
 
             # 显示记录卡片
             for index, t in enumerate(filtered_records):
@@ -7621,6 +7846,12 @@ def main(page: ft.Page):
 
                 # 获取当前记录的实时余额
                 current_balance = balance_map.get(t.id, 0)
+
+                # ========== 构造日期显示（包含时间） ==========
+                if hasattr(t, 'time') and t.time and t.time != "00:00":
+                    date_display = f"{t.date} {t.time}"
+                else:
+                    date_display = t.date
                 
                 record_card = ft.Container(
                     content=ft.Column([
@@ -7639,9 +7870,9 @@ def main(page: ft.Page):
                                 color=amount_color,
                             ),
                         ]),
-                        # 第二行：日期 + 实时余额
+                        # 第二行：日期+时间 + 实时余额
                         ft.Row([
-                            ft.Text(t.date, size=11, color=ft.Colors.GREY_500),
+                            ft.Text(date_display, size=11, color=ft.Colors.GREY_500),
                             ft.Container(expand=True),
                             ft.Text(
                                 f"余额: ¥ {current_balance:,.2f}",
@@ -7673,15 +7904,15 @@ def main(page: ft.Page):
                         ft.Row([
                             ft.Column([
                                 ft.Text("收入", size=12, color=ft.Colors.GREY_600),
-                                ft.Text(f"¥ {total_income:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_700),
+                                ft.Text(f"¥ {month_income:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_700),
                             ], expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                             ft.Column([
                                 ft.Text("支出", size=12, color=ft.Colors.GREY_600),
-                                ft.Text(f"¥ {total_expense:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.RED_700),
+                                ft.Text(f"¥ {month_expense:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.RED_700),
                             ], expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                             ft.Column([
                                 ft.Text("结余", size=12, color=ft.Colors.GREY_600),
-                                ft.Text(f"¥ {total_balance:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
+                                ft.Text(f"¥ {month_balance:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
                             ], expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                         ], spacing=5),
                     ], spacing=8),
@@ -8032,6 +8263,57 @@ def main(page: ft.Page):
                 on_blur=on_date_field_blur,  # 添加失去焦点事件
                 on_focus=lambda e: DropdownManager().close_all(),
             )
+
+            # ========== 时间字段（参照事件提醒样式） ==========
+            time_field = ft.TextField(
+                label="时间",
+                value=datetime.now().strftime("%H:%M"),
+                read_only=True,
+                expand=True,
+            )
+
+            # 创建时间选择器（作为对话框）
+            time_picker = ft.TimePicker(
+                value=datetime.now(),
+                on_change=lambda e: on_time_selected(e),
+            )
+
+            def open_time_picker(e):
+                """打开时间选择器，并用当前显示的时间初始化"""
+                try:
+                    # 从显示字段读取当前时间
+                    current_time = time_field.value
+                    if current_time:
+                        # 如果已有时间，用该时间初始化选择器
+                        h, m = map(int, current_time.split(":"))
+                        from datetime import time
+                        time_picker.value = time(h, m)
+                    else:
+                        # 如果没有时间，使用默认时间
+                        from datetime import time
+                        time_picker.value = time(datetime.now().hour, datetime.now().minute)
+                    
+                    # 显示时间选择器
+                    page.show_dialog(time_picker)
+                except (ValueError, TypeError, AttributeError):
+                    # 如果解析失败，使用默认时间
+                    from datetime import time
+                    time_picker.value = time(datetime.now().hour, datetime.now().minute)
+                    page.show_dialog(time_picker)
+
+            def on_time_selected(e):
+                """时间选择后的回调"""
+                if time_picker.value:
+                    time_str = time_picker.value.strftime("%H:%M")
+                    time_field.value = time_str
+                    time_field.update()
+                    page.update()
+
+            # 绑定事件
+            time_picker.on_change = on_time_selected
+
+            # 绑定点击事件
+            time_field.on_click = open_time_picker
             
             # 根据收支类型显示不同的分类列表
             categories = INCOME_CATEGORIES if transaction_type == "income" else EXPENSE_CATEGORIES
@@ -8107,6 +8389,7 @@ def main(page: ft.Page):
                         category=category_field.value,
                         amount=amount,
                         note=note_field.value,
+                        time=time_field.value,  # 新增
                     )
                     transactions.append(new_transaction)
                     save_accounting_data()
@@ -8143,7 +8426,12 @@ def main(page: ft.Page):
             # 可滚动的内容区域
             scrollable_content = ft.Column([
                 ft.Container(height=1),
-                date_field,
+                # ========== 日期和时间在同一行 ==========
+                ft.Row([
+                    date_field,
+                    ft.Container(width=10),
+                    time_field,
+                ], spacing=5),
                 category_field,
                 amount_field,
                 note_field,
@@ -14115,15 +14403,22 @@ def main(page: ft.Page):
 
     # ========== 记账数据导入导出 ==========
     async def export_accounting_async(e):
-        """导出记账数据到Excel"""
-        global transactions  # 添加这行，确保使用全局变量
+        """导出记账数据到Excel（按日期+时间由近到远排序）"""
+        global transactions
         try:
-
-            print(f"[导出记账] transactions 数量: {len(transactions)}")  # 添加调试
+            print(f"[导出记账] transactions 数量: {len(transactions)}")
             
             if not transactions:
                 show_bottom_message("没有记账数据可导出")
                 return
+            
+            # ========== 按日期+时间由近到远排序 ==========
+            def get_sort_key(record):
+                """获取排序键：日期 + 时间"""
+                time_str = getattr(record, 'time', '00:00')
+                return f"{record.date} {time_str}"
+            
+            sorted_transactions = sorted(transactions, key=get_sort_key, reverse=True)
             
             temp_dir = get_data_file_path("")
             temp_file = os.path.join(temp_dir, f"accounting_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
@@ -14132,33 +14427,58 @@ def main(page: ft.Page):
             ws = wb.active
             ws.title = "记账本"
             
-            # 写入表头
-            headers = ["日期", "类型", "分类", "金额", "备注"]
+            # ========== 写入汇总信息 ==========
+            ws.merge_cells('A1:F1')
+            ws['A1'] = "💰 记账本"
+            ws['A1'].font = openpyxl.styles.Font(size=16, bold=True)
+            ws['A1'].alignment = openpyxl.styles.Alignment(horizontal='center')
+            
+            ws['A2'] = "导出时间："
+            ws['B2'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            ws['A3'] = f"共计：{len(sorted_transactions)} 条记录"
+            ws['A3'].font = openpyxl.styles.Font(bold=True)
+            
+            # 空行
+            ws.append([])
+            
+            # ========== 写入表头（包含时间列） ==========
+            headers = ["日期", "时间", "类型", "分类", "金额", "备注"]
             ws.append(headers)
             
             # 设置表头样式
+            header_font = openpyxl.styles.Font(bold=True, color="FFFFFF")
+            header_fill = openpyxl.styles.PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
             for col in range(1, len(headers) + 1):
-                cell = ws.cell(row=1, column=col)
-                cell.font = openpyxl.styles.Font(bold=True)
-                cell.fill = openpyxl.styles.PatternFill(start_color="CCE6FF", end_color="CCE6FF", fill_type="solid")
+                cell = ws.cell(row=ws.max_row, column=col)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = openpyxl.styles.Alignment(horizontal='center')
             
-            # 写入数据
-            for t in transactions:
+            # ========== 写入数据（按排序后的顺序） ==========
+            for t in sorted_transactions:
                 type_str = "收入" if t.type == "income" else "支出"
+                time_str = getattr(t, 'time', '00:00')
                 ws.append([
                     t.date,
+                    time_str,
                     type_str,
                     t.category,
                     t.amount,
                     t.note,
                 ])
             
+            # 设置金额列为数字格式
+            for row in range(ws.max_row - len(sorted_transactions) + 1, ws.max_row + 1):
+                cell = ws.cell(row=row, column=5)  # 金额在第5列
+                cell.number_format = '#,##0.00'
+            
             # 调整列宽
-            ws.column_dimensions['A'].width = 12
-            ws.column_dimensions['B'].width = 8
-            ws.column_dimensions['C'].width = 15
-            ws.column_dimensions['D'].width = 12
-            ws.column_dimensions['E'].width = 30
+            ws.column_dimensions['A'].width = 14  # 日期
+            ws.column_dimensions['B'].width = 10  # 时间
+            ws.column_dimensions['C'].width = 10  # 类型
+            ws.column_dimensions['D'].width = 18  # 分类
+            ws.column_dimensions['E'].width = 14  # 金额
+            ws.column_dimensions['F'].width = 30  # 备注
             
             wb.save(temp_file)
             
@@ -14180,7 +14500,7 @@ def main(page: ft.Page):
             os.remove(temp_file)
             
             if result:
-                show_bottom_message(f"成功导出 {len(transactions)} 条记账记录")
+                show_bottom_message(f"成功导出 {len(sorted_transactions)} 条记账记录（按时间由近到远排序）")
             else:
                 show_bottom_message("已取消导出")
             
@@ -14193,8 +14513,8 @@ def main(page: ft.Page):
             traceback.print_exc()
 
     async def import_accounting_async(e):
-        """从Excel导入记账数据"""
-        global transactions  # 添加这行
+        """从Excel导入记账数据（支持时间列）"""
+        global transactions
         
         menu_container = None
         
@@ -14261,119 +14581,253 @@ def main(page: ft.Page):
             show_bottom_message("已取消导入")
         
         async def do_import_accounting(file_path):
+            """执行记账数据导入（从第6行开始读取）"""
             show_bottom_message(f"正在导入记账数据: {os.path.basename(file_path)}")
             page.update()
             
-            wb = load_workbook(file_path)
-            ws = wb.active
-            
-            imported_count = 0
-            skipped_count = 0
-            new_transactions = []
-            
-            for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
-                if not row or len(row) < 4:
-                    continue
+            try:
+                wb = load_workbook(file_path)
+                ws = wb.active
                 
-                date = str(row[0]).strip() if row[0] else ""
-                type_str = str(row[1]).strip() if row[1] else ""
-                category = str(row[2]).strip() if row[2] else ""
-                amount_str = str(row[3]).strip() if row[3] else ""
-                note = str(row[4]).strip() if len(row) > 4 and row[4] else ""
+                print(f"[导入] 开始读取文件: {file_path}")
+                print(f"[导入] 工作表名称: {ws.title}")
+                print(f"[导入] 总行数: {ws.max_row}")
                 
-                if not date or not category or not amount_str:
-                    skipped_count += 1
-                    continue
+                imported_count = 0
+                skipped_count = 0
+                new_transactions = []
                 
-                try:
-                    amount = float(amount_str)
-                    if amount <= 0:
+                # ========== 从第5行开始查找表头 ==========
+                header_row_idx = None
+                header_row = None
+                
+                # 从第6行开始查找表头（因为前5行是汇总信息）
+                for row_idx in range(5, min(21, ws.max_row + 1)):
+                    row_data = []
+                    for col in range(1, 10):  # 检查前10列
+                        cell_value = ws.cell(row=row_idx, column=col).value
+                        if cell_value:
+                            row_data.append(str(cell_value).strip())
+                    
+                    # 检查是否包含表头关键字
+                    row_text = " ".join(row_data)
+                    if "日期" in row_text and "类型" in row_text and "分类" in row_text:
+                        header_row_idx = row_idx
+                        header_row = row_data
+                        print(f"[导入] 找到表头行: 第 {row_idx} 行")
+                        print(f"[导入] 表头内容: {header_row}")
+                        break
+                
+                if header_row_idx is None:
+                    # 如果没找到表头，尝试使用第6行
+                    header_row_idx = 6
+                    header_row = []
+                    for col in range(1, 10):
+                        cell_value = ws.cell(row=6, column=col).value
+                        if cell_value:
+                            header_row.append(str(cell_value).strip())
+                    print(f"[导入] 未找到标准表头，使用第6行: {header_row}")
+                
+                # ========== 确定各列的索引（基于表头内容） ==========
+                col_index = {}
+                for idx, col_name in enumerate(header_row):
+                    if col_name:
+                        col_name_str = str(col_name).strip()
+                        print(f"[导入] 列 {idx}: '{col_name_str}'")
+                        
+                        if "日期" in col_name_str:
+                            col_index['date'] = idx
+                        elif "时间" in col_name_str:
+                            col_index['time'] = idx
+                        elif "类型" in col_name_str:
+                            col_index['type'] = idx
+                        elif "分类" in col_name_str:
+                            col_index['category'] = idx
+                        elif "金额" in col_name_str:
+                            col_index['amount'] = idx
+                        elif "备注" in col_name_str:
+                            col_index['note'] = idx
+                
+                print(f"[导入] 最终列索引: {col_index}")
+                
+                # ========== 检查必要的列是否存在 ==========
+                required_cols = ['date', 'type', 'category', 'amount']
+                missing_cols = [col for col in required_cols if col not in col_index]
+                if missing_cols:
+                    error_msg = f"Excel缺少必要列: {', '.join(missing_cols)}"
+                    show_bottom_message(error_msg, is_error=True)
+                    print(f"[导入] {error_msg}")
+                    return
+                
+                # ========== 从表头下一行开始读取数据 ==========
+                start_row = header_row_idx + 1
+                print(f"[导入] 从第 {start_row} 行开始读取数据")
+                
+                for row_idx in range(start_row, ws.max_row + 1):
+                    try:
+                        # 获取每列的数据
+                        row_data = {}
+                        for col_name, col_pos in col_index.items():
+                            cell_value = ws.cell(row=row_idx, column=col_pos + 1).value
+                            if cell_value is not None:
+                                row_data[col_name] = str(cell_value).strip()
+                            else:
+                                row_data[col_name] = ""
+                        
+                        # 提取各字段
+                        date = row_data.get('date', '')
+                        time_str = row_data.get('time', '00:00')
+                        type_str = row_data.get('type', '')
+                        category = row_data.get('category', '')
+                        amount_str = row_data.get('amount', '')
+                        note = row_data.get('note', '')
+                        
+                        # 跳过空行
+                        if not date and not category and not amount_str:
+                            continue
+                        
+                        # 验证必要字段
+                        if not date:
+                            print(f"[导入] 第 {row_idx} 行: 日期为空，跳过")
+                            skipped_count += 1
+                            continue
+                        
+                        if not category:
+                            print(f"[导入] 第 {row_idx} 行: 分类为空，跳过")
+                            skipped_count += 1
+                            continue
+                        
+                        if not amount_str:
+                            print(f"[导入] 第 {row_idx} 行: 金额为空，跳过")
+                            skipped_count += 1
+                            continue
+                        
+                        # 如果时间格式不正确，设置为 "00:00"
+                        if time_str and ":" not in time_str:
+                            time_str = "00:00"
+                        elif not time_str:
+                            time_str = "00:00"
+                        
+                        # 解析金额
+                        try:
+                            # 处理千位分隔符和货币符号
+                            amount_str_clean = amount_str.replace(',', '').replace('¥', '').replace('$', '').replace(' ', '')
+                            amount = float(amount_str_clean)
+                            if amount <= 0:
+                                print(f"[导入] 第 {row_idx} 行: 金额 {amount} <= 0，跳过")
+                                skipped_count += 1
+                                continue
+                        except ValueError as ve:
+                            print(f"[导入] 第 {row_idx} 行: 金额解析失败 '{amount_str}': {ve}")
+                            skipped_count += 1
+                            continue
+                        
+                        # 确定交易类型
+                        if "收入" in type_str or "income" in type_str.lower():
+                            transaction_type = "income"
+                        elif "支出" in type_str or "expense" in type_str.lower():
+                            transaction_type = "expense"
+                        else:
+                            print(f"[导入] 第 {row_idx} 行: 未知类型 '{type_str}'，跳过")
+                            skipped_count += 1
+                            continue
+                        
+                        # 创建交易记录
+                        transaction_id = str(int(datetime.now().timestamp() * 1000) + imported_count)
+                        new_transaction = Transaction(
+                            id=transaction_id,
+                            date=date,
+                            type=transaction_type,
+                            category=category,
+                            amount=amount,
+                            note=note,
+                            time=time_str,
+                        )
+                        new_transactions.append(new_transaction)
+                        imported_count += 1
+                        print(f"[导入] 成功导入第 {row_idx} 行: {date} {time_str} {category} {amount} {note}")
+                        
+                    except Exception as row_error:
+                        print(f"[导入] 第 {row_idx} 行处理失败: {row_error}")
                         skipped_count += 1
                         continue
-                except:
-                    skipped_count += 1
-                    continue
                 
-                if type_str == "收入":
-                    transaction_type = "income"
-                elif type_str == "支出":
-                    transaction_type = "expense"
-                else:
-                    skipped_count += 1
-                    continue
+                # ========== 导入完成，显示结果 ==========
+                print(f"[导入] 导入完成: 成功 {imported_count} 条，跳过 {skipped_count} 行")
                 
-                transaction_id = str(int(datetime.now().timestamp() * 1000) + imported_count)
-                new_transaction = Transaction(
-                    id=transaction_id,
-                    date=date,
-                    type=transaction_type,
-                    category=category,
-                    amount=amount,
-                    note=note,
-                )
-                new_transactions.append(new_transaction)
-                imported_count += 1
-            
-            if imported_count == 0:
-                show_bottom_message(f"没有导入任何记账记录，跳过 {skipped_count} 行")
-                return
-            
-            confirm_dialog_container = None
-            
-            def close_confirm_dialog():
-                nonlocal confirm_dialog_container
-                if confirm_dialog_container and confirm_dialog_container in page.overlay:
-                    page.overlay.remove(confirm_dialog_container)
-                    confirm_dialog_container = None
+                if imported_count == 0:
+                    show_bottom_message(f"没有导入任何记账记录，跳过 {skipped_count} 行")
+                    return
+                
+                # 确认替换对话框
+                confirm_dialog_container = None
+                
+                def close_confirm_dialog():
+                    nonlocal confirm_dialog_container
+                    if confirm_dialog_container and confirm_dialog_container in page.overlay:
+                        page.overlay.remove(confirm_dialog_container)
+                        confirm_dialog_container = None
+                        page.update()
+                
+                def confirm_replace():
+                    close_confirm_dialog()
+                    global transactions
+                    transactions = new_transactions
+                    save_accounting_data()
+
+                    # ========== 直接更新界面，不调用 refresh 函数 ==========
+                    # 重新加载数据并刷新显示
+                    load_accounting_data()
+
+                    show_bottom_message(f"成功导入 {imported_count} 条记账记录")
                     page.update()
-            
-            def confirm_replace():
-                close_confirm_dialog()
-                global transactions
-                transactions = new_transactions
-                save_accounting_data()
-                show_bottom_message(f"成功导入 {imported_count} 条记账记录")
+                
+                def cancel_replace():
+                    close_confirm_dialog()
+                    show_bottom_message("已取消导入")
+                    page.update()
+                
+                confirm_content = ft.Container(
+                    content=ft.Column([
+                        ft.Container(
+                            content=ft.Icon(ft.Icons.INFO, size=55, color=ft.Colors.BLUE_700),
+                            padding=10,
+                            bgcolor=ft.Colors.BLUE_50,
+                            border_radius=50,
+                        ),
+                        ft.Text("确认导入记账数据", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
+                        ft.Divider(),
+                        ft.Text(f"即将导入 {imported_count} 条记账记录", size=14),
+                        ft.Text(f"当前有 {len(transactions)} 条记录将被替换", size=12, color=ft.Colors.ORANGE_700),
+                        ft.Divider(),
+                        ft.Row([
+                            ft.ElevatedButton("取消", on_click=lambda e: cancel_replace(), expand=True),
+                            ft.ElevatedButton("确认导入", on_click=lambda e: confirm_replace(), expand=True,
+                                            style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE)),
+                        ], spacing=12),
+                    ], spacing=15),
+                    width=320, padding=20, bgcolor=ft.Colors.WHITE, border_radius=16,
+                )
+                
+                confirm_dialog_container = ft.Container(
+                    content=ft.Column([
+                        ft.Container(expand=True),
+                        ft.Row([ft.Container(expand=True), confirm_content, ft.Container(expand=True)]),
+                        ft.Container(expand=True),
+                    ]),
+                    expand=True, bgcolor=ft.Colors.BLACK26, on_click=lambda e: close_confirm_dialog(),
+                )
+                
+                page.overlay.append(confirm_dialog_container)
                 page.update()
-            
-            def cancel_replace():
-                close_confirm_dialog()
-                show_bottom_message("已取消导入")
-                page.update()
-            
-            confirm_content = ft.Container(
-                content=ft.Column([
-                    ft.Container(
-                        content=ft.Icon(ft.Icons.INFO, size=55, color=ft.Colors.BLUE_700),
-                        padding=10,
-                        bgcolor=ft.Colors.BLUE_50,
-                        border_radius=50,
-                    ),
-                    ft.Text("确认导入记账数据", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
-                    ft.Divider(),
-                    ft.Text(f"即将导入 {imported_count} 条记账记录", size=14),
-                    ft.Text(f"当前有 {len(transactions)} 条记录将被替换", size=12, color=ft.Colors.ORANGE_700),
-                    ft.Divider(),
-                    ft.Row([
-                        ft.ElevatedButton("取消", on_click=lambda e: cancel_replace(), expand=True),
-                        ft.ElevatedButton("确认导入", on_click=lambda e: confirm_replace(), expand=True,
-                                        style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE)),
-                    ], spacing=12),
-                ], spacing=15),
-                width=320, padding=20, bgcolor=ft.Colors.WHITE, border_radius=16,
-            )
-            
-            confirm_dialog_container = ft.Container(
-                content=ft.Column([
-                    ft.Container(expand=True),
-                    ft.Row([ft.Container(expand=True), confirm_content, ft.Container(expand=True)]),
-                    ft.Container(expand=True),
-                ]),
-                expand=True, bgcolor=ft.Colors.BLACK26, on_click=lambda e: close_confirm_dialog(),
-            )
-            
-            page.overlay.append(confirm_dialog_container)
-            page.update()
+                
+            except Exception as e:
+                show_bottom_message(f"导入失败: {str(e)}", is_error=True)
+                print(f"[导入] 错误: {e}")
+                import traceback
+                traceback.print_exc()
         
+        # 显示文件选择菜单
         menu_content = ft.Container(
             content=ft.Column([
                 ft.Container(
@@ -14381,12 +14835,13 @@ def main(page: ft.Page):
                     padding=15,
                     bgcolor=ft.Colors.BLUE_50,
                     border_radius=50,
-                    #alignment=ft.Alignment(0, 0),  # 图标居中
                 ),
                 ft.Text("导入记账数据", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, text_align=ft.TextAlign.CENTER),
                 ft.Divider(),
                 ft.Text("请选择记账Excel文件", size=14, text_align=ft.TextAlign.CENTER),
                 ft.Text("支持格式: .xlsx, .xls", size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
+                ft.Text("表头: 日期 | 时间 | 类型 | 分类 | 金额 | 备注", size=11, color=ft.Colors.GREY_600, text_align=ft.TextAlign.CENTER),
+                ft.Text("注：前5行为汇总信息，从第6行开始读取", size=11, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
                 ft.Divider(),
                 ft.Button(
                     "选择文件", 
@@ -14408,7 +14863,7 @@ def main(page: ft.Page):
                         shape=ft.RoundedRectangleBorder(radius=8),
                     ),
                 ),
-            ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER),  # 水平居中
+            ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
             width=320,
             padding=25,
             bgcolor=ft.Colors.WHITE,
