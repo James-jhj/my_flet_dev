@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.182"
-APP_VERSION_CODE = 182
+APP_VERSION = "1.0.183"
+APP_VERSION_CODE = 183
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -6694,38 +6694,46 @@ def main(page: ft.Page):
             
             base_records.sort(key=get_sort_key, reverse=True)
             
-            # ========== 计算统计信息 ==========
-            total_income = sum(t.amount for t in base_records if t.type == "income")
-            total_expense = sum(t.amount for t in base_records if t.type == "expense")
-            total_balance = total_income - total_expense  # 这是筛选范围内的结余
+            # ========== 计算本月收入和支出 ==========
+            month_income = sum(t.amount for t in base_records if t.type == "income")
+            month_expense = sum(t.amount for t in base_records if t.type == "expense")
+            
+            # ========== 计算累计结余 ==========
+            all_transactions_sorted = sorted(transactions, key=lambda x: x.date)
+            running_balance = 0
+            balance_map = {}
+            for t in all_transactions_sorted:
+                if t.type == "income":
+                    running_balance += t.amount
+                else:
+                    running_balance -= t.amount
+                balance_map[t.id] = running_balance
+            cumulative_balance = running_balance
+            
+            # ========== 计算上个月末的累计结余 ==========
+            # 获取本月的第一天（转换为字符串）
+            if query_mode == "month":
+                first_day_of_month = datetime(current_year, current_month, 1).date()
+                first_day_str = first_day_of_month.strftime("%Y-%m-%d")
+            else:
+                first_day_str = start_date.strftime("%Y-%m-%d")
+            
+            # 获取本月之前的所有记录
+            prev_records = [t for t in transactions if t.date < first_day_str]
+            
+            if prev_records:
+                prev_records_sorted = sorted(prev_records, key=lambda x: x.date)
+                last_prev_record = prev_records_sorted[-1]
+                previous_month_balance = balance_map.get(last_prev_record.id, 0)
+            else:
+                previous_month_balance = 0
+            
+            # 本月结余 = 上月末结余 + 本月收入 - 本月支出
+            month_balance = previous_month_balance + month_income - month_expense
             
             income_count = len([t for t in base_records if t.type == "income"])
             expense_count = len([t for t in base_records if t.type == "expense"])
             total_count = len(base_records)
-            
-            # ========== 计算累计结余（从所有记录累计到筛选范围的最后一条） ==========
-            # 获取筛选范围内最后一条记录的日期（最晚的日期）
-            if base_records:
-                # 按日期正序排列，找到最后一条记录
-                sorted_by_date = sorted(base_records, key=lambda x: x.date)
-                last_record = sorted_by_date[-1]
-                last_date = last_record.date
-                
-                # 计算到该日期为止的累计结余（所有记录，不限筛选）
-                running_balance = 0
-                for t in sorted(transactions, key=lambda x: x.date):
-                    if t.type == "income":
-                        running_balance += t.amount
-                    else:
-                        running_balance -= t.amount
-                    if t.date == last_date and t.id == last_record.id:
-                        cumulative_balance = running_balance
-                        break
-                else:
-                    # 如果没找到，使用筛选范围内的结余
-                    cumulative_balance = total_income - total_expense
-            else:
-                cumulative_balance = 0
             
             # ========== 获取查询时间范围 ==========
             if query_mode == "month":
@@ -6765,12 +6773,12 @@ def main(page: ft.Page):
                 # 统计信息
                 ws['A5'] = f"共计：{total_count}笔记录"
                 ws['A5'].font = openpyxl.styles.Font(bold=True)
-                ws['A6'] = f"收入：{income_count}笔  {total_income:,.2f}元"
+                ws['A6'] = f"收入：{income_count}笔  {month_income:,.2f}元"
                 ws['A6'].font = openpyxl.styles.Font(color="008000")
-                ws['A7'] = f"支出：{expense_count}笔  {total_expense:,.2f}元"
+                ws['A7'] = f"支出：{expense_count}笔  {month_expense:,.2f}元"
                 ws['A7'].font = openpyxl.styles.Font(color="FF0000")
-                ws['A8'] = f"筛选范围结余：{total_balance:,.2f}元"
-                ws['A8'].font = openpyxl.styles.Font(bold=True, color="0000FF")
+                ws['A8'] = f"本月结余：{month_balance:,.2f}元"
+                ws['A8'].font = openpyxl.styles.Font(bold=True, color="0000FF" if month_balance >= 0 else "FF0000")
                 ws['A9'] = f"累计结余（截至{end_date_str}）：{cumulative_balance:,.2f}元"
                 ws['A9'].font = openpyxl.styles.Font(bold=True, color="800080")
                 
@@ -6843,7 +6851,7 @@ def main(page: ft.Page):
                 os.remove(temp_file)
                 
                 if result:
-                    show_bottom_message(f"✅ 成功导出 {total_count} 条记录 (收入: ¥{total_income:,.2f}, 支出: ¥{total_expense:,.2f})")
+                    show_bottom_message(f"✅ 成功导出 {total_count} 条记录 (收入: ¥{month_income:,.2f}, 支出: ¥{month_expense:,.2f})")
                 else:
                     show_bottom_message("已取消导出")
                 
@@ -7314,27 +7322,16 @@ def main(page: ft.Page):
             """刷新统计卡片"""
             summary_container.controls.clear()
 
-             # 根据查询模式计算收支
-            base_records = []  # 初始化为空列表
+            # ========== 根据查询模式获取基础记录 ==========
             if query_mode == "month":
                 month_str = f"{current_year}-{current_month:02d}"
-                month_records = [t for t in transactions if t.date.startswith(month_str)]
-                month_income = sum(t.amount for t in transactions if t.type == "income" and t.date.startswith(month_str))
-                month_expense = sum(t.amount for t in transactions if t.type == "expense" and t.date.startswith(month_str))
-                month_balance = month_income - month_expense
-                date_label = f"📅 {current_year}年{current_month}月"
+                base_records = [t for t in transactions if t.date.startswith(month_str)]
             else:
-                # 区间查询
                 start_str = start_date.strftime("%Y-%m-%d")
                 end_str = end_date.strftime("%Y-%m-%d")
-                month_records = [t for t in transactions if start_str <= t.date <= end_str]
-                month_income = sum(t.amount for t in transactions if t.type == "income" and start_str <= t.date <= end_str)
-                month_expense = sum(t.amount for t in transactions if t.type == "expense" and start_str <= t.date <= end_str)
-                month_balance = month_income - month_expense
-                date_label = f"📅 {start_date.strftime('%Y-%m-%d')} ~ {end_date.strftime('%Y-%m-%d')}"
-
+                base_records = [t for t in transactions if start_str <= t.date <= end_str]
+            
             # ========== 应用分类筛选 ==========
-            filtered_records = month_records  # 默认使用全部
             if is_filter_active:
                 filtered_records = []
                 for t in base_records:
@@ -7345,54 +7342,43 @@ def main(page: ft.Page):
                         if filter_expense_categories and t.category in filter_expense_categories:
                             filtered_records.append(t)
                 base_records = filtered_records
-
-
-            # ========== 修改排序：先按日期降序，再按时间降序 ==========
-            def sort_key(record):
-                """排序键：日期 + 时间（降序）"""
-                # 获取时间，如果没有则使用 "00:00"
-                time_str = getattr(record, 'time', '00:00')
-                # 组合成可排序的字符串：日期 + 时间
-                return f"{record.date} {time_str}"
             
-            # 按日期+时间降序排序（最新的在前）
-            filtered_records.sort(key=sort_key, reverse=True)
+            # ========== 计算本月收入和支出 ==========
+            month_income = sum(t.amount for t in base_records if t.type == "income")
+            month_expense = sum(t.amount for t in base_records if t.type == "expense")
             
-            # ========== 计算统计信息 ==========
-            month_income = sum(t.amount for t in filtered_records if t.type == "income")
-            month_expense = sum(t.amount for t in filtered_records if t.type == "expense")
-
-            # ========== 计算本月结余（继承上个月余额） ==========
-            # 获取筛选范围内最后一条记录的ID，计算到该记录的累计余额
-            if filtered_records:
-                # 按日期正序排列
-                filtered_sorted = sorted(filtered_records, key=lambda x: x.date)
-                last_record = filtered_sorted[-1]  # 最后一条记录
-                
-                # 计算到该记录的累计余额
-                temp_balance = 0
-                for t in sorted(transactions, key=lambda x: x.date):
-                    if t.type == "income":
-                        temp_balance += t.amount
-                    else:
-                        temp_balance -= t.amount
-                    if t.id == last_record.id:
-                        month_balance = temp_balance
-                        break
-                else:
-                    month_balance = month_income - month_expense
-            else:
-                month_balance = month_income - month_expense
-
-            # ========== 计算累计结余（从所有记录累计） ==========
+            # ========== 计算累计结余 ==========
             all_transactions_sorted = sorted(transactions, key=lambda x: x.date)
             running_balance = 0
+            balance_map = {}
             for t in all_transactions_sorted:
                 if t.type == "income":
                     running_balance += t.amount
                 else:
                     running_balance -= t.amount
-            total_balance = running_balance
+                balance_map[t.id] = running_balance
+            cumulative_balance = running_balance
+            
+            # ========== 计算上个月末的累计结余 ==========
+            # 获取本月的第一天（转换为字符串）
+            if query_mode == "month":
+                first_day_of_month = datetime(current_year, current_month, 1).date()
+                first_day_str = first_day_of_month.strftime("%Y-%m-%d")
+            else:
+                first_day_str = start_date.strftime("%Y-%m-%d")
+            
+            # 获取本月之前的所有记录
+            prev_records = [t for t in transactions if t.date < first_day_str]
+            
+            if prev_records:
+                prev_records_sorted = sorted(prev_records, key=lambda x: x.date)
+                last_prev_record = prev_records_sorted[-1]
+                previous_month_balance = balance_map.get(last_prev_record.id, 0)
+            else:
+                previous_month_balance = 0
+            
+            # 本月结余 = 上月末结余 + 本月收入 - 本月支出
+            month_balance = previous_month_balance + month_income - month_expense
             
             # ========== 日期标题（可点击，弹出日期选择器） ==========
             if query_mode == "month":
@@ -7411,15 +7397,6 @@ def main(page: ft.Page):
                 date_label_font_size = 14
             else:
                 # 区间查询
-                """ 
-                if (end_date - start_date).days <= 35:  # 约1个月
-                    date_label_text = f"近一月"
-                elif (end_date - start_date).days <= 95:  # 约3个月
-                    date_label_text = f"近三月"
-                elif (end_date - start_date).days <= 370:  # 约1年
-                    date_label_text = f"近一年"
-                else:
-                """
                 date_label_text = f"{start_date.strftime('%Y.%m.%d')}-{end_date.strftime('%Y.%m.%d')}"
                 # 按月查询：字体14
                 date_label_font_size = 12
@@ -7461,7 +7438,7 @@ def main(page: ft.Page):
                         ], spacing=5),
                         ft.Divider(height=1),
                         ft.Row([
-                            ft.Text(f"累计结余: ¥ {total_balance:,.2f}", size=12, color=ft.Colors.GREY_600),
+                            ft.Text(f"累计结余: ¥ {cumulative_balance:,.2f}", size=12, color=ft.Colors.GREY_600),
                         ], alignment=ft.MainAxisAlignment.END),
                     ], spacing=8),
                     padding=12,
@@ -7717,40 +7694,51 @@ def main(page: ft.Page):
             month_income = sum(t.amount for t in filtered_records if t.type == "income")
             month_expense = sum(t.amount for t in filtered_records if t.type == "expense")
 
-            # ========== 计算本月结余（继承上个月余额） ==========
-            # 获取筛选范围内最后一条记录的ID，计算到该记录的累计余额
-            if filtered_records:
-                # 按日期正序排列
-                filtered_sorted = sorted(filtered_records, key=lambda x: x.date)
-                last_record = filtered_sorted[-1]  # 最后一条记录
-                
-                # 计算到该记录的累计余额
-                temp_balance = 0
-                for t in sorted(transactions, key=lambda x: x.date):
-                    if t.type == "income":
-                        temp_balance += t.amount
-                    else:
-                        temp_balance -= t.amount
-                    if t.id == last_record.id:
-                        month_balance = temp_balance
-                        break
-                else:
-                    month_balance = month_income - month_expense
-            else:
-                month_balance = month_income - month_expense
-
-            # ========== 计算累计结余（从所有记录累计） ==========
+            # ========== 计算累计结余和每条记录的余额 ==========
             all_transactions_sorted = sorted(transactions, key=lambda x: x.date)
             running_balance = 0
+            balance_map = {}  # 每条记录的累计余额
+            
             for t in all_transactions_sorted:
                 if t.type == "income":
                     running_balance += t.amount
                 else:
                     running_balance -= t.amount
+                balance_map[t.id] = running_balance
+            
+            # 累计结余（所有记录的最终余额）
             total_balance = running_balance
-
-            #print (f"本月结余：{month_balance}")
-            #print (f"累计结余：{total_balance}")
+            
+            # ========== 计算上个月末的累计结余 ==========
+            # 获取本月的第一天（作为日期对象）
+            if query_mode == "month":
+                first_day_of_month = datetime(current_year, current_month, 1).date()
+                # 转换为字符串格式以便比较
+                first_day_str = first_day_of_month.strftime("%Y-%m-%d")
+            else:
+                # 区间查询：使用开始日期
+                first_day_str = start_date.strftime("%Y-%m-%d")
+            
+            # 获取本月之前的所有记录（日期小于本月第一天）
+            prev_records = [t for t in transactions if t.date < first_day_str]
+            
+            if prev_records:
+                # 按日期排序，取最后一条
+                prev_records_sorted = sorted(prev_records, key=lambda x: x.date)
+                last_prev_record = prev_records_sorted[-1]
+                previous_month_balance = balance_map.get(last_prev_record.id, 0)
+            else:
+                # 如果没有之前的记录，从0开始
+                previous_month_balance = 0
+            
+            # 3. 本月结余 = 上个月末结余 + 本月收入 - 本月支出
+            month_balance = previous_month_balance + month_income - month_expense
+            
+            print(f"上月末结余：{previous_month_balance}")
+            print(f"本月收入：{month_income}")
+            print(f"本月支出：{month_expense}")
+            print(f"本月结余：{month_balance}")
+            print(f"累计结余：{total_balance}")
             
             if not filtered_records:
                 records_list.controls.append(
@@ -7780,7 +7768,7 @@ def main(page: ft.Page):
                                 ], expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                                 ft.Column([
                                     ft.Text("结余", size=12, color=ft.Colors.GREY_600),
-                                    ft.Text(f"¥ {total_balance:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
+                                    ft.Text(f"¥ {month_balance:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
                                 ], expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                             ], spacing=5),
                         ], spacing=8),
