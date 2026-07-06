@@ -34,8 +34,8 @@ import uuid
 import sys
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.180"
-APP_VERSION_CODE = 180
+APP_VERSION = "1.0.181"
+APP_VERSION_CODE = 181
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5563,6 +5563,7 @@ def main(page: ft.Page):
                             expand=True,  # 撑满宽度
                             style=ft.ButtonStyle(
                                 color=ft.Colors.RED_700,
+                                shape=ft.RoundedRectangleBorder(radius=8),
                             ),
                         ),
                         #ft.Container(expand=True),
@@ -6419,6 +6420,90 @@ def main(page: ft.Page):
                     close_edit_dialog()
                 except ValueError:
                     show_bottom_message("请输入有效的金额", is_error=True)
+
+            def delete_transaction_from_edit(e):
+                """从编辑界面删除记录"""
+                def confirm_delete():
+                    global transactions
+                    transactions = [t for t in transactions if t.id != transaction.id]
+                    save_accounting_data()
+                    close_edit_dialog()
+                    refresh_records_list()
+                    refresh_summary()
+                    show_bottom_message(f"已删除{transaction.category}记录")
+                
+                # 显示确认对话框
+                show_delete_confirm_dialog(f"确定要删除这条{transaction.type}记录吗？\n{transaction.category} - ¥{abs(transaction.amount):,.2f}", confirm_delete)
+            
+            # ========== 删除确认对话框 ==========
+            def show_delete_confirm_dialog(message, on_confirm):
+                dialog_container = None
+                
+                def close_dialog():
+                    nonlocal dialog_container
+                    if dialog_container and dialog_container in page.overlay:
+                        page.overlay.remove(dialog_container)
+                        dialog_container = None
+                        page.update()
+                
+                def confirm(e):
+                    close_dialog()
+                    on_confirm()
+                
+                def cancel(e):
+                    close_dialog()
+                
+                dialog_content = ft.Container(
+                    content=ft.Column([
+                        ft.Container(
+                            content=ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, size=55, color=ft.Colors.RED_700),
+                            padding=10,
+                            bgcolor=ft.Colors.RED_50,
+                            border_radius=50,
+                        ),
+                        ft.Text("确认删除", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.RED_700, text_align=ft.TextAlign.CENTER),
+                        ft.Divider(height=1, color=ft.Colors.GREY_300),
+                        ft.Text(message, size=14, color=ft.Colors.GREY_700, text_align=ft.TextAlign.CENTER),
+                        ft.Text("此操作不可撤销！", size=12, color=ft.Colors.RED_500, text_align=ft.TextAlign.CENTER),
+                        ft.Divider(height=1, color=ft.Colors.GREY_300),
+                        ft.Row([
+                            ft.Button(
+                                "取消", 
+                                on_click=cancel, 
+                                expand=True,
+                                style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.GREY_700),
+                            ),
+                            ft.Button(
+                                "确认删除", 
+                                on_click=confirm, 
+                                expand=True,
+                                style=ft.ButtonStyle(bgcolor=ft.Colors.RED_700, color=ft.Colors.WHITE),
+                            ),
+                        ], spacing=12, alignment=ft.MainAxisAlignment.CENTER),
+                    ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                    width=320,
+                    padding=20,
+                    bgcolor=ft.Colors.WHITE,
+                    border_radius=16,
+                )
+                
+                dialog_container = ft.Container(
+                    content=ft.Column([
+                        ft.Container(expand=True),
+                        ft.Row([
+                            ft.Container(expand=True),
+                            dialog_content,
+                            ft.Container(expand=True),
+                        ]),
+                        ft.Container(expand=True),
+                    ]),
+                    expand=True,
+                    bgcolor=ft.Colors.BLACK26,
+                    on_click=lambda e: close_dialog(),
+                )
+                
+                page.overlay.append(dialog_container)
+                page.update()
             
             # 顶部按钮栏（与添加事件一致）
             top_bar = ft.Row([
@@ -6439,6 +6524,25 @@ def main(page: ft.Page):
                 ),
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER)
             
+            # ========== 底部删除按钮 ==========
+            bottom_delete = ft.Container(
+                content=ft.Row([
+                    #ft.Container(expand=True),
+                    ft.OutlinedButton(
+                        "🗑️ 删除",
+                        on_click=delete_transaction_from_edit,
+                        expand=True,
+                        style=ft.ButtonStyle(
+                            color=ft.Colors.RED_700,
+                            #border_color=ft.Colors.RED_700,
+                            shape=ft.RoundedRectangleBorder(radius=8),
+                        ),
+                    ),
+                    #ft.Container(expand=True),
+                ], spacing=10),
+                #padding=ft.padding.only(bottom=10),
+            )
+
             # 可滚动的内容区域
             scrollable_content = ft.Column([
                 ft.Container(height=1),
@@ -6456,6 +6560,7 @@ def main(page: ft.Page):
                     content=scrollable_content,
                     expand=True,
                 ),
+                bottom_delete,  # 底部删除按钮
             ], spacing=10, height=420)
             
             edit_dialog_container = ft.Container(
@@ -7154,8 +7259,12 @@ def main(page: ft.Page):
                     date_label_text = "下月"
                 else:
                     date_label_text = f"{current_year}年{current_month}月"
+                
+                # 按月查询：字体14
+                date_label_font_size = 14
             else:
                 # 区间查询
+                """ 
                 if (end_date - start_date).days <= 35:  # 约1个月
                     date_label_text = f"近一月"
                 elif (end_date - start_date).days <= 95:  # 约3个月
@@ -7163,11 +7272,14 @@ def main(page: ft.Page):
                 elif (end_date - start_date).days <= 370:  # 约1年
                     date_label_text = f"近一年"
                 else:
-                    date_label_text = f"{start_date.strftime('%Y-%m-%d')} ~ {end_date.strftime('%Y-%m-%d')}"
+                """
+                date_label_text = f"{start_date.strftime('%Y.%m.%d')}-{end_date.strftime('%Y.%m.%d')}"
+                # 按月查询：字体14
+                date_label_font_size = 12
 
             # ========== 可点击的日期标题 ==========
             date_label = ft.Row([
-                ft.Text(date_label_text, size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
+                ft.Text(date_label_text, size=date_label_font_size, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
                 ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=20, color=ft.Colors.BLUE_700),  # 使用图标
             ], spacing=2, alignment=ft.MainAxisAlignment.START)
 
@@ -7488,31 +7600,59 @@ def main(page: ft.Page):
                 page.update()
                 return
             
+            # ========== 计算实时余额（按日期累计） ==========
+            # 从最早的记录开始累计
+            running_balance = 0
+            # 按日期正序排序（从旧到新）计算余额
+            sorted_asc = sorted(filtered_records, key=lambda x: x.date)
+            balance_map = {}
+            for t in sorted_asc:
+                if t.type == "income":
+                    running_balance += t.amount
+                else:
+                    running_balance -= t.amount
+                balance_map[t.id] = running_balance
+
             # 显示记录卡片
             for index, t in enumerate(filtered_records):
                 is_income = t.type == "income"
                 amount_color = ft.Colors.GREEN_700 if is_income else ft.Colors.RED_700
                 amount_prefix = "+" if is_income else "-"
+
+                # 获取当前记录的实时余额
+                current_balance = balance_map.get(t.id, 0)
                 
                 record_card = ft.Container(
-                    content=ft.Row([
-                        ft.Column([
+                    content=ft.Column([
+                        # 第一行：分类 + 金额
+                        ft.Row([
                             ft.Row([
                                 ft.Icon(ft.Icons.ARROW_UPWARD if is_income else ft.Icons.ARROW_DOWNWARD, 
                                     size=16, color=amount_color),
                                 ft.Text(t.category, size=14, weight=ft.FontWeight.BOLD),
                             ], spacing=5),
-                            ft.Text(t.date, size=11, color=ft.Colors.GREY_500),
-                            ft.Text(t.note, size=11, color=ft.Colors.GREY_500) if t.note else ft.Container(),
-                        ], expand=True),
+                            ft.Container(expand=True),
+                            ft.Text(
+                                f"{amount_prefix}¥ {abs(t.amount):,.2f}", 
+                                size=14, 
+                                weight=ft.FontWeight.BOLD, 
+                                color=amount_color,
+                            ),
+                        ]),
+                        # 第二行：日期 + 实时余额
                         ft.Row([
-                            ft.Text(f"{amount_prefix}¥ {abs(t.amount):,.2f}", size=14, weight=ft.FontWeight.BOLD, color=amount_color),
-                            ft.IconButton(ft.Icons.EDIT, icon_size=18, icon_color=ft.Colors.BLUE_400, 
-                                        on_click=lambda e, tr=t: edit_transaction(tr)),
-                            ft.IconButton(ft.Icons.DELETE, icon_size=18, icon_color=ft.Colors.RED_400,
-                                        on_click=lambda e, tr=t: delete_transaction(tr.id, tr.category)),
-                        ], spacing=0),
-                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                            ft.Text(t.date, size=11, color=ft.Colors.GREY_500),
+                            ft.Container(expand=True),
+                            ft.Text(
+                                f"余额: ¥ {current_balance:,.2f}",
+                                size=11,
+                                color=ft.Colors.GREY_700 if current_balance >= 0 else ft.Colors.RED_700,
+                                #weight=ft.FontWeight.BOLD if current_balance >= 0 else ft.FontWeight.BOLD,
+                            ),
+                        ], spacing=5),
+                        # 备注（如果有）
+                        ft.Text(t.note, size=11, color=ft.Colors.GREY_500) if t.note else ft.Container(),
+                    ], spacing=2),
                     padding=10,
                     border=ft.border.Border(bottom=ft.border.BorderSide(1, ft.Colors.GREY_200)) if index < len(filtered_records) - 1 else None,
                     ink=True,
