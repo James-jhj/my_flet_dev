@@ -33,9 +33,54 @@ import subprocess
 import uuid
 import sys
 
+# ========== 平台检测 ==========
+IS_WINDOWS = platform.system() == "Windows"
+
+# ========== 系统托盘功能（仅 Windows） ==========
+if IS_WINDOWS:
+    # 在现有导入后面添加
+    import ctypes
+    import pystray
+    from PIL import Image, ImageDraw
+    import pickle
+    import tempfile
+    import subprocess
+    import sys
+    import threading
+
+    # Windows API 常量
+    SW_HIDE = 0
+    SW_SHOW = 5
+    SW_MINIMIZE = 6
+    GWL_EXSTYLE = -20
+    WS_EX_APPWINDOW = 0x00040000
+
+    # 全局状态文件
+    STATE_FILE = os.path.join(tempfile.gettempdir(), "flet_tray_state.pkl")
+else:
+    # 非 Windows 平台：定义空对象
+    class DummyTray:
+        pass
+    ctypes = None
+    pystray = None
+    Image = None
+    ImageDraw = None
+    pickle = None
+    STATE_FILE = None
+
+# 托盘退出控制（仅 Windows）
+if IS_WINDOWS:
+    tray_exit_event = threading.Event()
+    tray_exit_event.clear()
+else:
+    tray_exit_event = None
+
+# 全局托盘管理器
+tray_manager = None
+
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.183"
-APP_VERSION_CODE = 183
+APP_VERSION = "1.0.184"
+APP_VERSION_CODE = 184
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -2837,6 +2882,185 @@ def get_data_file_path(filename):
         return os.path.join(app_data_dir, filename)
     else:
         return filename
+
+# ========== 系统托盘功能（仅 Windows） ==========
+if IS_WINDOWS:
+    # ========== 系统托盘功能 ==========
+    def hide_window_from_taskbar(window_handle):
+        """隐藏窗口从任务栏"""
+        if not window_handle:
+            return False
+        try:
+            hwnd = ctypes.c_void_p(window_handle)
+            style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+            ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style | WS_EX_APPWINDOW)
+            ctypes.windll.user32.ShowWindow(hwnd, SW_HIDE)
+            return True
+        except Exception as e:
+            print(f"隐藏窗口失败: {e}")
+            return False
+
+    def show_window(window_handle):
+        """显示窗口"""
+        if not window_handle:
+            return
+        try:
+            hwnd = ctypes.c_void_p(window_handle)
+            # ========== 关键修复：先显示窗口 ==========
+            ctypes.windll.user32.ShowWindow(hwnd, SW_SHOW)
+            # 还原窗口（如果是最小化状态）
+            ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE = 9
+            # 置顶窗口
+            ctypes.windll.user32.SetForegroundWindow(hwnd)
+            # 从任务栏恢复
+            time.sleep(0.1)
+            style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+            ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style & ~WS_EX_APPWINDOW)
+            print(f"✅ 窗口已显示: {hwnd}")
+        except Exception as e:
+            print(f"显示窗口失败: {e}")
+
+    def find_window_by_title(title):
+        """通过标题查找窗口句柄"""
+        try:
+            hwnd = ctypes.windll.user32.FindWindowW(None, title)
+            return hwnd
+        except:
+            return None
+
+    class TrayManager:
+        """托盘管理器"""
+        def __init__(self, page=None):
+            self.icon = None
+            self.running = False
+            self.page = page
+            self._click_timer = None
+            self._is_double_click = False
+            self._exit_requested = False
+            
+        def create_tray_icon(self):
+            """创建系统托盘图标"""
+            image = Image.new('RGB', (64, 64), color='#2196F3')
+            draw = ImageDraw.Draw(image)
+            draw.rectangle((8, 8, 56, 56), fill='white', outline='#2196F3', width=2)
+            draw.text((16, 20), "📋", fill='#2196F3', font=None)
+
+            def on_tray_open(icon, item):
+                """打开主界面（菜单项）"""
+                print("托盘：菜单-打开主界面")
+                self._show_main_window()
+
+            def on_tray_exit(icon, item):
+                """退出程序"""
+                print("托盘：菜单-退出程序")
+                
+                # 停止托盘
+                self.running = False
+                icon.stop()
+                
+                # 清理状态文件
+                try:
+                    if STATE_FILE and os.path.exists(STATE_FILE):
+                        os.remove(STATE_FILE)
+                except:
+                    pass
+                
+                # ========== 向主窗口发送关闭消息 ==========
+                try:
+                    hwnd = find_window_by_title("事件提醒助手")
+                    if hwnd:
+                        print(f"向窗口发送关闭消息: {hwnd}")
+                        # WM_CLOSE = 0x0010
+                        ctypes.windll.user32.PostMessageW(hwnd, 0x0010, 0, 0)
+                        time.sleep(0.3)
+                except:
+                    pass
+                
+                # 强制退出
+                import threading
+                threading.Timer(0.3, lambda: os._exit(0)).start()
+
+            menu = pystray.Menu(
+                pystray.MenuItem("📋 打开主界面", on_tray_open),
+                pystray.MenuItem("🚪 退出", on_tray_exit)
+            )
+
+            self.icon = pystray.Icon(
+                "event_reminder", 
+                image, 
+                "事件提醒助手", 
+                menu
+            )
+            
+            self.running = True
+            
+            thread = threading.Thread(target=self.icon.run, daemon=True)
+            thread.start()
+            print("✅ 托盘图标已启动")
+            return self.icon
+
+        def _show_main_window(self):
+            """显示主窗口"""
+            print("托盘：显示主窗口")
+            
+            # ========== 修复：用 self.page，不是 page ==========
+            if self.page:
+                try:
+                    self.page.window.visible = True
+                    self.page.window.minimized = False
+                    self.page.window.always_on_top = True
+                    self.page.update()
+                    threading.Timer(0.2, lambda: setattr(self.page.window, 'always_on_top', False)).start()
+                    print("✅ 窗口已显示")
+                    return
+                except Exception as e:
+                    print(f"page显示失败: {e}")
+            
+            # 备用：Windows API
+            try:
+                hwnd = ctypes.windll.user32.FindWindowW(None, "事件提醒助手")
+                if hwnd:
+                    ctypes.windll.user32.ShowWindow(hwnd, 9)
+                    ctypes.windll.user32.ShowWindow(hwnd, 5)
+                    ctypes.windll.user32.SetForegroundWindow(hwnd)
+                    print("✅ 窗口已显示 (API)")
+            except Exception as e:
+                print(f"API显示失败: {e}")
+
+        def stop(self):
+            """停止托盘"""
+            self.running = False
+            if self._click_timer:
+                self._click_timer.cancel()
+                self._click_timer = None
+            if self.icon:
+                try:
+                    self.icon.stop()
+                except:
+                    pass
+else:
+    # ========== 非 Windows 平台：空函数 ==========
+    def hide_window_from_taskbar(window_handle):
+        return False
+    
+    def show_window(window_handle):
+        pass
+    
+    def find_window_by_title(title):
+        return None
+    
+    class TrayManager:
+        def __init__(self, page=None):
+            self.icon = None
+            self.running = False
+            self.page = page
+        
+        def create_tray_icon(self):
+            print("⚠️ 系统托盘仅支持 Windows 平台")
+            return None
+        
+        def stop(self):
+            pass
     
 def main(page: ft.Page):
 
@@ -2908,6 +3132,25 @@ def main(page: ft.Page):
     global SLIDER_WIDTH, progress_slider, progress_bubble, progress_bubble_container, slider_wrapper,card_duration_texts
     global sent_reminders,sent_music_notifications
     global memo_notes,search_focused
+    global tray_manager
+    
+    # ========== 仅 Windows 平台启动托盘 ==========
+    if IS_WINDOWS:
+        # ========== 检查是否以显示模式启动（从托盘打开的） ==========
+        if "--show" in sys.argv:
+            # 只运行主窗口，不启动托盘
+            pass
+        else:
+            # 正常启动：启动托盘
+            if tray_manager is None:
+                tray_manager = TrayManager(page)
+                tray_manager.create_tray_icon()
+    else:
+        print("📱 Android 平台，系统托盘功能已禁用")
+
+    # 保存 page 引用到 tray_manager
+    if IS_WINDOWS and tray_manager:
+        tray_manager.page = page
 
 
     page.window_icon = "icon.png"
@@ -15924,11 +16167,29 @@ def main(page: ft.Page):
         padding=5,
     )
 
+    # ========== 创建托盘图标按钮（仅 Windows） ==========
+    if IS_WINDOWS:
+        tray_button = ft.IconButton(
+            icon=ft.Icons.REMOVE,  # EXPAND_MORE
+            icon_size=20,
+            icon_color=ft.Colors.BLUE_700,
+            on_click=lambda e: minimize_to_tray(page),
+            tooltip="最小化到系统托盘",
+            padding=5,
+            visible=True,
+        )
+    else:
+        tray_button = ft.Container(
+                            width=arrow_button.width if hasattr(arrow_button, 'width') and arrow_button.width else 40,
+                            height=1,
+                            bgcolor=ft.Colors.TRANSPARENT,
+                        )
+
     # 修改日历和日期文本的组合
     calendar_section = ft.Column([
         calendar_widget,
         ft.Row([
-            # 箭头靠左
+            # 左边：箭头按钮
             arrow_button,
             # 日期文本居中
             ft.Container(
@@ -15937,11 +16198,7 @@ def main(page: ft.Page):
                 alignment=ft.Alignment(0, 0),
             ),
             # 右边添加空白占位，宽度与 arrow_button 相同
-            ft.Container(
-                width=arrow_button.width if hasattr(arrow_button, 'width') and arrow_button.width else 40,
-                height=1,
-                bgcolor=ft.Colors.TRANSPARENT,
-            ),
+            tray_button,
         ], alignment=ft.MainAxisAlignment.START, spacing=5),
     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
 
@@ -16234,6 +16491,90 @@ def main(page: ft.Page):
     # 设置页面关闭回调
     page.on_close = on_page_close
     
+    # =============  windows 系统托盘功能开始 ============================
+    def get_window_handle():
+        """获取窗口句柄"""
+        if not IS_WINDOWS:
+            return None
+
+        try:
+            if hasattr(page.window, 'handle') and page.window.handle:
+                return page.window.handle
+            # 备用：通过标题查找
+            return find_window_by_title("事件提醒助手")
+        except:
+            return None
+
+    def minimize_to_tray(page_obj):
+        """最小化到托盘"""
+        if not IS_WINDOWS:
+            show_bottom_message("📱 手机版不支持系统托盘")
+            return
+
+        # 确保托盘已启动
+        global tray_manager
+        if tray_manager is None or not tray_manager.running:
+            tray_manager = TrayManager(page_obj)
+            tray_manager.create_tray_icon()
+        
+        handle = get_window_handle()
+        if handle:
+            print(f"最小化窗口: {handle}")
+            # 最小化
+            ctypes.windll.user32.ShowWindow(ctypes.c_void_p(handle), SW_MINIMIZE)
+            time.sleep(0.1)
+            # 从任务栏隐藏
+            hide_window_from_taskbar(handle)
+            print("✅ 已最小化到托盘")
+        else:
+            print("⚠️ 无法获取窗口句柄")
+
+    # 窗口关闭事件 - 最小化到托盘
+    def on_close(e):
+        """点击X关闭窗口时，完全退出程序"""
+        print("窗口关闭按钮被点击")
+        
+        # 停止托盘
+        global tray_manager
+        if IS_WINDOWS and tray_manager:
+            try:
+                tray_manager.running = False
+                if tray_manager.icon:
+                    tray_manager.icon.stop()
+                    print("✅ 托盘已停止")
+            except Exception as ex:
+                print(f"停止托盘失败: {ex}")
+        
+        # 清理状态文件
+        if IS_WINDOWS:
+            try:
+                if os.path.exists(STATE_FILE):
+                    os.remove(STATE_FILE)
+                    print("✅ 状态文件已清理")
+            except:
+                pass
+        
+        # 关闭窗口
+        try:
+            page.window_destroy()
+        except:
+            pass
+        
+        # 延迟强制退出（确保窗口完全关闭）
+        import threading
+        threading.Timer(0.1, lambda: os._exit(0)).start()
+        
+        # 阻止默认关闭
+        try:
+            page.window.prevent_close = True
+        except:
+            pass
+        return True
+    
+    page.on_close = on_close
+
+    # =============  windows 系统托盘功能结束 ============================
+    
     async def update_all():
         global last_check_date, reminder_flags, current_year, current_month, selected_date, current_date, current_view, three_days_events, sent_notifications
         
@@ -16405,5 +16746,113 @@ def main(page: ft.Page):
     debug_log("设置首次检查定时器（2秒后）")
     threading.Timer(2.0, check_events).start()
 
+    # ================= windows 托盘功能开始 ======================
+    # 页面加载完成
+    def on_mount():
+        print("主窗口加载完成")
+        
+        # 保存窗口句柄到 page 对象
+        try:
+            hwnd = find_window_by_title("事件提醒助手")
+            if hwnd:
+                print(f"窗口句柄: {hwnd}")
+                # 保存到 page.window 以便后续使用
+                if not hasattr(page.window, 'handle'):
+                    page.window.handle = hwnd
+        except Exception as e:
+            print(f"获取窗口句柄失败: {e}")
+        
+        # 保存状态
+        try:
+            with open(STATE_FILE, 'wb') as f:
+                pickle.dump({'running': True, 'pid': os.getpid()}, f)
+        except:
+            pass
+        
+        # 如果有托盘管理器，更新 page 引用
+        if IS_WINDOWS and tray_manager:
+            tray_manager.page = page
+    
+    page.on_mount = on_mount
+
+    # 页面卸载
+    def on_unmount():
+        print("主窗口卸载")
+        try:
+            os.remove(STATE_FILE)
+        except:
+            pass
+
+    page.on_unmount = on_unmount
+
+    # ========== 页面更新循环 ==========
+    async def update_window_handle():
+        """定期更新窗口句柄"""
+        while True:
+            try:
+                if IS_WINDOWS and tray_manager:
+                    hwnd = find_window_by_title("事件提醒助手")
+                    if hwnd and hasattr(page.window, 'handle'):
+                        page.window.handle = hwnd
+            except:
+                pass
+            await asyncio.sleep(5)
+
+    # 启动窗口句柄更新任务
+    if IS_WINDOWS:
+        asyncio.create_task(update_window_handle())
+
+    # ================= windows 托盘功能结束 ======================
+
 if __name__ == "__main__":
-    ft.app(target=main, assets_dir="assets")
+    # ========== 仅 Windows 平台检查 --show 参数 ==========
+    if IS_WINDOWS and "--show" in sys.argv:
+        ft.app(target=main)
+    else:
+        print(f"🚀 启动平台: {'Windows' if IS_WINDOWS else 'Android'}")
+        
+        if IS_WINDOWS:
+            tray_needed = True
+            try:
+                if os.path.exists(STATE_FILE):
+                    with open(STATE_FILE, 'rb') as f:
+                        state = pickle.load(f)
+                        if state.get('running', False):
+                            tray_needed = False
+                            print("主窗口已在运行，不启动托盘")
+            except:
+                pass
+            
+            if tray_needed:
+                print("启动托盘...")
+        else:
+            ft.app(target=main, assets_dir="assets")
+            print("📱 Android 平台，系统托盘已禁用")
+        
+        # ========== 运行主窗口 ==========
+        try:
+            ft.app(target=main)
+        except KeyboardInterrupt:
+            print("用户中断")
+        except Exception as e:
+            print(f"错误: {e}")
+        finally:
+            print("主窗口已关闭")
+            
+            # 如果托盘还在运行，强制停止
+            if IS_WINDOWS and tray_manager:
+                try:
+                    if tray_manager.running:
+                        print("强制停止托盘...")
+                        tray_manager.running = False
+                        if tray_manager.icon:
+                            try:
+                                tray_manager.icon.stop()
+                            except:
+                                pass
+                except:
+                    pass
+            
+            print("程序已退出")
+            # 强制退出
+            os._exit(0)
