@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.187"
-APP_VERSION_CODE = 187
+APP_VERSION = "1.0.188"
+APP_VERSION_CODE = 188
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5400,6 +5400,7 @@ def main(page: ft.Page):
             
             # ========== 分类下拉框（PopupMenuButton 风格） ==========
             category_options = ["全部笔记", "未分类", "个人", "工作", "其他"]
+            current_category = "全部笔记"
 
             # ========== 计算每个分类的笔记数量 ==========
             def get_category_count(category):
@@ -5408,36 +5409,43 @@ def main(page: ft.Page):
                     return len(memo_notes)
                 return len([n for n in memo_notes if n.category == category])
             
-            # 构建 PopupMenuButton 的 items（带分割线，显示数量）
-            category_popup_items = []
-            for i, cat in enumerate(category_options):
-                count = get_category_count(cat)
-                # 显示格式：分类名称 (数量)
-                display_text = f"{cat} ({count})" if cat != "全部笔记" else f"{cat} ({count})"
-                
-                category_popup_items.append(
-                    ft.PopupMenuItem(
-                        content=ft.Container(
-                            content=ft.Row([
-                                ft.Text(cat, size=14),
-                                ft.Container(expand=True),
-                                ft.Text(f"{count}", size=12, color=ft.Colors.GREY_500),
-                            ], alignment=ft.MainAxisAlignment.START),
-                            width=300,  # 加宽下拉框
-                            #padding=ft.padding.only(left=12, right=12),
-                        ),
-                        on_click=lambda e, val=cat: select_category_popup(val),
-                        height=40,
-                    )
-                )
-                if i < len(category_options) - 1:
-                    category_popup_items.append(
+            # ========== 获取当前显示文本 ==========
+            def get_current_display():
+                count = get_category_count(current_category)
+                return f"{current_category} ({count})"
+            
+            # ========== 关键：构建菜单项的函数（动态更新数量） ==========
+            def build_category_menu_items():
+                """构建分类菜单项（根据当前数据更新数量）"""
+                items = []
+                for i, cat in enumerate(category_options):
+                    count = get_category_count(cat)
+                    is_selected = (cat == current_category)
+                    
+                    items.append(
                         ft.PopupMenuItem(
-                            content=ft.Divider(height=1, color=ft.Colors.GREY_300),
-                            disabled=True,
-                            height=2,
+                            content=ft.Container(
+                                content=ft.Row([
+                                    ft.Text(cat, size=14, color=ft.Colors.BLUE_700 if is_selected else ft.Colors.BLACK),
+                                    ft.Container(expand=True),
+                                    ft.Icon(ft.Icons.CHECK, size=16, color=ft.Colors.BLUE_700, visible=is_selected),
+                                    ft.Text(f"{count}", size=12, color=ft.Colors.GREY_500 if not is_selected else ft.Colors.BLUE_700),
+                                ], alignment=ft.MainAxisAlignment.START),
+                                width=300,
+                            ),
+                            on_click=lambda e, val=cat: select_category_popup(val),
+                            height=40,
                         )
                     )
+                    if i < len(category_options) - 1:
+                        items.append(
+                            ft.PopupMenuItem(
+                                content=ft.Divider(height=1, color=ft.Colors.GREY_300),
+                                disabled=True,
+                                height=2,
+                            )
+                        )
+                return items
             
             # ========== 创建分类下拉框（使用 Container 包裹 PopupMenuButton） ==========
             category_popup = ft.PopupMenuButton(
@@ -5445,7 +5453,7 @@ def main(page: ft.Page):
                     ft.Text("全部笔记", size=14, weight=ft.FontWeight.BOLD),
                     ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18),
                 ], spacing=5, alignment=ft.MainAxisAlignment.CENTER),
-                items=category_popup_items,
+                items=build_category_menu_items(),
                 bgcolor=ft.Colors.WHITE,
                 # ========== 设置菜单位置：显示在下拉框下方 ==========
                 menu_position=ft.PopupMenuPosition.UNDER,  # 关键：菜单出现在按钮下方
@@ -5462,10 +5470,12 @@ def main(page: ft.Page):
             )
             
             def select_category_popup(value):
-                global current_category
+                nonlocal current_category
                 current_category = value
                 # 更新显示文本
-                category_popup.content.controls[0].value = value
+                category_popup.content.controls[0].value = get_current_display()
+                # ========== 重新构建菜单项，更新数量 ==========
+                category_popup.items = build_category_menu_items()
                 category_popup.update()
                 render_notes()
                 page.update()
@@ -5644,15 +5654,18 @@ def main(page: ft.Page):
             def render_notes():
                 notes_list.controls.clear()
                 
-                # 从 PopupMenuButton 的 content 中获取显示的文本
-                current_category_text = category_popup.content.controls[0].value
-                category_filter = current_category_text if current_category_text else "全部笔记"
-
+                # ========== 更新分类下拉框的显示（包括数量和菜单项） ==========
+                category_popup.content.controls[0].value = get_current_display()
+                # ========== 重新构建菜单项，更新数量 ==========
+                category_popup.items = build_category_menu_items()
+                category_popup.update()
+                
+                # 过滤笔记
                 keyword = search_field.content.value if search_field.content.value else ""
                 
                 filtered_notes = []
                 for note in memo_notes:
-                    if category_filter != "全部笔记" and note.category != category_filter:
+                    if current_category != "全部笔记" and note.category != current_category:
                         continue
                     if keyword:
                         kw = keyword.lower()
@@ -5707,11 +5720,13 @@ def main(page: ft.Page):
                     initial_title = note.title
                     initial_content = note.content
                     initial_category = note.category
+                    created_at = note.updated_at if note.updated_at else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 else:
                     title_text = "添加笔记"
                     initial_title = ""
                     initial_content = ""
                     initial_category = "未分类"
+                    created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 
                 def close_edit_dialog():
                     nonlocal edit_dialog_container
@@ -5724,23 +5739,29 @@ def main(page: ft.Page):
                     """保存笔记"""
                     title = title_field.value.strip()
                     content = content_field.value.strip()
-                    # ========== 获取分类值 ==========
-                    category = category_dropdown_edit.value if category_dropdown_edit.value else "未分类"
+                    # ========== 从 PopupMenuButton 获取分类值 ==========
+                    category = current_category_edit if current_category_edit else "未分类"
                     
                     if not title:
                         show_bottom_message("请输入标题", is_error=True)
+                        # ========== 标题为空时，让标题框获得焦点 ==========
+                        title_field.focus()
                         return
                     
                     if not content:
                         show_bottom_message("请输入内容", is_error=True)
+                        # ========== 内容为空时，让内容框获得焦点 ==========
+                        content_field.focus()
                         return
+                    
+                    current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     
                     if note_id:
                         # 编辑模式：更新笔记
                         note.title = title
                         note.content = content
                         note.category = category
-                        note.updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        note.updated_at = current_datetime
                         show_bottom_message(f"✅ 已更新「{title}」")
                     else:
                         # 新增模式：创建笔记
@@ -5755,11 +5776,9 @@ def main(page: ft.Page):
                     
                     save_memo_notes()
                     close_edit_dialog()
-                    # 刷新列表
                     render_notes()
                 
                 def delete_note(e):
-                    """删除笔记"""
                     if not note_id:
                         return
                     
@@ -5773,25 +5792,120 @@ def main(page: ft.Page):
                     
                     show_delete_confirm_dialog("确定要删除这篇笔记吗？", confirm_delete)
                 
-                # 标题输入
+                # ========== 标题输入（无边框） ==========
                 title_field = ft.TextField(
                     hint_text="标题",
                     value=initial_title,
                     expand=True,
+                    border=ft.InputBorder.NONE,  # 取消边框
+                    focused_border_color=ft.Colors.TRANSPARENT,  # 聚焦时边框透明
+                    #content_padding=ft.padding.only(left=0, bottom=4),  # 调整内边距
+                    text_style=ft.TextStyle(size=18, weight=ft.FontWeight.BOLD),  # 标题字体加大加粗
+                    hint_style=ft.TextStyle(size=18, weight=ft.FontWeight.BOLD, color=ft.Colors.GREY_400),
+                    # ========== 自动获取焦点 ==========
+                    autofocus=True,  # 关键：自动获取焦点
                 )
                 
-                # ========== 分类下拉框（使用 SearchableDropdownNtFl） ==========
-                category_options = ["未分类", "个人", "工作", "其他"]
-
-                # 分类下拉
-                category_dropdown_edit = SearchableDropdownNtFl(
-                        page=page,  # 传入 page
-                        label="分类",
-                        value=initial_category,
-                        options=category_options,  # 传入字符串列表
-                    )
+                # ========== 创建时间显示字段 ==========
+                def format_datetime_display(dt_str):
+                    """格式化日期时间显示"""
+                    try:
+                        dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+                        now = datetime.now()
+                        if dt.date() == now.date():
+                            return f"今天 {dt.strftime('%H:%M:%S')}"
+                        elif dt.date() == (now - timedelta(days=1)).date():
+                            return f"昨天 {dt.strftime('%H:%M:%S')}"
+                        else:
+                            return dt.strftime("%Y-%m-%d %H:%M:%S")
+                    except:
+                        return dt_str
                 
-                # 内容输入
+                # ========== 日期时间显示 ==========
+                datetime_display = ft.Container(
+                    content=ft.Text(
+                        value=f"{format_datetime_display(created_at)}",
+                        size=12,
+                        color=ft.Colors.GREY_600,
+                    ),
+                    expand=True,  # 占据剩余空间
+                )
+                
+                # ========== 分类下拉框（PopupMenuButton 风格，与主界面一致） ==========
+                category_options_edit = ["未分类", "个人", "工作", "其他"]
+                current_category_edit = initial_category
+                
+                # ========== 关键：创建菜单项的函数 ==========
+                def build_category_menu_items():
+                    """构建分类菜单项（根据当前选中的分类更新 ✓ 标记）"""
+                    items = []
+                    for i, cat in enumerate(category_options_edit):
+                        is_selected = (cat == current_category_edit)
+                        items.append(
+                            ft.PopupMenuItem(
+                                content=ft.Container(
+                                    content=ft.Row([
+                                        ft.Text(cat, size=14, color=ft.Colors.BLUE_700 if is_selected else ft.Colors.BLACK),
+                                        ft.Container(expand=True),
+                                        ft.Icon(ft.Icons.CHECK, size=16, color=ft.Colors.BLUE_700, 
+                                                visible=is_selected),
+                                    ], alignment=ft.MainAxisAlignment.START),
+                                    width=150,
+                                ),
+                                on_click=lambda e, val=cat: select_category_popup_edit(val),
+                                height=40,
+                            )
+                        )
+                        if i < len(category_options_edit) - 1:
+                            items.append(
+                                ft.PopupMenuItem(
+                                    content=ft.Divider(height=1, color=ft.Colors.GREY_300),
+                                    disabled=True,
+                                    height=2,
+                                )
+                            )
+                    return items
+                
+                def select_category_popup_edit(value):
+                    nonlocal current_category_edit
+                    current_category_edit = value
+                    
+                    # 更新显示文本
+                    category_popup_edit.content.controls[0].value = value
+                    
+                    # ========== 关键：重新构建菜单项，更新 ✓ 标记 ==========
+                    category_popup_edit.items = build_category_menu_items()
+                    
+                    category_popup_edit.update()
+                    page.update()
+                
+                # 创建分类下拉框
+                category_popup_edit = ft.PopupMenuButton(
+                    content=ft.Row([
+                        ft.Text(initial_category, size=14, weight=ft.FontWeight.BOLD),
+                        ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18),
+                    ], spacing=5, alignment=ft.MainAxisAlignment.CENTER),
+                    items=build_category_menu_items(),  # 使用函数构建
+                    bgcolor=ft.Colors.WHITE,
+                    # 菜单出现在按钮下方
+                    menu_position=ft.PopupMenuPosition.UNDER,
+                )
+                
+                # 用 Container 包裹 PopupMenuButton
+                category_dropdown_edit = ft.Container(
+                    content=category_popup_edit,
+                    border_radius=6,
+                    bgcolor=ft.Colors.WHITE,
+                    width=150,  # 固定宽度
+                )
+                
+                # ========== 日期时间和分类行（同一行） ==========
+                datetime_category_row = ft.Row([
+                    datetime_display,
+                    category_dropdown_edit,
+                ], spacing=8, alignment=ft.MainAxisAlignment.START, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+                
+                # ========== 内容输入（无边框） ==========
                 content_field = ft.TextField(
                     hint_text="内容",
                     value=initial_content,
@@ -5799,12 +5913,17 @@ def main(page: ft.Page):
                     multiline=True,
                     min_lines=5,
                     max_lines=15,
+                    border=ft.InputBorder.NONE,  # 取消边框
+                    focused_border_color=ft.Colors.TRANSPARENT,  # 聚焦时边框透明
+                    #content_padding=ft.padding.only(left=0, top=4),  # 调整内边距
+                    text_style=ft.TextStyle(size=15),  # 内容字体大小
+                    hint_style=ft.TextStyle(size=15, color=ft.Colors.GREY_400),
                 )
                 
-                # 顶部按钮栏
+                # ========== 顶部按钮栏 ==========
                 top_bar = ft.Row([
                     ft.IconButton(
-                        icon=ft.Icons.CLOSE,
+                        icon=ft.Icons.ARROW_BACK,
                         icon_size=24,
                         icon_color=ft.Colors.RED_700,
                         tooltip="取消",
@@ -5820,34 +5939,32 @@ def main(page: ft.Page):
                     ),
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER)
                 
-                # 底部删除按钮（编辑模式）
+                # ========== 底部删除按钮（编辑模式） ==========
                 bottom_delete = None
                 if note_id:
                     bottom_delete = ft.Row([
-                        #ft.Container(expand=True),
                         ft.OutlinedButton(
                             "🗑️ 删除",
                             on_click=delete_note,
-                            expand=True,  # 撑满宽度
+                            expand=True,
                             style=ft.ButtonStyle(
                                 color=ft.Colors.RED_700,
                                 shape=ft.RoundedRectangleBorder(radius=8),
                             ),
                         ),
-                        #ft.Container(expand=True),
                     ], spacing=10)
                 
-                # 可滚动内容
+                # ========== 可滚动内容 ==========
                 scrollable_content = ft.Column([
                     title_field,
-                    category_dropdown_edit,
+                    datetime_category_row,
                     content_field,
                 ], spacing=15, scroll=ft.ScrollMode.AUTO, expand=True)
                 
-                # 整体布局
+                # ========== 整体布局 ==========
                 dialog_content = ft.Column([
                     top_bar,
-                    ft.Divider(height=5),
+                    #ft.Divider(height=5),
                     scrollable_content,
                     bottom_delete if bottom_delete else ft.Container(),
                 ], spacing=10, height=450)
@@ -5873,6 +5990,17 @@ def main(page: ft.Page):
                 
                 page.overlay.append(edit_dialog_container)
                 page.update()
+
+                # ========== 对话框显示后，延迟一下让标题框获得焦点 ==========
+                # 某些情况下 autofocus 可能不生效，使用定时器确保焦点
+                def focus_title():
+                    try:
+                        title_field.focus()
+                        page.update()
+                    except:
+                        pass
+                
+                threading.Timer(0.1, focus_title).start()
             
             # ========== 删除确认对话框 ==========
             def show_delete_confirm_dialog(message, on_confirm):
