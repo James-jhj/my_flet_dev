@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.185"
-APP_VERSION_CODE = 185
+APP_VERSION = "1.0.186"
+APP_VERSION_CODE = 186
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -12845,9 +12845,17 @@ def main(page: ft.Page):
             # 区分生日和事件
             birthday_events = []
             other_events = []
+
+            # ========== 使用 set 去重，防止重复事件 ==========
+            seen_event_ids = set()
             
             for days, events in events_by_day.items():
                 for event in events:
+                    # 如果事件ID已经处理过，跳过
+                    if event.id in seen_event_ids:
+                        continue
+                    seen_event_ids.add(event.id)
+
                     if event.event_type == "birthday":
                         birthday_events.append(event)
                     else:
@@ -12917,6 +12925,9 @@ def main(page: ft.Page):
             music_file = None
             event_name_for_music = None      # 新增：用于播放的事件名称
             event_id_for_music = None        # 新增：用于播放的事件id
+
+            # ========== 使用 set 去重 ==========
+            seen_event_ids = set()
             
             for days_left in sorted(events_by_day.keys()):
                 if days_left == 1:
@@ -12930,6 +12941,11 @@ def main(page: ft.Page):
                 event_names = []
                 
                 for event in events_by_day[days_left]:
+                    # 如果事件ID已经处理过，跳过
+                    if event.id in seen_event_ids:
+                        continue
+                    seen_event_ids.add(event.id)
+
                     calendar_icon = "☀️" if event.calendar_type == "solar" else "🌙"
                     if event.event_type == "birthday":
                         birthday_names.append(f"{calendar_icon} {event.name}（生日）")
