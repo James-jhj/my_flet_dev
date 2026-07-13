@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.186"
-APP_VERSION_CODE = 186
+APP_VERSION = "1.0.187"
+APP_VERSION_CODE = 187
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5400,15 +5400,31 @@ def main(page: ft.Page):
             
             # ========== 分类下拉框（PopupMenuButton 风格） ==========
             category_options = ["全部笔记", "未分类", "个人", "工作", "其他"]
+
+            # ========== 计算每个分类的笔记数量 ==========
+            def get_category_count(category):
+                """获取指定分类的笔记数量"""
+                if category == "全部笔记":
+                    return len(memo_notes)
+                return len([n for n in memo_notes if n.category == category])
             
-            # 构建 PopupMenuButton 的 items（带分割线）
+            # 构建 PopupMenuButton 的 items（带分割线，显示数量）
             category_popup_items = []
             for i, cat in enumerate(category_options):
+                count = get_category_count(cat)
+                # 显示格式：分类名称 (数量)
+                display_text = f"{cat} ({count})" if cat != "全部笔记" else f"{cat} ({count})"
+                
                 category_popup_items.append(
                     ft.PopupMenuItem(
                         content=ft.Container(
-                            content=ft.Text(cat, size=14),
-                            width=120,
+                            content=ft.Row([
+                                ft.Text(cat, size=14),
+                                ft.Container(expand=True),
+                                ft.Text(f"{count}", size=12, color=ft.Colors.GREY_500),
+                            ], alignment=ft.MainAxisAlignment.START),
+                            width=300,  # 加宽下拉框
+                            #padding=ft.padding.only(left=12, right=12),
                         ),
                         on_click=lambda e, val=cat: select_category_popup(val),
                         height=40,
@@ -5423,6 +5439,7 @@ def main(page: ft.Page):
                         )
                     )
             
+            # ========== 创建分类下拉框（使用 Container 包裹 PopupMenuButton） ==========
             category_popup = ft.PopupMenuButton(
                 content=ft.Row([
                     ft.Text("全部笔记", size=14, weight=ft.FontWeight.BOLD),
@@ -5430,6 +5447,10 @@ def main(page: ft.Page):
                 ], spacing=5, alignment=ft.MainAxisAlignment.CENTER),
                 items=category_popup_items,
                 bgcolor=ft.Colors.WHITE,
+                # ========== 设置菜单位置：显示在下拉框下方 ==========
+                menu_position=ft.PopupMenuPosition.UNDER,  # 关键：菜单出现在按钮下方
+                #offset=ft.Offset(0, 20),  # 向下偏移5像素，避免紧贴
+
             )
             
             # 用 Container 包裹 PopupMenuButton，添加边框
