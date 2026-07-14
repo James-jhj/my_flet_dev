@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.189"
-APP_VERSION_CODE = 189
+APP_VERSION = "1.0.190"
+APP_VERSION_CODE = 190
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5722,7 +5722,6 @@ def main(page: ft.Page):
                     height=CARD_HEIGHT,
                     # ========== 关键：使用 margin 控制位置，而不是 left ==========
                     margin=ft.Margin(left=current_offset, top=0, right=0, bottom=0),
-                    #left=current_offset,
                     # ========== 裁剪自身内容 ==========
                     clip_behavior=ft.ClipBehavior.HARD_EDGE,
                 )
@@ -5738,19 +5737,16 @@ def main(page: ft.Page):
                     clip_behavior=ft.ClipBehavior.HARD_EDGE,
                 )
                 
-                # ========== 使用 GestureDetector 的 horizontal drag ==========
-                # ========== 关键修复：使用 on_pan_start, on_pan_update, on_pan_end ==========
-                # 但添加一个备用机制：通过 on_hover 和鼠标事件
-                
+                # ========== 拖拽状态 ==========
                 is_dragging = False
                 drag_start_x = 0
                 drag_start_offset = 0
                 
-                # ========== 关键修复：同时支持鼠标和触摸 ==========
+                # ========== 滑动处理函数 ==========
                 def on_pan_start(e):
                     nonlocal is_dragging, drag_start_x, drag_start_offset
                     is_dragging = True
-                    # ========== 修复：正确获取起始 X 位置 ==========
+                    # 获取起始 X 位置
                     if hasattr(e, 'local_x'):
                         drag_start_x = e.local_x
                     elif hasattr(e, 'local_position') and e.local_position:
@@ -5758,7 +5754,7 @@ def main(page: ft.Page):
                     else:
                         drag_start_x = 0
                     drag_start_offset = current_offset
-                    print(f"[Pan开始] start_x: {drag_start_x}, offset: {current_offset}")
+                    print(f"[滑动] 开始, offset: {current_offset}")
                 
                 def on_pan_update(e):
                     nonlocal is_dragging, current_offset, drag_start_x, drag_start_offset
@@ -5766,7 +5762,7 @@ def main(page: ft.Page):
                     if not is_dragging:
                         return
                     
-                    # ========== 修复：正确获取当前 X 位置 ==========
+                    # 获取当前 X 位置
                     current_x = 0
                     if hasattr(e, 'local_x'):
                         current_x = e.local_x
@@ -5775,45 +5771,51 @@ def main(page: ft.Page):
                     
                     # 计算位移
                     delta_x = current_x - drag_start_x
-                    
                     if delta_x == 0:
                         return
                     
+                    # 计算新偏移量（向左滑动为负值，向右滑动为正值）
                     new_offset = drag_start_offset + delta_x
+                    # 限制范围：-BUTTON_WIDTH 到 0
                     new_offset = max(-BUTTON_WIDTH, min(0, new_offset))
                     
                     if new_offset != current_offset:
                         current_offset = new_offset
                         card_swipe_states[note_id] = new_offset
-                        main_card.left = new_offset
+                        # ========== 关键：使用 margin 更新位置 ==========
+                        main_card.margin = ft.Margin(left=new_offset, top=0, right=0, bottom=0)
                         main_card.update()
-                        print(f"[Pan更新] delta_x: {delta_x}, offset: {new_offset}")
+                        print(f"[滑动] 更新, offset: {new_offset}, delta_x: {delta_x}")
                 
                 def on_pan_end(e):
                     nonlocal is_dragging, current_offset
                     
                     is_dragging = False
                     
+                    # 判断是否需要展开按钮
                     if current_offset < -BUTTON_WIDTH / 2:
                         target_offset = -BUTTON_WIDTH
                     else:
                         target_offset = 0
                     
+                    # 如果偏移量很小，直接复位
                     if abs(current_offset) < 10:
                         target_offset = 0
                     
                     current_offset = target_offset
                     card_swipe_states[note_id] = target_offset
-                    main_card.left = target_offset
+                    # ========== 关键：使用 margin 更新位置 ==========
+                    main_card.margin = ft.Margin(left=target_offset, top=0, right=0, bottom=0)
                     main_card.update()
-                    print(f"[Pan结束] offset: {target_offset}")
+                    print(f"[滑动] 结束, target_offset: {target_offset}")
                 
-                # ========== 使用 GestureDetector（手机上有效） ==========
+                # ========== GestureDetector ==========
                 gesture_detector = ft.GestureDetector(
                     content=stack,
                     on_pan_start=on_pan_start,
                     on_pan_update=on_pan_update,
                     on_pan_end=on_pan_end,
+                    drag_interval=5,
                 )
                 
                 return gesture_detector
@@ -5875,13 +5877,36 @@ def main(page: ft.Page):
                             continue
                     filtered_notes.append(note)
                 
-                # ========== 排序：置顶的在前，然后按更新时间倒序 ==========
+                # ========== 修复：正确的排序逻辑 ==========
+                # 置顶的在前（is_pinned=True），然后按更新时间倒序（最新的在前）
                 def sort_key(note):
+                    # is_pinned 为 True 的排在前面（False > True 的逻辑）
+                    # 使用 - 或者 not 来实现
                     is_pinned = getattr(note, 'is_pinned', False)
-                    # 置顶的排前面（True > False），然后按更新时间倒序
-                    return (is_pinned, note.updated_at)
+                    # 返回 (是否置顶的相反值, 更新时间戳)
+                    # 这样置顶的（is_pinned=True）会排在前面
+                    return (not is_pinned, note.updated_at)
                 
-                filtered_notes.sort(key=lambda x: (not getattr(x, 'is_pinned', False), x.updated_at), reverse=True)
+                # 按 sort_key 排序，不设置 reverse，或者设置为 False
+                filtered_notes.sort(key=sort_key, reverse=False)
+                
+                # ========== 或者更清晰的写法 ==========
+                # 分别收集置顶和非置顶的笔记
+                pinned_notes = []
+                unpinned_notes = []
+                
+                for note in filtered_notes:
+                    if getattr(note, 'is_pinned', False):
+                        pinned_notes.append(note)
+                    else:
+                        unpinned_notes.append(note)
+                
+                # 分别按更新时间倒序排序
+                pinned_notes.sort(key=lambda x: x.updated_at, reverse=True)
+                unpinned_notes.sort(key=lambda x: x.updated_at, reverse=True)
+                
+                # 合并：置顶的在前
+                filtered_notes = pinned_notes + unpinned_notes
                 
                 count_text.value = f"共 {len(filtered_notes)} 条笔记"
                 count_text.update()
