@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.191"
-APP_VERSION_CODE = 191
+APP_VERSION = "1.0.192"
+APP_VERSION_CODE = 192
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -416,13 +416,14 @@ class KeyboardManager:
 class MemoNote:
     """备忘录笔记类"""
     def __init__(self, id: str, title: str, content: str, category: str = "未分类", 
-                 created_at: str = None, updated_at: str = None):
+                 created_at: str = None, updated_at: str = None,is_pinned: bool = False):
         self.id = id
         self.title = title
         self.content = content
         self.category = category  # 未分类、个人、工作、其他
         self.created_at = created_at if created_at else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.updated_at = updated_at if updated_at else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.is_pinned = is_pinned  # 新增：置顶状态
     
     def to_dict(self):
         return {
@@ -432,6 +433,7 @@ class MemoNote:
             "category": self.category,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "is_pinned": self.is_pinned,  # 新增
         }
     
     @classmethod
@@ -443,6 +445,7 @@ class MemoNote:
             data.get("category", "未分类"),
             data.get("created_at"),
             data.get("updated_at"),
+            data.get("is_pinned", False),  # 新增，兼容旧数据
         )
     
     def get_preview(self, max_length=15):
@@ -5631,21 +5634,50 @@ def main(page: ft.Page):
                 
                 # 获取当前滑动偏移量
                 current_offset = card_swipe_states.get(note_id, 0)
+
+                # ========== 判断是否已置顶（直接从 note 对象读取） ==========
+                is_pinned = note.is_pinned  # 直接使用 note 的属性
+
+                # ========== 根据置顶状态决定分隔符样式 ==========
+                if is_pinned:
+                    # 置顶：使用橙色粗分隔符
+                    divider = ft.Container(
+                        content=ft.Icon(ft.Icons.CIRCLE, size=4, color=ft.Colors.ORANGE_700),
+                        #padding=ft.padding.only(left=4, right=4),
+                    )
+                    title_color = ft.Colors.ORANGE_700
+                    preview_color = ft.Colors.ORANGE_700
+                    border_color = ft.Colors.ORANGE_700
+                    border_width = 2
+                else:
+                    # 未置顶：使用灰色细分隔符
+                    divider = ft.Text("|", size=10, color=ft.Colors.GREY_300)
+                    title_color = ft.Colors.BLACK
+                    preview_color = ft.Colors.GREY_600
+                    border_color = ft.Colors.GREY_200
+                    border_width = 1
                 
+                # ========== 卡片内容 ==========
                 # ========== 卡片内容 ==========
                 card_content = ft.Container(
                     content=ft.Column([
                         ft.Row([
-                            ft.Text(note.title, size=16, weight=ft.FontWeight.BOLD, expand=True),
+                            ft.Text(
+                                note.title, 
+                                size=16, 
+                                weight=ft.FontWeight.BOLD, 
+                                expand=True,
+                                color=title_color,
+                            ),
                             get_category_label(note.category),
                         ]),
                         ft.Row([
                             ft.Text(f"{display_date}", size=10, color=ft.Colors.GREY_500),
-                            ft.Text("|", size=10, color=ft.Colors.GREY_300),
+                            divider,  # 根据置顶状态显示不同分隔符
                             ft.Text(
                                 preview_text, 
                                 size=12, 
-                                color=ft.Colors.GREY_600, 
+                                color=preview_color,
                                 expand=True,
                                 max_lines=1,
                                 overflow=ft.TextOverflow.ELLIPSIS,
@@ -5655,26 +5687,30 @@ def main(page: ft.Page):
                     padding=15,
                     bgcolor=ft.Colors.WHITE,
                     border_radius=8,
-                    border=ft.border.Border(bottom=ft.border.BorderSide(1, ft.Colors.GREY_200)),
+                    border=ft.border.Border(
+                        bottom=ft.border.BorderSide(border_width, border_color)
+                    ),
                     ink=True,
                     on_click=lambda e: open_memo_edit_dialog(note.id),
                     on_long_press=lambda e: enter_multi_select_mode(),
-                    #width=390,  # 固定宽度
-                    expand=True
+                    #width=400,
+                    expand=True,
                 )
+
+                
                 
                 # ========== 置顶按钮（圆形） ==========
                 pin_button = ft.Container(
                     content=ft.Icon(ft.Icons.PUSH_PIN, size=24, color=ft.Colors.WHITE),
-                    bgcolor="#e65100",
+                    bgcolor="#FF8F00" if is_pinned else "#9E9E9E",  # 置顶橙色，未置顶灰色
                     alignment=ft.Alignment(0, 0),
                     on_click=lambda e: toggle_pin_note(note_id),
-                    width=50,
-                    height=50,
-                    border_radius=25,  # 圆形：宽度的一半
+                    width=40,
+                    height=40,
+                    border_radius=20,  # 圆形：宽度的一半
                     shadow=ft.BoxShadow(
                         spread_radius=1,
-                        blur_radius=6,
+                        blur_radius=4,
                         color=ft.Colors.BLACK26,
                         offset=ft.Offset(0, 2),
                     ),
@@ -5686,18 +5722,18 @@ def main(page: ft.Page):
                     bgcolor="#d32f2f",
                     alignment=ft.Alignment(0, 0),
                     on_click=lambda e: delete_note_by_id(note_id),
-                    width=50,
-                    height=50,
-                    border_radius=25,  # 圆形：宽度的一半
+                    width=40,
+                    height=40,
+                    border_radius=20,  # 圆形：宽度的一半
                     shadow=ft.BoxShadow(
                         spread_radius=1,
-                        blur_radius=6,
+                        blur_radius=4,
                         color=ft.Colors.BLACK26,
                         offset=ft.Offset(0, 2),
                     ),
                 )
                 
-                BUTTON_WIDTH = 110
+                BUTTON_WIDTH = 200
                 CARD_HEIGHT = 75
                 CARD_WIDTH = 390
                 
@@ -5707,7 +5743,7 @@ def main(page: ft.Page):
                         pin_button,
                         delete_button,
                     ],
-                    spacing=0,
+                    spacing=20,
                     width=BUTTON_WIDTH,
                     height=CARD_HEIGHT,
                     right=0,  # 按钮靠右对齐
@@ -5722,7 +5758,7 @@ def main(page: ft.Page):
                     width=CARD_WIDTH,
                     height=CARD_HEIGHT,
                     left=current_offset,  # 初始位置
-                    animate=ft.Animation(300, "ease_out"),  # 添加动画
+                    animate=ft.Animation(300, "ease_out"),  # 添加动画，动画持续时间（毫秒），即 0.3 秒
                     clip_behavior=ft.ClipBehavior.HARD_EDGE,
                 )
                 
@@ -5786,15 +5822,15 @@ def main(page: ft.Page):
                 """切换笔记置顶状态"""
                 note = next((n for n in memo_notes if n.id == note_id), None)
                 if note:
-                    # 切换置顶状态（使用一个自定义属性）
-                    if hasattr(note, 'is_pinned'):
-                        note.is_pinned = not note.is_pinned
-                    else:
-                        note.is_pinned = True
+                    # 切换置顶状态
+                    note.is_pinned = not note.is_pinned
 
                     # ========== 关键修复：重置该卡片的滑动状态 ==========
                     if note_id in card_swipe_states:
                         card_swipe_states[note_id] = 0
+
+                    # ========== 保存到文件 ==========
+                    save_memo_notes()
                     
                     # 重新排序并刷新
                     render_notes()
@@ -5841,35 +5877,13 @@ def main(page: ft.Page):
                             continue
                     filtered_notes.append(note)
                 
-                # ========== 修复：正确的排序逻辑 ==========
-                # 置顶的在前（is_pinned=True），然后按更新时间倒序（最新的在前）
-                def sort_key(note):
-                    # is_pinned 为 True 的排在前面（False > True 的逻辑）
-                    # 使用 - 或者 not 来实现
-                    is_pinned = getattr(note, 'is_pinned', False)
-                    # 返回 (是否置顶的相反值, 更新时间戳)
-                    # 这样置顶的（is_pinned=True）会排在前面
-                    return (not is_pinned, note.updated_at)
+                 # ========== 排序：置顶的在前，然后按更新时间倒序 ==========
+                pinned_notes = [n for n in filtered_notes if n.is_pinned]
+                unpinned_notes = [n for n in filtered_notes if not n.is_pinned]
                 
-                # 按 sort_key 排序，不设置 reverse，或者设置为 False
-                filtered_notes.sort(key=sort_key, reverse=False)
-                
-                # ========== 或者更清晰的写法 ==========
-                # 分别收集置顶和非置顶的笔记
-                pinned_notes = []
-                unpinned_notes = []
-                
-                for note in filtered_notes:
-                    if getattr(note, 'is_pinned', False):
-                        pinned_notes.append(note)
-                    else:
-                        unpinned_notes.append(note)
-                
-                # 分别按更新时间倒序排序
                 pinned_notes.sort(key=lambda x: x.updated_at, reverse=True)
                 unpinned_notes.sort(key=lambda x: x.updated_at, reverse=True)
                 
-                # 合并：置顶的在前
                 filtered_notes = pinned_notes + unpinned_notes
                 
                 count_text.value = f"共 {len(filtered_notes)} 条笔记"
@@ -5967,6 +5981,7 @@ def main(page: ft.Page):
                             title=title,
                             content=content,
                             category=category,
+                            is_pinned=False,  # 新增笔记默认未置顶
                         )
                         memo_notes.append(new_note)
                         show_bottom_message(f"✅ 已添加「{title}」")
@@ -15482,7 +15497,7 @@ def main(page: ft.Page):
         page.update()
 
     async def export_memo_async(e):
-        """导出备忘录数据到Excel"""
+        """导出备忘录数据到Excel（包含置顶标识）"""
         global memo_notes
         
         if not memo_notes:
@@ -15498,7 +15513,7 @@ def main(page: ft.Page):
             ws.title = "备忘录"
             
             # ========== 写入汇总信息 ==========
-            ws.merge_cells('A1:E1')
+            ws.merge_cells('A1:F1')
             ws['A1'] = "📝 备忘录"
             ws['A1'].font = openpyxl.styles.Font(size=16, bold=True)
             ws['A1'].alignment = openpyxl.styles.Alignment(horizontal='center')
@@ -15511,8 +15526,8 @@ def main(page: ft.Page):
             # 空行
             ws.append([])
             
-            # ========== 写入表头 ==========
-            headers = ["标题", "内容", "分类", "创建时间", "更新时间"]
+            # ========== 写入表头（添加"置顶"列） ==========
+            headers = ["标题", "内容", "分类", "创建时间", "更新时间", "置顶"]
             ws.append(headers)
             
             # 设置表头样式
@@ -15532,6 +15547,7 @@ def main(page: ft.Page):
                     note.category,
                     note.created_at,
                     note.updated_at,
+                    "是" if note.is_pinned else "否",  # 新增：置顶标识
                 ])
             
             # 调整列宽
@@ -15540,6 +15556,7 @@ def main(page: ft.Page):
             ws.column_dimensions['C'].width = 12
             ws.column_dimensions['D'].width = 20
             ws.column_dimensions['E'].width = 20
+            ws.column_dimensions['F'].width = 10  # 新增列宽
             
             # 保存临时文件
             wb.save(temp_file)
@@ -15568,7 +15585,7 @@ def main(page: ft.Page):
             os.remove(temp_file)
             
             if result:
-                show_bottom_message(f"✅ 成功导出 {len(memo_notes)} 条备忘录")
+                show_bottom_message(f"✅ 成功导出 {len(memo_notes)} 条备忘录（含置顶标识）")
             else:
                 show_bottom_message("已取消导出")
             
@@ -15581,7 +15598,7 @@ def main(page: ft.Page):
             traceback.print_exc()
     
     async def import_memo_async(e):
-        """导入备忘录数据"""
+        """导入备忘录数据（支持置顶标识）"""
         global memo_notes
         
         menu_container = None
@@ -15641,7 +15658,7 @@ def main(page: ft.Page):
                 page.update()
         
         async def do_import_memo(file_path):
-            """执行备忘录导入"""
+            """执行备忘录导入（支持置顶标识）"""
             show_bottom_message(f"正在导入: {os.path.basename(file_path)}")
             page.update()
             
@@ -15651,30 +15668,96 @@ def main(page: ft.Page):
             imported_count = 0
             new_notes = []
             
-            # 从第6行开始读取（跳过标题和汇总信息）
-            for row_idx, row in enumerate(ws.iter_rows(min_row=6, values_only=True), start=6):
-                if not row or len(row) < 3:
+            # ========== 先找到表头行 ==========
+            header_row_idx = None
+            header_row = None
+            
+            # 查找包含"标题"的行作为表头
+            for row_idx in range(1, min(10, ws.max_row + 1)):
+                row_data = []
+                for col in range(1, 10):
+                    cell_value = ws.cell(row=row_idx, column=col).value
+                    if cell_value:
+                        row_data.append(str(cell_value).strip())
+                
+                row_text = " ".join(row_data)
+                if "标题" in row_text and "内容" in row_text:
+                    header_row_idx = row_idx
+                    header_row = row_data
+                    print(f"[导入] 找到表头行: 第 {row_idx} 行")
+                    break
+            
+            if header_row_idx is None:
+                # 如果没找到表头，默认从第6行开始（兼容旧格式）
+                header_row_idx = 6
+                header_row = ["标题", "内容", "分类", "创建时间", "更新时间"]
+            
+            # ========== 确定各列索引 ==========
+            col_index = {}
+            for idx, col_name in enumerate(header_row):
+                if "标题" in col_name:
+                    col_index['title'] = idx
+                elif "内容" in col_name:
+                    col_index['content'] = idx
+                elif "分类" in col_name:
+                    col_index['category'] = idx
+                elif "创建时间" in col_name:
+                    col_index['created_at'] = idx
+                elif "更新时间" in col_name:
+                    col_index['updated_at'] = idx
+                elif "置顶" in col_name:
+                    col_index['is_pinned'] = idx
+            
+            print(f"[导入] 列索引: {col_index}")
+            
+            # 从表头下一行开始读取
+            start_row = header_row_idx + 1
+            
+            for row_idx in range(start_row, ws.max_row + 1):
+                try:
+                    # 获取每列数据
+                    title = ""
+                    content = ""
+                    category = "未分类"
+                    created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    is_pinned = False
+                    
+                    for col_name, col_pos in col_index.items():
+                        cell_value = ws.cell(row=row_idx, column=col_pos + 1).value
+                        if cell_value is not None:
+                            value_str = str(cell_value).strip()
+                            if col_name == 'title':
+                                title = value_str
+                            elif col_name == 'content':
+                                content = value_str
+                            elif col_name == 'category':
+                                category = value_str if value_str in ["未分类", "个人", "工作", "其他"] else "未分类"
+                            elif col_name == 'created_at':
+                                created_at = value_str
+                            elif col_name == 'updated_at':
+                                updated_at = value_str
+                            elif col_name == 'is_pinned':
+                                is_pinned = value_str in ["是", "true", "True", "1"]
+                    
+                    if not title:
+                        continue
+                    
+                    new_note = MemoNote(
+                        id=str(int(datetime.now().timestamp() * 1000) + imported_count),
+                        title=title,
+                        content=content,
+                        category=category,
+                        created_at=created_at,
+                        updated_at=updated_at,
+                        is_pinned=is_pinned,  # 新增：置顶标识
+                    )
+                    new_notes.append(new_note)
+                    imported_count += 1
+                    
+                except Exception as row_error:
+                    print(f"[导入] 第 {row_idx} 行处理失败: {row_error}")
                     continue
-                
-                title = str(row[0]).strip() if row[0] else ""
-                content = str(row[1]).strip() if row[1] else ""
-                category = str(row[2]).strip() if row[2] else "未分类"
-                created_at = str(row[3]).strip() if len(row) > 3 and row[3] else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                updated_at = str(row[4]).strip() if len(row) > 4 and row[4] else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                
-                if not title:
-                    continue
-                
-                new_note = MemoNote(
-                    id=str(int(datetime.now().timestamp() * 1000) + imported_count),
-                    title=title,
-                    content=content,
-                    category=category if category in ["未分类", "个人", "工作", "其他"] else "未分类",
-                    created_at=created_at,
-                    updated_at=updated_at,
-                )
-                new_notes.append(new_note)
-                imported_count += 1
             
             if imported_count == 0:
                 show_bottom_message("没有导入任何备忘录")
@@ -15696,7 +15779,7 @@ def main(page: ft.Page):
                     global memo_notes
                     memo_notes = new_notes
                     save_memo_notes()
-                    show_bottom_message(f"成功导入 {imported_count} 条备忘录")
+                    show_bottom_message(f"成功导入 {imported_count} 条备忘录（含置顶标识）")
                     page.update()
                 
                 def cancel_replace():
@@ -15753,6 +15836,7 @@ def main(page: ft.Page):
                 ft.Divider(),
                 ft.Text("请选择备忘录Excel文件", size=14),
                 ft.Text("支持格式: .xlsx, .xls", size=12, color=ft.Colors.GREY_500),
+                ft.Text("支持置顶标识列（是/否）", size=11, color=ft.Colors.GREY_600),
                 ft.Divider(),
                 ft.Button(
                     "选择文件", 
