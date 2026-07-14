@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.190"
-APP_VERSION_CODE = 190
+APP_VERSION = "1.0.191"
+APP_VERSION_CODE = 191
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5622,8 +5622,9 @@ def main(page: ft.Page):
                     border_radius=4,
                 )
             
+            # ========================  笔记卡片设置为可滑动开始 ==============================
             def create_normal_card(note):
-                """创建可左滑的笔记卡片 - 跨平台兼容方案"""
+                """创建可左滑的笔记卡片 - 参照示例代码风格"""
                 display_date = note.updated_at if note.updated_at else note.created_at
                 preview_text = note.get_preview(15)
                 note_id = note.id
@@ -5651,177 +5652,136 @@ def main(page: ft.Page):
                             ),
                         ], spacing=5, expand=True),
                     ], spacing=4),
+                    padding=15,
                     bgcolor=ft.Colors.WHITE,
                     border_radius=8,
                     border=ft.border.Border(bottom=ft.border.BorderSide(1, ft.Colors.GREY_200)),
                     ink=True,
                     on_click=lambda e: open_memo_edit_dialog(note.id),
                     on_long_press=lambda e: enter_multi_select_mode(),
-                    expand=True,
+                    #width=390,  # 固定宽度
+                    expand=True
                 )
                 
-                # ========== 置顶按钮 ==========
+                # ========== 置顶按钮（圆形） ==========
                 pin_button = ft.Container(
-                    content=ft.Icon(ft.Icons.PUSH_PIN, size=20, color=ft.Colors.WHITE),
-                    width=40,
-                    height=40,
-                    bgcolor=ft.Colors.ORANGE_700,
-                    border_radius=20,
+                    content=ft.Icon(ft.Icons.PUSH_PIN, size=24, color=ft.Colors.WHITE),
+                    bgcolor="#e65100",
                     alignment=ft.Alignment(0, 0),
                     on_click=lambda e: toggle_pin_note(note_id),
-                    tooltip="置顶",
+                    width=50,
+                    height=50,
+                    border_radius=25,  # 圆形：宽度的一半
                     shadow=ft.BoxShadow(
                         spread_radius=1,
-                        blur_radius=4,
+                        blur_radius=6,
                         color=ft.Colors.BLACK26,
+                        offset=ft.Offset(0, 2),
                     ),
                 )
                 
-                # ========== 删除按钮 ==========
+                # ========== 删除按钮（圆形） ==========
                 delete_button = ft.Container(
-                    content=ft.Icon(ft.Icons.DELETE, size=20, color=ft.Colors.WHITE),
-                    width=40,
-                    height=40,
-                    bgcolor=ft.Colors.RED_700,
-                    border_radius=20,
+                    content=ft.Icon(ft.Icons.DELETE, size=24, color=ft.Colors.WHITE),
+                    bgcolor="#d32f2f",
                     alignment=ft.Alignment(0, 0),
                     on_click=lambda e: delete_note_by_id(note_id),
-                    tooltip="删除",
+                    width=50,
+                    height=50,
+                    border_radius=25,  # 圆形：宽度的一半
                     shadow=ft.BoxShadow(
                         spread_radius=1,
-                        blur_radius=4,
+                        blur_radius=6,
                         color=ft.Colors.BLACK26,
+                        offset=ft.Offset(0, 2),
                     ),
                 )
-                
-                # ========== 按钮行 ==========
-                button_row = ft.Row([
-                    pin_button,
-                    ft.Container(width=8),
-                    delete_button,
-                ], spacing=0, alignment=ft.MainAxisAlignment.CENTER)
                 
                 BUTTON_WIDTH = 110
                 CARD_HEIGHT = 75
+                CARD_WIDTH = 390
                 
-                # ========== 右侧按钮容器（固定在右侧） ==========
-                right_container = ft.Container(
-                    content=button_row,
+                # ========== 底层操作按钮（放在右侧，左滑时露出） ==========
+                action_row = ft.Row(
+                    controls=[
+                        pin_button,
+                        delete_button,
+                    ],
+                    spacing=0,
                     width=BUTTON_WIDTH,
                     height=CARD_HEIGHT,
-                    alignment=ft.Alignment(0, 0),
-                    bgcolor=ft.Colors.TRANSPARENT,
-                    right=0,  # 固定在右侧
+                    right=0,  # 按钮靠右对齐
+                    # ========== 关键：靠右对齐 ==========
+                    alignment=ft.MainAxisAlignment.END,  # 改为 END
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 )
                 
-                # ========== 主卡片（覆盖在按钮上方） ==========
-                main_card = ft.Container(
+                # ========== 卡片容器（使用 left 属性控制位置） ==========
+                card_container = ft.Container(
                     content=card_content,
-                    bgcolor=ft.Colors.WHITE,
-                    border_radius=8,
+                    width=CARD_WIDTH,
                     height=CARD_HEIGHT,
-                    # ========== 关键：使用 margin 控制位置，而不是 left ==========
-                    margin=ft.Margin(left=current_offset, top=0, right=0, bottom=0),
-                    # ========== 裁剪自身内容 ==========
+                    left=current_offset,  # 初始位置
+                    animate=ft.Animation(300, "ease_out"),  # 添加动画
                     clip_behavior=ft.ClipBehavior.HARD_EDGE,
                 )
                 
                 # ========== Stack 布局 ==========
                 stack = ft.Stack(
-                    [
-                        right_container,  # 下层：按钮（始终在右侧）
-                        main_card,        # 上层：卡片（滑动遮盖按钮）
+                    controls=[
+                        action_row,      # 按钮在底层（右侧）
+                        card_container,  # 卡片在上层（会向左滑动）
                     ],
+                    width=CARD_WIDTH, # = 510，容纳卡片和按钮
                     height=CARD_HEIGHT,
-                    # ========== 关键：裁剪 Stack 自身，防止按钮溢出 ==========
                     clip_behavior=ft.ClipBehavior.HARD_EDGE,
                 )
                 
-                # ========== 拖拽状态 ==========
-                is_dragging = False
-                drag_start_x = 0
-                drag_start_offset = 0
+                # ========== 存储偏移量 ==========
+                slide_offset = current_offset
                 
                 # ========== 滑动处理函数 ==========
-                def on_pan_start(e):
-                    nonlocal is_dragging, drag_start_x, drag_start_offset
-                    is_dragging = True
-                    # 获取起始 X 位置
-                    if hasattr(e, 'local_x'):
-                        drag_start_x = e.local_x
-                    elif hasattr(e, 'local_position') and e.local_position:
-                        drag_start_x = e.local_position[0] if hasattr(e.local_position, '__getitem__') else 0
+                def on_pan_update(e: ft.DragUpdateEvent):
+                    nonlocal slide_offset
+                    
+                    delta_x = e.local_delta.x
+                    current = slide_offset
+                    new_val = min(0, max(-BUTTON_WIDTH, current + delta_x))
+                    slide_offset = new_val
+                    card_container.left = new_val
+                    card_container.update()
+                    card_swipe_states[note_id] = new_val
+                
+                def on_pan_end(e: ft.DragEndEvent):
+                    nonlocal slide_offset
+                    
+                    if slide_offset < -BUTTON_WIDTH / 2:
+                        target = -BUTTON_WIDTH
                     else:
-                        drag_start_x = 0
-                    drag_start_offset = current_offset
-                    print(f"[滑动] 开始, offset: {current_offset}")
+                        target = 0
+                    
+                    slide_offset = target
+                    card_container.left = target
+                    card_container.update()
+                    card_swipe_states[note_id] = target
                 
-                def on_pan_update(e):
-                    nonlocal is_dragging, current_offset, drag_start_x, drag_start_offset
-                    
-                    if not is_dragging:
-                        return
-                    
-                    # 获取当前 X 位置
-                    current_x = 0
-                    if hasattr(e, 'local_x'):
-                        current_x = e.local_x
-                    elif hasattr(e, 'local_position') and e.local_position:
-                        current_x = e.local_position[0] if hasattr(e.local_position, '__getitem__') else 0
-                    
-                    # 计算位移
-                    delta_x = current_x - drag_start_x
-                    if delta_x == 0:
-                        return
-                    
-                    # 计算新偏移量（向左滑动为负值，向右滑动为正值）
-                    new_offset = drag_start_offset + delta_x
-                    # 限制范围：-BUTTON_WIDTH 到 0
-                    new_offset = max(-BUTTON_WIDTH, min(0, new_offset))
-                    
-                    if new_offset != current_offset:
-                        current_offset = new_offset
-                        card_swipe_states[note_id] = new_offset
-                        # ========== 关键：使用 margin 更新位置 ==========
-                        main_card.margin = ft.Margin(left=new_offset, top=0, right=0, bottom=0)
-                        main_card.update()
-                        print(f"[滑动] 更新, offset: {new_offset}, delta_x: {delta_x}")
-                
-                def on_pan_end(e):
-                    nonlocal is_dragging, current_offset
-                    
-                    is_dragging = False
-                    
-                    # 判断是否需要展开按钮
-                    if current_offset < -BUTTON_WIDTH / 2:
-                        target_offset = -BUTTON_WIDTH
-                    else:
-                        target_offset = 0
-                    
-                    # 如果偏移量很小，直接复位
-                    if abs(current_offset) < 10:
-                        target_offset = 0
-                    
-                    current_offset = target_offset
-                    card_swipe_states[note_id] = target_offset
-                    # ========== 关键：使用 margin 更新位置 ==========
-                    main_card.margin = ft.Margin(left=target_offset, top=0, right=0, bottom=0)
-                    main_card.update()
-                    print(f"[滑动] 结束, target_offset: {target_offset}")
-                
-                # ========== GestureDetector ==========
-                gesture_detector = ft.GestureDetector(
+                # ========== 用 GestureDetector 包裹 Stack ==========
+                gesture_container = ft.GestureDetector(
                     content=stack,
-                    on_pan_start=on_pan_start,
                     on_pan_update=on_pan_update,
                     on_pan_end=on_pan_end,
-                    drag_interval=5,
                 )
                 
-                return gesture_detector
+                # ========== 返回带裁剪的容器 ==========
+                return ft.Container(
+                    content=gesture_container,
+                    width=CARD_WIDTH,
+                    height=CARD_HEIGHT,
+                    clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                )
 
+            # ========================  笔记卡片设置为可滑动结束 ==============================
 
-            
             def toggle_pin_note(note_id):
                 """切换笔记置顶状态"""
                 note = next((n for n in memo_notes if n.id == note_id), None)
@@ -5831,6 +5791,10 @@ def main(page: ft.Page):
                         note.is_pinned = not note.is_pinned
                     else:
                         note.is_pinned = True
+
+                    # ========== 关键修复：重置该卡片的滑动状态 ==========
+                    if note_id in card_swipe_states:
+                        card_swipe_states[note_id] = 0
                     
                     # 重新排序并刷新
                     render_notes()
