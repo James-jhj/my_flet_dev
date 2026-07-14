@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.188"
-APP_VERSION_CODE = 188
+APP_VERSION = "1.0.189"
+APP_VERSION_CODE = 189
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5397,6 +5397,9 @@ def main(page: ft.Page):
         def build_normal_mode():
             """构建普通模式界面"""
             notes_list = ft.Column(spacing=8, scroll=ft.ScrollMode.AUTO, expand=True)
+
+            # ========== 存储卡片的滑动状态 ==========
+            card_swipe_states = {}  # {note_id: offset_x}
             
             # ========== 分类下拉框（PopupMenuButton 风格） ==========
             category_options = ["全部笔记", "未分类", "个人", "工作", "其他"]
@@ -5620,10 +5623,16 @@ def main(page: ft.Page):
                 )
             
             def create_normal_card(note):
+                """创建可左滑的笔记卡片 - 跨平台兼容方案"""
                 display_date = note.updated_at if note.updated_at else note.created_at
                 preview_text = note.get_preview(15)
+                note_id = note.id
                 
-                return ft.Container(
+                # 获取当前滑动偏移量
+                current_offset = card_swipe_states.get(note_id, 0)
+                
+                # ========== 卡片内容 ==========
+                card_content = ft.Container(
                     content=ft.Column([
                         ft.Row([
                             ft.Text(note.title, size=16, weight=ft.FontWeight.BOLD, expand=True),
@@ -5637,23 +5646,216 @@ def main(page: ft.Page):
                                 size=12, 
                                 color=ft.Colors.GREY_600, 
                                 expand=True,
-                                max_lines=1,  # 强制单行显示
-                                overflow=ft.TextOverflow.ELLIPSIS,  # 超出显示省略号
+                                max_lines=1,
+                                overflow=ft.TextOverflow.ELLIPSIS,
                             ),
-                        ], spacing=5),
+                        ], spacing=5, expand=True),
                     ], spacing=4),
-                    padding=12,
                     bgcolor=ft.Colors.WHITE,
                     border_radius=8,
                     border=ft.border.Border(bottom=ft.border.BorderSide(1, ft.Colors.GREY_200)),
                     ink=True,
                     on_click=lambda e: open_memo_edit_dialog(note.id),
                     on_long_press=lambda e: enter_multi_select_mode(),
+                    expand=True,
                 )
+                
+                # ========== 置顶按钮 ==========
+                pin_button = ft.Container(
+                    content=ft.Icon(ft.Icons.PUSH_PIN, size=20, color=ft.Colors.WHITE),
+                    width=40,
+                    height=40,
+                    bgcolor=ft.Colors.ORANGE_700,
+                    border_radius=20,
+                    alignment=ft.Alignment(0, 0),
+                    on_click=lambda e: toggle_pin_note(note_id),
+                    tooltip="置顶",
+                    shadow=ft.BoxShadow(
+                        spread_radius=1,
+                        blur_radius=4,
+                        color=ft.Colors.BLACK26,
+                    ),
+                )
+                
+                # ========== 删除按钮 ==========
+                delete_button = ft.Container(
+                    content=ft.Icon(ft.Icons.DELETE, size=20, color=ft.Colors.WHITE),
+                    width=40,
+                    height=40,
+                    bgcolor=ft.Colors.RED_700,
+                    border_radius=20,
+                    alignment=ft.Alignment(0, 0),
+                    on_click=lambda e: delete_note_by_id(note_id),
+                    tooltip="删除",
+                    shadow=ft.BoxShadow(
+                        spread_radius=1,
+                        blur_radius=4,
+                        color=ft.Colors.BLACK26,
+                    ),
+                )
+                
+                # ========== 按钮行 ==========
+                button_row = ft.Row([
+                    pin_button,
+                    ft.Container(width=8),
+                    delete_button,
+                ], spacing=0, alignment=ft.MainAxisAlignment.CENTER)
+                
+                BUTTON_WIDTH = 110
+                CARD_HEIGHT = 75
+                
+                # ========== 右侧按钮容器（固定在右侧） ==========
+                right_container = ft.Container(
+                    content=button_row,
+                    width=BUTTON_WIDTH,
+                    height=CARD_HEIGHT,
+                    alignment=ft.Alignment(0, 0),
+                    bgcolor=ft.Colors.TRANSPARENT,
+                    right=0,  # 固定在右侧
+                )
+                
+                # ========== 主卡片（覆盖在按钮上方） ==========
+                main_card = ft.Container(
+                    content=card_content,
+                    bgcolor=ft.Colors.WHITE,
+                    border_radius=8,
+                    height=CARD_HEIGHT,
+                    # ========== 关键：使用 margin 控制位置，而不是 left ==========
+                    margin=ft.Margin(left=current_offset, top=0, right=0, bottom=0),
+                    #left=current_offset,
+                    # ========== 裁剪自身内容 ==========
+                    clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                )
+                
+                # ========== Stack 布局 ==========
+                stack = ft.Stack(
+                    [
+                        right_container,  # 下层：按钮（始终在右侧）
+                        main_card,        # 上层：卡片（滑动遮盖按钮）
+                    ],
+                    height=CARD_HEIGHT,
+                    # ========== 关键：裁剪 Stack 自身，防止按钮溢出 ==========
+                    clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                )
+                
+                # ========== 使用 GestureDetector 的 horizontal drag ==========
+                # ========== 关键修复：使用 on_pan_start, on_pan_update, on_pan_end ==========
+                # 但添加一个备用机制：通过 on_hover 和鼠标事件
+                
+                is_dragging = False
+                drag_start_x = 0
+                drag_start_offset = 0
+                
+                # ========== 关键修复：同时支持鼠标和触摸 ==========
+                def on_pan_start(e):
+                    nonlocal is_dragging, drag_start_x, drag_start_offset
+                    is_dragging = True
+                    # ========== 修复：正确获取起始 X 位置 ==========
+                    if hasattr(e, 'local_x'):
+                        drag_start_x = e.local_x
+                    elif hasattr(e, 'local_position') and e.local_position:
+                        drag_start_x = e.local_position[0] if hasattr(e.local_position, '__getitem__') else 0
+                    else:
+                        drag_start_x = 0
+                    drag_start_offset = current_offset
+                    print(f"[Pan开始] start_x: {drag_start_x}, offset: {current_offset}")
+                
+                def on_pan_update(e):
+                    nonlocal is_dragging, current_offset, drag_start_x, drag_start_offset
+                    
+                    if not is_dragging:
+                        return
+                    
+                    # ========== 修复：正确获取当前 X 位置 ==========
+                    current_x = 0
+                    if hasattr(e, 'local_x'):
+                        current_x = e.local_x
+                    elif hasattr(e, 'local_position') and e.local_position:
+                        current_x = e.local_position[0] if hasattr(e.local_position, '__getitem__') else 0
+                    
+                    # 计算位移
+                    delta_x = current_x - drag_start_x
+                    
+                    if delta_x == 0:
+                        return
+                    
+                    new_offset = drag_start_offset + delta_x
+                    new_offset = max(-BUTTON_WIDTH, min(0, new_offset))
+                    
+                    if new_offset != current_offset:
+                        current_offset = new_offset
+                        card_swipe_states[note_id] = new_offset
+                        main_card.left = new_offset
+                        main_card.update()
+                        print(f"[Pan更新] delta_x: {delta_x}, offset: {new_offset}")
+                
+                def on_pan_end(e):
+                    nonlocal is_dragging, current_offset
+                    
+                    is_dragging = False
+                    
+                    if current_offset < -BUTTON_WIDTH / 2:
+                        target_offset = -BUTTON_WIDTH
+                    else:
+                        target_offset = 0
+                    
+                    if abs(current_offset) < 10:
+                        target_offset = 0
+                    
+                    current_offset = target_offset
+                    card_swipe_states[note_id] = target_offset
+                    main_card.left = target_offset
+                    main_card.update()
+                    print(f"[Pan结束] offset: {target_offset}")
+                
+                # ========== 使用 GestureDetector（手机上有效） ==========
+                gesture_detector = ft.GestureDetector(
+                    content=stack,
+                    on_pan_start=on_pan_start,
+                    on_pan_update=on_pan_update,
+                    on_pan_end=on_pan_end,
+                )
+                
+                return gesture_detector
+
+
+            
+            def toggle_pin_note(note_id):
+                """切换笔记置顶状态"""
+                note = next((n for n in memo_notes if n.id == note_id), None)
+                if note:
+                    # 切换置顶状态（使用一个自定义属性）
+                    if hasattr(note, 'is_pinned'):
+                        note.is_pinned = not note.is_pinned
+                    else:
+                        note.is_pinned = True
+                    
+                    # 重新排序并刷新
+                    render_notes()
+                    show_bottom_message(f"📌 已{'置顶' if note.is_pinned else '取消置顶'}")
+            
+            def delete_note_by_id(note_id):
+                """删除笔记（带确认）"""
+                note = next((n for n in memo_notes if n.id == note_id), None)
+                if not note:
+                    return
+                
+                def confirm_delete():
+                    global memo_notes
+                    memo_notes = [n for n in memo_notes if n.id != note_id]
+                    # 清除滑动状态
+                    if note_id in card_swipe_states:
+                        del card_swipe_states[note_id]
+                    save_memo_notes()
+                    render_notes()
+                    show_bottom_message("已删除笔记")
+                
+                show_delete_confirm_dialog(f"确定要删除「{note.title}」吗？", confirm_delete)
             
             def render_notes():
                 notes_list.controls.clear()
                 
+                # 更新分类下拉框的显示
                 # ========== 更新分类下拉框的显示（包括数量和菜单项） ==========
                 category_popup.content.controls[0].value = get_current_display()
                 # ========== 重新构建菜单项，更新数量 ==========
@@ -5673,7 +5875,13 @@ def main(page: ft.Page):
                             continue
                     filtered_notes.append(note)
                 
-                filtered_notes.sort(key=lambda x: x.updated_at, reverse=True)
+                # ========== 排序：置顶的在前，然后按更新时间倒序 ==========
+                def sort_key(note):
+                    is_pinned = getattr(note, 'is_pinned', False)
+                    # 置顶的排前面（True > False），然后按更新时间倒序
+                    return (is_pinned, note.updated_at)
+                
+                filtered_notes.sort(key=lambda x: (not getattr(x, 'is_pinned', False), x.updated_at), reverse=True)
                 
                 count_text.value = f"共 {len(filtered_notes)} 条笔记"
                 count_text.update()
