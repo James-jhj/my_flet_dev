@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.193"
-APP_VERSION_CODE = 193
+APP_VERSION = "1.0.194"
+APP_VERSION_CODE = 194
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -3099,6 +3099,7 @@ def main(page: ft.Page):
         "6472c4db5200105e8788ba00aee9fe84",  # 开发者的window ID
         "819374e1a2b43595a5da70474fcc7e4f",  # 开发者的手机 ID1
         "49d8a4e0bdcd63998fb17e6033727d64",  # 开发者的手机 ID2
+        "141d65d75cdefee314907464911006b9",  # 开发者的手机 ID3
         #"",  # 可以添加多个
     ]
     
