@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.192"
-APP_VERSION_CODE = 192
+APP_VERSION = "1.0.193"
+APP_VERSION_CODE = 193
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -448,8 +448,8 @@ class MemoNote:
             data.get("is_pinned", False),  # 新增，兼容旧数据
         )
     
-    def get_preview(self, max_length=15):
-        """获取内容预览（只显示第一行，最多15个汉字）"""
+    def get_preview(self, max_length=40):
+        """获取内容预览（按视觉宽度截断，中文算2，英文数字算1）"""
         if not self.content:
             return ""
         
@@ -459,10 +459,34 @@ class MemoNote:
         if not first_line:
             return ""
         
-        # 如果第一行太长，截断（汉字算1个字符）
-        if len(first_line) > max_length:
-            return first_line[:max_length] + "..."
-        return first_line
+        # ========== 计算视觉宽度 ==========
+        # 中文字符和全角字符算2，英文/数字/半角标点算1
+        def get_display_width(char):
+            """获取字符的显示宽度"""
+            # 中文字符范围
+            if '\u4e00' <= char <= '\u9fff':
+                return 2
+            # 全角标点
+            if '\uff00' <= char <= '\uffef':
+                return 2
+            # 日文/韩文等
+            if '\u3040' <= char <= '\u30ff':
+                return 2
+            # 其他字符（英文、数字、半角标点）算1
+            return 1
+        
+        # 逐字符累加宽度
+        width = 0
+        result = ""
+        for char in first_line:
+            char_width = get_display_width(char)
+            if width + char_width > max_length:
+                result += "..."
+                break
+            result += char
+            width += char_width
+        
+        return result
     
 # ========== 全局下拉框管理器 ==========
 class DropdownManager:
@@ -5629,7 +5653,7 @@ def main(page: ft.Page):
             def create_normal_card(note):
                 """创建可左滑的笔记卡片 - 参照示例代码风格"""
                 display_date = note.updated_at if note.updated_at else note.created_at
-                preview_text = note.get_preview(15)
+                preview_text = note.get_preview(40)
                 note_id = note.id
                 
                 # 获取当前滑动偏移量
@@ -6418,7 +6442,7 @@ def main(page: ft.Page):
                     render_select_list()
                 
                 display_date = note.updated_at if note.updated_at else note.created_at
-                preview_text = note.get_preview(15)
+                preview_text = note.get_preview(40)
                 
                 return ft.Container(
                     content=ft.Row([
