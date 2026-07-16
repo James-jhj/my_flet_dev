@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.195"
-APP_VERSION_CODE = 195
+APP_VERSION = "1.0.196"
+APP_VERSION_CODE = 196
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -12830,6 +12830,13 @@ def main(page: ft.Page):
                         selected_event.completed = False
                     save_events(trigger_check=False)
 
+                    # ========== 关键修复：重置今日事件提醒标记 ==========
+                    today = datetime.now().date()
+                    today_key = f"today_{today.strftime('%Y-%m-%d')}"
+                    if today_key in sent_notifications:
+                        sent_notifications.discard(today_key)
+                        print(f"[保存] 已重置今日事件提醒标记: {today_key}")
+
                     # ========== 强制触发检查 ==========
                     async def do_check():
                         await asyncio.sleep(0.3)
@@ -12886,6 +12893,13 @@ def main(page: ft.Page):
                         new_event.completed = False
                     events[event_id] = new_event
                     save_events(trigger_check=False)
+
+                    # ========== 关键修复：重置今日事件提醒标记 ==========
+                    today = datetime.now().date()
+                    today_key = f"today_{today.strftime('%Y-%m-%d')}"
+                    if today_key in sent_notifications:
+                        sent_notifications.discard(today_key)
+                        print(f"[保存] 已重置今日事件提醒标记: {today_key}")
 
                     # ========== 强制触发检查 ==========
                     async def do_check():
