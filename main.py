@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.194"
-APP_VERSION_CODE = 194
+APP_VERSION = "1.0.195"
+APP_VERSION_CODE = 195
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -8306,27 +8306,25 @@ def main(page: ft.Page):
                         if filter_expense_categories and t.category in filter_expense_categories:
                             filtered_records.append(t)
 
-            #filtered_records.sort(key=lambda x: x.date, reverse=True)
-
-            # ========== 修改排序：先按日期降序，再按时间降序 ==========
-            def sort_key(record):
-                """排序键：日期 + 时间（降序）"""
-                # 获取时间，如果没有则使用 "00:00"
+            # ========== 用于显示的列表（按日期+时间降序，最新的在前） ==========
+            def sort_key_desc(record):
                 time_str = getattr(record, 'time', '00:00')
-                # 组合成可排序的字符串：日期 + 时间
                 return f"{record.date} {time_str}"
             
-            # 按日期+时间降序排序（最新的在前）
-            filtered_records.sort(key=sort_key, reverse=True)
-
-            # ========== 计算统计信息 ==========
-            month_income = sum(t.amount for t in filtered_records if t.type == "income")
-            month_expense = sum(t.amount for t in filtered_records if t.type == "expense")
-
-            # ========== 计算累计结余和每条记录的余额 ==========
-            all_transactions_sorted = sorted(transactions, key=lambda x: x.date)
+            display_records = sorted(filtered_records, key=sort_key_desc, reverse=True)
+            
+            # ========== 计算实时余额（按日期+时间正序，从早到晚） ==========
+            # 关键修复：使用相同的排序键，但正序排列
+            def sort_key_asc(record):
+                time_str = getattr(record, 'time', '00:00')
+                return f"{record.date} {time_str}"
+            
+            # 获取所有交易记录，按日期+时间正序排序（从早到晚）
+            all_transactions_sorted = sorted(transactions, key=sort_key_asc)
+            
+            # 计算每条记录的累计余额
             running_balance = 0
-            balance_map = {}  # 每条记录的累计余额
+            balance_map = {}  # {记录ID: 累计余额}
             
             for t in all_transactions_sorted:
                 if t.type == "income":
@@ -8334,42 +8332,30 @@ def main(page: ft.Page):
                 else:
                     running_balance -= t.amount
                 balance_map[t.id] = running_balance
+
+            # ========== 计算统计信息 ==========
+            month_income = sum(t.amount for t in filtered_records if t.type == "income")
+            month_expense = sum(t.amount for t in filtered_records if t.type == "expense")
             
-            # 累计结余（所有记录的最终余额）
-            total_balance = running_balance
-            
-            # ========== 计算上个月末的累计结余 ==========
-            # 获取本月的第一天（作为日期对象）
+            # 计算上月末结余
             if query_mode == "month":
                 first_day_of_month = datetime(current_year, current_month, 1).date()
-                # 转换为字符串格式以便比较
                 first_day_str = first_day_of_month.strftime("%Y-%m-%d")
             else:
-                # 区间查询：使用开始日期
                 first_day_str = start_date.strftime("%Y-%m-%d")
             
-            # 获取本月之前的所有记录（日期小于本月第一天）
             prev_records = [t for t in transactions if t.date < first_day_str]
-            
             if prev_records:
-                # 按日期排序，取最后一条
-                prev_records_sorted = sorted(prev_records, key=lambda x: x.date)
+                prev_records_sorted = sorted(prev_records, key=sort_key_asc)
                 last_prev_record = prev_records_sorted[-1]
                 previous_month_balance = balance_map.get(last_prev_record.id, 0)
             else:
-                # 如果没有之前的记录，从0开始
                 previous_month_balance = 0
             
-            # 3. 本月结余 = 上个月末结余 + 本月收入 - 本月支出
             month_balance = previous_month_balance + month_income - month_expense
             
-            print(f"上月末结余：{previous_month_balance}")
-            print(f"本月收入：{month_income}")
-            print(f"本月支出：{month_expense}")
-            print(f"本月结余：{month_balance}")
-            print(f"累计结余：{total_balance}")
-            
-            if not filtered_records:
+            # ========== 显示记录卡片（使用 display_records） ==========
+            if not display_records:
                 records_list.controls.append(
                     ft.Container(
                         content=ft.Text("暂无记录，点击 + 添加", size=14, color=ft.Colors.GREY_500),
@@ -8384,7 +8370,7 @@ def main(page: ft.Page):
                             ft.Row([
                                 ft.Text("📊 统计汇总", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
                                 ft.Container(expand=True),
-                                ft.Text(f"共 {len(filtered_records)} 笔交易", size=11, color=ft.Colors.GREY_500),
+                                ft.Text(f"共 {len(display_records)} 笔交易", size=11, color=ft.Colors.GREY_500),
                             ]),
                             ft.Row([
                                 ft.Column([
@@ -8409,62 +8395,16 @@ def main(page: ft.Page):
                 page.update()
                 return
             
-            # ========== 计算实时余额（从最早记录开始累计） ==========
-            # 1. 先获取所有交易记录（不限日期），按日期正序排序
-            all_transactions_sorted = sorted(transactions, key=lambda x: x.date)
-            
-            # 2. 计算每条记录的累计余额
-            running_balance = 0
-            balance_map = {}  # {记录ID: 累计余额}
-            
-            for t in all_transactions_sorted:
-                if t.type == "income":
-                    running_balance += t.amount
-                else:
-                    running_balance -= t.amount
-                balance_map[t.id] = running_balance
-            
-            # 3. 如果有分类筛选，需要重新计算筛选后的余额（基于全部记录）
-            if is_filter_active:
-                # 重新计算筛选后的余额
-                # 按日期正序排序筛选后的记录
-                filtered_sorted = sorted(filtered_records, key=lambda x: x.date)
-                #filtered_balance = 0
-                filtered_balance_map = {}
-                
-                # 获取所有筛选记录之前的累计余额
-                for t in filtered_sorted:
-                    # 计算该记录之前的累计余额（所有记录，不限筛选）
-                    # 找到该记录之前的所有记录（包括未筛选的）
-                    prev_balance = 0
-                    for prev_t in all_transactions_sorted:
-                        if prev_t.date < t.date:
-                            if prev_t.type == "income":
-                                prev_balance += prev_t.amount
-                            else:
-                                prev_balance -= prev_t.amount
-                        elif prev_t.date == t.date and prev_t.id == t.id:
-                            break
-                    
-                    # 然后加上当前记录之前的筛选记录余额
-                    # 但这里简单处理：直接用全部余额
-                    # 更准确的方式：筛选后的余额 = 全部余额 - 被筛选掉的记录余额
-                    filtered_balance_map[t.id] = balance_map.get(t.id, 0)
-                
-                # 使用全部余额（因为筛选只是显示过滤，余额应该是真实余额）
-                # 所以直接使用 balance_map
-                pass
-
-            # 显示记录卡片
-            for index, t in enumerate(filtered_records):
+            # ========== 显示记录卡片 ==========
+            for index, t in enumerate(display_records):
                 is_income = t.type == "income"
                 amount_color = ft.Colors.GREEN_700 if is_income else ft.Colors.RED_700
                 amount_prefix = "+" if is_income else "-"
-
-                # 获取当前记录的实时余额
+                
+                # ========== 关键修复：从 balance_map 获取正确的实时余额 ==========
                 current_balance = balance_map.get(t.id, 0)
-
-                # ========== 构造日期显示（包含时间） ==========
+                
+                # 日期显示（包含时间）
                 if hasattr(t, 'time') and t.time and t.time != "00:00":
                     date_display = f"{t.date} {t.time}"
                 else:
@@ -8472,7 +8412,6 @@ def main(page: ft.Page):
                 
                 record_card = ft.Container(
                     content=ft.Column([
-                        # 第一行：分类 + 金额
                         ft.Row([
                             ft.Row([
                                 ft.Icon(ft.Icons.ARROW_UPWARD if is_income else ft.Icons.ARROW_DOWNWARD, 
@@ -8487,7 +8426,6 @@ def main(page: ft.Page):
                                 color=amount_color,
                             ),
                         ]),
-                        # 第二行：日期+时间 + 实时余额
                         ft.Row([
                             ft.Text(date_display, size=11, color=ft.Colors.GREY_500),
                             ft.Container(expand=True),
@@ -8495,20 +8433,18 @@ def main(page: ft.Page):
                                 f"余额: ¥ {current_balance:,.2f}",
                                 size=11,
                                 color=ft.Colors.GREY_700 if current_balance >= 0 else ft.Colors.RED_700,
-                                #weight=ft.FontWeight.BOLD if current_balance >= 0 else ft.FontWeight.BOLD,
                             ),
                         ], spacing=5),
-                        # 备注（如果有）
                         ft.Text(t.note, size=11, color=ft.Colors.GREY_500) if t.note else ft.Container(),
                     ], spacing=2),
                     padding=10,
-                    border=ft.border.Border(bottom=ft.border.BorderSide(1, ft.Colors.GREY_200)) if index < len(filtered_records) - 1 else None,
+                    border=ft.border.Border(bottom=ft.border.BorderSide(1, ft.Colors.GREY_200)) if index < len(display_records) - 1 else None,
                     ink=True,
                     on_click=lambda e, tr=t: edit_transaction(tr),
                 )
                 records_list.controls.append(record_card)
             
-            # ========== 添加底部统计汇总 ==========
+            # ========== 底部统计汇总 ==========
             records_list.controls.append(
                 ft.Container(
                     content=ft.Column([
@@ -8516,7 +8452,7 @@ def main(page: ft.Page):
                         ft.Row([
                             ft.Text("📊 统计汇总", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
                             ft.Container(expand=True),
-                            ft.Text(f"共 {len(filtered_records)} 笔交易", size=11, color=ft.Colors.GREY_500),
+                            ft.Text(f"共 {len(display_records)} 笔交易", size=11, color=ft.Colors.GREY_500),
                         ]),
                         ft.Row([
                             ft.Column([
@@ -8538,24 +8474,19 @@ def main(page: ft.Page):
                     border_radius=10,
                 )
             )
-
-            # ========== 关键：在底部添加内边距，防止被悬浮按钮遮挡 ==========
-            # 计算悬浮按钮的高度（50px按钮 + 12px间距 + 50px添加按钮 = 112px + 额外安全边距）
+            
+            # 底部内边距
             records_list.controls.append(ft.Container(height=130))
-
-            # ========== 安全地重置滚动位置 ==========
+            
+            # 重置滚动位置
             async def reset_scroll():
                 try:
-                    # 检查 scroll_container 是否还存在且有效
                     if scroll_container and hasattr(scroll_container, 'page') and scroll_container.page is not None:
                         if hasattr(scroll_container, 'scroll_to'):
                             await scroll_container.scroll_to(offset=0, duration=0)
                 except Exception as e:
-                    # 忽略错误，控件可能已被销毁
                     print(f"滚动重置失败: {e}")
-                    pass
             
-            # 使用 asyncio.create_task 并忽略错误
             try:
                 asyncio.create_task(reset_scroll())
             except:
