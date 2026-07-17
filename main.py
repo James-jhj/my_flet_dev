@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.196"
-APP_VERSION_CODE = 196
+APP_VERSION = "1.0.197"
+APP_VERSION_CODE = 197
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -8514,6 +8514,10 @@ def main(page: ft.Page):
             # 控制回到本月按钮的显示
             back_to_today_btn.visible = not is_current_month
 
+            # ========== 更新按钮上的月份数字（始终保持显示当前月份） ==========
+            back_to_today_btn.content.controls[0].value = str(now.month)
+            back_to_today_btn.tooltip = f"回到本月 ({now.year}年{now.month}月)"
+
             # 更新查询模式显示
             update_query_mode_display()
             
@@ -8539,6 +8543,10 @@ def main(page: ft.Page):
             now = datetime.now()
             is_current_month = (current_year == now.year and current_month == now.month)
             back_to_today_btn.visible = not is_current_month
+
+            # ========== 更新按钮上的月份数字 ==========
+            back_to_today_btn.content.controls[0].value = str(now.month)
+            back_to_today_btn.tooltip = f"回到本月 ({now.year}年{now.month}月)"
             
             update_query_mode_display()
             refresh_summary()
@@ -8557,6 +8565,11 @@ def main(page: ft.Page):
             
             # 隐藏回到本月按钮
             back_to_today_btn.visible = False
+
+            # ========== 更新按钮上的月份数字 ==========
+            back_to_today_btn.content.controls[0].value = str(now.month)
+            back_to_today_btn.tooltip = f"回到本月 ({now.year}年{now.month}月)"
+            back_to_today_btn.update()
 
             update_query_mode_display()
             
@@ -9209,17 +9222,31 @@ def main(page: ft.Page):
             #padding=ft.padding.only(left=5, right=5),
         )
 
+        # 获取当前月份的数字
+        now = datetime.now()
+
         # 创建回到本月按钮（与回到今天按钮风格一致）
         back_to_today_btn = ft.Container(
-            content=ft.Icon(ft.Icons.TODAY, size=24, color=ft.Colors.BLUE_700),
+            content=ft.Column(
+                [
+                    ft.Text(
+                        str(now.month),  # 显示月份数字
+                        size=18,
+                        weight=ft.FontWeight.BOLD,
+                        color=ft.Colors.BLUE_700,
+                        text_align="center",
+                    ),
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
             width=50,
             height=50,
             bgcolor=ft.Colors.WHITE,
             border_radius=25,
             ink=True,
             on_click=go_to_current_month,
-            tooltip="回到本月",
-            #border=ft.border.all(1, ft.Colors.BLUE_200),
+            tooltip=f"回到本月 ({now.year}年{now.month}月)",
             shadow=ft.BoxShadow(
                 spread_radius=1,
                 blur_radius=8,
