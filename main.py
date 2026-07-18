@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.197"
-APP_VERSION_CODE = 197
+APP_VERSION = "1.0.198"
+APP_VERSION_CODE = 198
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -7288,7 +7288,7 @@ def main(page: ft.Page):
             page.update()
 
         async def export_filtered_accounting(e):
-            """导出当前筛选后的记账数据到Excel（包含时间，修正结余计算）"""
+            """导出当前筛选后的记账数据到Excel（包含时间，修正结余计算）+ 数据透视表"""
             global transactions
             
             # ========== 获取当前列表的数据 ==========
@@ -7323,11 +7323,11 @@ def main(page: ft.Page):
             
             base_records.sort(key=get_sort_key, reverse=True)
             
-            # ========== 计算本月收入和支出 ==========
+            # ========== 计算统计信息 ==========
             month_income = sum(t.amount for t in base_records if t.type == "income")
             month_expense = sum(t.amount for t in base_records if t.type == "expense")
             
-            # ========== 计算累计结余 ==========
+            # 计算累计结余
             all_transactions_sorted = sorted(transactions, key=lambda x: x.date)
             running_balance = 0
             balance_map = {}
@@ -7339,17 +7339,14 @@ def main(page: ft.Page):
                 balance_map[t.id] = running_balance
             cumulative_balance = running_balance
             
-            # ========== 计算上个月末的累计结余 ==========
-            # 获取本月的第一天（转换为字符串）
+            # 计算上月末结余
             if query_mode == "month":
                 first_day_of_month = datetime(current_year, current_month, 1).date()
                 first_day_str = first_day_of_month.strftime("%Y-%m-%d")
             else:
                 first_day_str = start_date.strftime("%Y-%m-%d")
             
-            # 获取本月之前的所有记录
             prev_records = [t for t in transactions if t.date < first_day_str]
-            
             if prev_records:
                 prev_records_sorted = sorted(prev_records, key=lambda x: x.date)
                 last_prev_record = prev_records_sorted[-1]
@@ -7357,7 +7354,6 @@ def main(page: ft.Page):
             else:
                 previous_month_balance = 0
             
-            # 本月结余 = 上月末结余 + 本月收入 - 本月支出
             month_balance = previous_month_balance + month_income - month_expense
             
             income_count = len([t for t in base_records if t.type == "income"])
@@ -7376,7 +7372,6 @@ def main(page: ft.Page):
                 end_date_str = end_date.strftime("%Y-%m-%d")
                 time_range = f"{start_date_str} ~ {end_date_str}"
             
-            # 导出时间
             export_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
             # ========== 创建Excel文件 ==========
@@ -7385,53 +7380,54 @@ def main(page: ft.Page):
                 temp_file = os.path.join(temp_dir, f"accounting_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
                 
                 wb = Workbook()
-                ws = wb.active
-                ws.title = "记账明细"
                 
-                # ========== 写入汇总信息 ==========
-                ws.merge_cells('A1:F1')
-                ws['A1'] = "📊 账单明细"
-                ws['A1'].font = openpyxl.styles.Font(size=16, bold=True)
-                ws['A1'].alignment = openpyxl.styles.Alignment(horizontal='center')
+                # ============================================================
+                # 工作表1：记账明细
+                # ============================================================
+                ws_detail = wb.active
+                ws_detail.title = "记账明细"
                 
-                ws['A2'] = "查询范围："
-                ws['B2'] = time_range
-                ws['A3'] = "导出时间："
-                ws['B3'] = export_time
+                # 写入汇总信息
+                ws_detail.merge_cells('A1:F1')
+                ws_detail['A1'] = "📊 账单明细"
+                ws_detail['A1'].font = openpyxl.styles.Font(size=16, bold=True)
+                ws_detail['A1'].alignment = openpyxl.styles.Alignment(horizontal='center')
                 
-                # 统计信息
-                ws['A5'] = f"共计：{total_count}笔记录"
-                ws['A5'].font = openpyxl.styles.Font(bold=True)
-                ws['A6'] = f"收入：{income_count}笔  {month_income:,.2f}元"
-                ws['A6'].font = openpyxl.styles.Font(color="008000")
-                ws['A7'] = f"支出：{expense_count}笔  {month_expense:,.2f}元"
-                ws['A7'].font = openpyxl.styles.Font(color="FF0000")
-                ws['A8'] = f"本月结余：{month_balance:,.2f}元"
-                ws['A8'].font = openpyxl.styles.Font(bold=True, color="0000FF" if month_balance >= 0 else "FF0000")
-                ws['A9'] = f"累计结余（截至{end_date_str}）：{cumulative_balance:,.2f}元"
-                ws['A9'].font = openpyxl.styles.Font(bold=True, color="800080")
+                ws_detail['A2'] = "查询范围："
+                ws_detail['B2'] = time_range
+                ws_detail['A3'] = "导出时间："
+                ws_detail['B3'] = export_time
                 
-                # 空行
-                ws.append([])
+                ws_detail['A5'] = f"共计：{total_count}笔记录"
+                ws_detail['A5'].font = openpyxl.styles.Font(bold=True)
+                ws_detail['A6'] = f"收入：{income_count}笔  {month_income:,.2f}元"
+                ws_detail['A6'].font = openpyxl.styles.Font(color="008000")
+                ws_detail['A7'] = f"支出：{expense_count}笔  {month_expense:,.2f}元"
+                ws_detail['A7'].font = openpyxl.styles.Font(color="FF0000")
+                ws_detail['A8'] = f"本月结余：{month_balance:,.2f}元"
+                ws_detail['A8'].font = openpyxl.styles.Font(bold=True, color="0000FF" if month_balance >= 0 else "FF0000")
+                ws_detail['A9'] = f"累计结余（截至{end_date_str}）：{cumulative_balance:,.2f}元"
+                ws_detail['A9'].font = openpyxl.styles.Font(bold=True, color="800080")
                 
-                # ========== 写入表头（添加时间列） ==========
+                ws_detail.append([])
+                
+                # 写入表头
                 headers = ["日期", "时间", "类型", "分类", "金额", "备注"]
-                ws.append(headers)
+                ws_detail.append(headers)
                 
-                # 设置表头样式
                 header_font = openpyxl.styles.Font(bold=True, color="FFFFFF")
                 header_fill = openpyxl.styles.PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
                 for col in range(1, len(headers) + 1):
-                    cell = ws.cell(row=ws.max_row, column=col)
+                    cell = ws_detail.cell(row=ws_detail.max_row, column=col)
                     cell.font = header_font
                     cell.fill = header_fill
                     cell.alignment = openpyxl.styles.Alignment(horizontal='center')
                 
-                # ========== 写入数据（包含时间） ==========
+                # 写入数据
                 for t in base_records:
                     type_str = "收入" if t.type == "income" else "支出"
                     time_str = getattr(t, 'time', '00:00')
-                    ws.append([
+                    ws_detail.append([
                         t.date,
                         time_str,
                         type_str,
@@ -7441,19 +7437,136 @@ def main(page: ft.Page):
                     ])
                 
                 # 设置金额列为数字格式
-                for row in range(ws.max_row - len(base_records) + 1, ws.max_row + 1):
-                    cell = ws.cell(row=row, column=5)
+                for row in range(ws_detail.max_row - len(base_records) + 1, ws_detail.max_row + 1):
+                    cell = ws_detail.cell(row=row, column=5)
                     cell.number_format = '#,##0.00'
                 
                 # 调整列宽
-                ws.column_dimensions['A'].width = 14
-                ws.column_dimensions['B'].width = 10
-                ws.column_dimensions['C'].width = 10
-                ws.column_dimensions['D'].width = 18
-                ws.column_dimensions['E'].width = 14
-                ws.column_dimensions['F'].width = 30
+                ws_detail.column_dimensions['A'].width = 14
+                ws_detail.column_dimensions['B'].width = 10
+                ws_detail.column_dimensions['C'].width = 10
+                ws_detail.column_dimensions['D'].width = 18
+                ws_detail.column_dimensions['E'].width = 14
+                ws_detail.column_dimensions['F'].width = 30
                 
-                # 保存临时文件
+                # ============================================================
+                # 工作表2：数据透视表（按类型和分类汇总）
+                # ============================================================
+                ws_pivot = wb.create_sheet("数据透视表")
+                
+                # 标题
+                ws_pivot.merge_cells('A1:D1')
+                ws_pivot['A1'] = "📊 数据透视表 - 按分类汇总"
+                ws_pivot['A1'].font = openpyxl.styles.Font(size=16, bold=True)
+                ws_pivot['A1'].alignment = openpyxl.styles.Alignment(horizontal='center')
+                
+                ws_pivot['A2'] = "查询范围："
+                ws_pivot['B2'] = time_range
+                ws_pivot['A3'] = "导出时间："
+                ws_pivot['B3'] = export_time
+                
+                ws_pivot.append([])
+                
+                # ========== 按类型和分类汇总 ==========
+                # 收集所有分类
+                income_categories = {}
+                expense_categories = {}
+                
+                for t in base_records:
+                    if t.type == "income":
+                        income_categories[t.category] = income_categories.get(t.category, 0) + t.amount
+                    else:
+                        expense_categories[t.category] = expense_categories.get(t.category, 0) + t.amount
+                
+                # 写入表头
+                pivot_headers = ["类型", "分类", "笔数", "金额"]
+                ws_pivot.append(pivot_headers)
+                
+                header_font_pivot = openpyxl.styles.Font(bold=True, color="FFFFFF")
+                
+                for col in range(1, len(pivot_headers) + 1):
+                    cell = ws_pivot.cell(row=ws_pivot.max_row, column=col)
+                    cell.font = header_font_pivot
+                    cell.fill = openpyxl.styles.PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+                    cell.alignment = openpyxl.styles.Alignment(horizontal='center')
+                
+                # 写入收入分类
+                start_row = ws_pivot.max_row + 1
+                total_income = 0
+                total_income_count = 0
+                
+                for category, amount in sorted(income_categories.items(), key=lambda x: x[1], reverse=True):
+                    count = len([t for t in base_records if t.type == "income" and t.category == category])
+                    ws_pivot.append(["收入", category, count, amount])
+                    total_income += amount
+                    total_income_count += count
+                
+                # 收入合计行
+                if income_categories:
+                    ws_pivot.append(["收入合计", "", total_income_count, total_income])
+                    row = ws_pivot.max_row
+                    for col in range(1, 5):
+                        cell = ws_pivot.cell(row=row, column=col)
+                        cell.font = openpyxl.styles.Font(bold=True, color="008000")
+                        cell.fill = openpyxl.styles.PatternFill(start_color="E2F0D9", end_color="E2F0D9", fill_type="solid")
+                        if col == 4:
+                            cell.number_format = '#,##0.00'
+                
+                # 空行
+                ws_pivot.append([])
+                
+                # 写入支出分类
+                total_expense = 0
+                total_expense_count = 0
+                
+                for category, amount in sorted(expense_categories.items(), key=lambda x: x[1], reverse=True):
+                    count = len([t for t in base_records if t.type == "expense" and t.category == category])
+                    ws_pivot.append(["支出", category, count, amount])
+                    total_expense += amount
+                    total_expense_count += count
+                
+                # 支出合计行
+                if expense_categories:
+                    ws_pivot.append(["支出合计", "", total_expense_count, total_expense])
+                    row = ws_pivot.max_row
+                    for col in range(1, 5):
+                        cell = ws_pivot.cell(row=row, column=col)
+                        cell.font = openpyxl.styles.Font(bold=True, color="FF0000")
+                        cell.fill = openpyxl.styles.PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid")
+                        if col == 4:
+                            cell.number_format = '#,##0.00'
+                
+                # 空行
+                ws_pivot.append([])
+                
+                # 总计行
+                total_all = total_income + total_expense
+                total_all_count = total_income_count + total_expense_count
+                ws_pivot.append(["总计", "", total_all_count, total_all])
+                row = ws_pivot.max_row
+                for col in range(1, 5):
+                    cell = ws_pivot.cell(row=row, column=col)
+                    cell.font = openpyxl.styles.Font(bold=True, size=12)
+                    cell.fill = openpyxl.styles.PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+                    if col == 4:
+                        cell.number_format = '#,##0.00'
+                        cell.font = openpyxl.styles.Font(bold=True, size=12, color="0000FF")
+                
+                # 调整列宽
+                ws_pivot.column_dimensions['A'].width = 12
+                ws_pivot.column_dimensions['B'].width = 20
+                ws_pivot.column_dimensions['C'].width = 10
+                ws_pivot.column_dimensions['D'].width = 16
+                
+                # 设置金额列为数字格式
+                for row in range(start_row, ws_pivot.max_row + 1):
+                    cell = ws_pivot.cell(row=row, column=4)
+                    if cell.value is not None and isinstance(cell.value, (int, float)):
+                        cell.number_format = '#,##0.00'
+                
+                # ============================================================
+                # 保存文件
+                # ============================================================
                 wb.save(temp_file)
                 
                 # 读取文件内容
@@ -7480,7 +7593,7 @@ def main(page: ft.Page):
                 os.remove(temp_file)
                 
                 if result:
-                    show_bottom_message(f"✅ 成功导出 {total_count} 条记录 (收入: ¥{month_income:,.2f}, 支出: ¥{month_expense:,.2f})")
+                    show_bottom_message(f"✅ 成功导出 {total_count} 条记录，含数据透视表")
                 else:
                     show_bottom_message("已取消导出")
                 
@@ -15400,7 +15513,7 @@ def main(page: ft.Page):
                             bgcolor=ft.Colors.BLUE_50,
                             border_radius=50,
                         ),
-                        ft.Text("确认导入记账数据", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
+                        ft.Text("确认导入", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, text_align=ft.TextAlign.CENTER),
                         ft.Divider(),
                         ft.Text(f"即将导入 {imported_count} 条记账记录", size=14),
                         ft.Text(f"当前有 {len(transactions)} 条记录将被替换", size=12, color=ft.Colors.ORANGE_700),
@@ -15410,7 +15523,7 @@ def main(page: ft.Page):
                             ft.ElevatedButton("确认导入", on_click=lambda e: confirm_replace(), expand=True,
                                             style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE)),
                         ], spacing=12),
-                    ], spacing=15),
+                    ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                     width=320, padding=20, bgcolor=ft.Colors.WHITE, border_radius=16,
                 )
                 
@@ -15448,26 +15561,22 @@ def main(page: ft.Page):
                 ft.Text("表头: 日期 | 时间 | 类型 | 分类 | 金额 | 备注", size=11, color=ft.Colors.GREY_600, text_align=ft.TextAlign.CENTER),
                 ft.Text("注：前5行为汇总信息，从第6行开始读取", size=11, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
                 ft.Divider(),
-                ft.Button(
-                    "选择文件", 
-                    on_click=lambda e: on_select_file(), 
-                    expand=True,
-                    style=ft.ButtonStyle(
-                        bgcolor=ft.Colors.BLUE_700,
-                        color=ft.Colors.WHITE,
-                        shape=ft.RoundedRectangleBorder(radius=8),
+                ft.Row([
+                    ft.ElevatedButton(
+                        "选择Excel文件", 
+                        on_click=lambda e: on_select_file(),  # 使用包装函数
+                        expand=True,
+                        style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE),
                     ),
-                ),
-                ft.Button(
-                    "取消", 
-                    on_click=lambda e: on_cancel(), 
-                    expand=True,
-                    style=ft.ButtonStyle(
-                        bgcolor=ft.Colors.GREY_100,
-                        color=ft.Colors.GREY_700,
-                        shape=ft.RoundedRectangleBorder(radius=8),
+                ], alignment=ft.MainAxisAlignment.CENTER),
+                ft.Row([
+                    ft.ElevatedButton(
+                        "取消", 
+                        on_click=lambda e: on_cancel(), 
+                        expand=True,
+                        style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.GREY_700),
                     ),
-                ),
+                ], alignment=ft.MainAxisAlignment.CENTER),
             ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
             width=320,
             padding=25,
@@ -15792,7 +15901,7 @@ def main(page: ft.Page):
                             bgcolor=ft.Colors.PURPLE_50,
                             border_radius=50,
                         ),
-                        ft.Text("确认导入备忘录", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.PURPLE_700),
+                        ft.Text("确认导入", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.PURPLE_700, text_align=ft.TextAlign.CENTER),
                         ft.Divider(),
                         ft.Text(f"即将导入 {imported_count} 条备忘录", size=14),
                         ft.Text(f"当前有 {len(memo_notes)} 条备忘录将被替换", size=12, color=ft.Colors.ORANGE_700),
@@ -15802,7 +15911,7 @@ def main(page: ft.Page):
                             ft.Button("确认导入", on_click=lambda e: confirm_replace(), expand=True,
                                     style=ft.ButtonStyle(bgcolor=ft.Colors.PURPLE_700, color=ft.Colors.WHITE)),
                         ], spacing=12),
-                    ], spacing=15),
+                    ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                     width=320, padding=20, bgcolor=ft.Colors.WHITE, border_radius=16,
                 )
                 
@@ -15835,26 +15944,22 @@ def main(page: ft.Page):
                 ft.Text("支持格式: .xlsx, .xls", size=12, color=ft.Colors.GREY_500),
                 ft.Text("支持置顶标识列（是/否）", size=11, color=ft.Colors.GREY_600),
                 ft.Divider(),
-                ft.Button(
-                    "选择文件", 
-                    on_click=lambda e: [close_menu(), asyncio.create_task(select_file_and_import())], 
-                    expand=True,
-                    style=ft.ButtonStyle(
-                        bgcolor=ft.Colors.PURPLE_700,
-                        color=ft.Colors.WHITE,
-                        shape=ft.RoundedRectangleBorder(radius=8),
+                ft.Row([
+                    ft.ElevatedButton(
+                        "选择Excel文件", 
+                        on_click=lambda e: [close_menu(), asyncio.create_task(select_file_and_import())], 
+                        expand=True,
+                        style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE),
                     ),
-                ),
-                ft.Button(
-                    "取消", 
-                    on_click=lambda e: close_menu(), 
-                    expand=True,
-                    style=ft.ButtonStyle(
-                        bgcolor=ft.Colors.GREY_100,
-                        color=ft.Colors.GREY_700,
-                        shape=ft.RoundedRectangleBorder(radius=8),
+                ], alignment=ft.MainAxisAlignment.CENTER),
+                ft.Row([
+                    ft.ElevatedButton(
+                        "取消", 
+                        on_click=lambda e: close_menu(), 
+                        expand=True,
+                        style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.GREY_700),
                     ),
-                ),
+                ], alignment=ft.MainAxisAlignment.CENTER),
             ], spacing=12, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
             width=320,
             padding=20,
@@ -15907,7 +16012,8 @@ def main(page: ft.Page):
                 ft.Button(
                     "📅 事件列表", 
                     on_click=lambda e: [close_menu(), asyncio.create_task(export_events_async(e))], 
-                    expand=True,
+                    #expand=True,
+                    width=150,
                     style=ft.ButtonStyle(
                         bgcolor=ft.Colors.BLUE_700,
                         color=ft.Colors.WHITE,
@@ -15917,7 +16023,8 @@ def main(page: ft.Page):
                 ft.Button(
                     "💰 记账列表", 
                     on_click=lambda e: [close_menu(), asyncio.create_task(export_accounting_async(e))], 
-                    expand=True,
+                    #expand=True,
+                    width=150,
                     style=ft.ButtonStyle(
                         bgcolor=ft.Colors.GREEN_700,
                         color=ft.Colors.WHITE,
@@ -15928,7 +16035,8 @@ def main(page: ft.Page):
                 ft.Button(
                     "📝 备忘录列表", 
                     on_click=lambda e: [close_menu(), asyncio.create_task(export_memo_async(e))], 
-                    expand=True,
+                    #expand=True,
+                    width=150,
                     style=ft.ButtonStyle(
                         bgcolor=ft.Colors.PURPLE_700,
                         color=ft.Colors.WHITE,
@@ -15994,7 +16102,8 @@ def main(page: ft.Page):
                 ft.Button(
                     "📅 事件列表", 
                     on_click=lambda e: [close_menu(), import_events_wrapper(e)], 
-                    expand=True,
+                    #expand=True,
+                    width = 150,
                     style=ft.ButtonStyle(
                         bgcolor=ft.Colors.BLUE_700,
                         color=ft.Colors.WHITE,
@@ -16004,7 +16113,8 @@ def main(page: ft.Page):
                 ft.Button(
                     "💰 记账列表", 
                     on_click=lambda e: [close_menu(), asyncio.create_task(import_accounting_async(e))], 
-                    expand=True,
+                    #expand=True,
+                    width = 150,
                     style=ft.ButtonStyle(
                         bgcolor=ft.Colors.GREEN_700,
                         color=ft.Colors.WHITE,
@@ -16015,7 +16125,8 @@ def main(page: ft.Page):
                 ft.Button(
                     "📝 备忘录列表", 
                     on_click=lambda e: [close_menu(), asyncio.create_task(import_memo_async(e))], 
-                    expand=True,
+                    #expand=True,
+                    width = 150,
                     style=ft.ButtonStyle(
                         bgcolor=ft.Colors.PURPLE_700,
                         color=ft.Colors.WHITE,
