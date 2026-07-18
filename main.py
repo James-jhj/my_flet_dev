@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.199"
-APP_VERSION_CODE = 199
+APP_VERSION = "1.0.200"
+APP_VERSION_CODE = 200
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -15554,7 +15554,7 @@ def main(page: ft.Page):
                     bgcolor=ft.Colors.BLUE_50,
                     border_radius=50,
                 ),
-                ft.Text("导入记账数据", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_700, text_align=ft.TextAlign.CENTER),
+                ft.Text("导入记账本", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_700, text_align=ft.TextAlign.CENTER),
                 ft.Divider(),
                 ft.Text("请选择记账Excel文件", size=14, text_align=ft.TextAlign.CENTER),
                 ft.Text("支持格式: .xlsx, .xls", size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
@@ -15678,7 +15678,7 @@ def main(page: ft.Page):
             
             # 选择保存位置
             result = await file_picker.save_file(
-                file_name=f"备忘录_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                file_name=f"notes_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                 src_bytes=file_bytes,
                 dialog_title="保存备忘录"
             )
