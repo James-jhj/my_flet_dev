@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.203"
-APP_VERSION_CODE = 203
+APP_VERSION = "1.0.204"
+APP_VERSION_CODE = 204
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -10007,18 +10007,28 @@ def main(page: ft.Page):
         base_year = 0
         month, day = 1, 1
 
+        # ========== 检查提醒是否全部被禁用 ==========
+        def has_enabled_reminder(reminders):
+            """检查是否有启用的提醒"""
+            if not reminders:
+                return False
+            return any(r.get("enabled", True) for r in reminders)
+        
+        all_disabled = event.reminders and not has_enabled_reminder(event.reminders)
+
         # 在 display_event_card 中，判断是否是播放中的事件
         is_playing_event = (event.id == current_playing_event_id and current_music_state in ["playing", "paused"])
 
-        # 如果是播放中的事件，使用特殊背景色
-        if is_playing_event:
-            bg_color = ft.Colors.BLUE_50  # 浅蓝色背景
-            #border = ft.border.all(1, ft.Colors.BLUE_300)  # 蓝色边框
+        # ========== 设置背景色 ==========
+        if all_disabled:
+            # 所有提醒都被禁用：灰色背景
+            bg_color = ft.Colors.GREY_300
+        elif is_playing_event:
+            # 播放中的事件：浅蓝色背景
+            bg_color = ft.Colors.BLUE_50
         else:
+            # 普通事件：白色背景
             bg_color = ft.Colors.WHITE
-            #border = None
-
-        #bg_color = ft.Colors.WHITE
 
         # 优先使用自定义天数
         if custom_days_until is not None:
@@ -10266,7 +10276,7 @@ def main(page: ft.Page):
             status_container = ft.Container(
                 content=ft.Text(status_text, size=12, weight=ft.FontWeight.BOLD, color=status_color),
                 padding=5,
-                bgcolor=ft.Colors.WHITE,
+                bgcolor=ft.Colors.TRANSPARENT,  # 透明背景
                 border_radius=5,
             )
         else:
@@ -10421,6 +10431,20 @@ def main(page: ft.Page):
                 show_snack_bar("未设置音乐文件")
         
         play_button = ft.TextButton("🔊 播放", on_click=create_play_handler)
+
+        def on_card_hover(e):
+            """鼠标悬停时改变卡片背景色"""
+            if e.data == "true":  # 鼠标进入
+                e.control.bgcolor = ft.Colors.BLUE_50
+            else:  # 鼠标离开
+                # 恢复原来的背景色
+                if all_disabled:
+                    e.control.bgcolor = ft.Colors.GREY_300
+                elif is_playing_event:
+                    e.control.bgcolor = ft.Colors.BLUE_50
+                else:
+                    e.control.bgcolor = ft.Colors.WHITE
+            e.control.update()
         
         # ========== 创建事件卡片 ==========
         event_card = ft.Container(
@@ -10447,6 +10471,7 @@ def main(page: ft.Page):
             border_radius=10,
             # ========== 新增：点击卡片进入编辑模式 ==========
             on_click=lambda e, eid=event.id: edit_event_dialog(eid),
+            on_hover=on_card_hover,  # 添加悬停事件
             ink=True,  # 添加墨水效果，点击时有反馈
         )
 
