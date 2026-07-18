@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.202"
-APP_VERSION_CODE = 202
+APP_VERSION = "1.0.203"
+APP_VERSION_CODE = 203
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -10298,7 +10298,13 @@ def main(page: ft.Page):
         date_icon = date_icon_map.get(event.event_type, "📅")
         
         # ========== 组合日期显示 ==========
-        date_display_text = f"{date_icon} {display_date}{reminder_time_str}"
+        # ========== 如果事件有设定时间提醒，不重复显示 ==========
+        if event.reminders:
+            # 有提醒时间，只显示日期（不显示 reminder_time_str）
+            date_display_text = f"{date_icon} {display_date}"
+        else:
+            # 没有提醒时间，正常显示
+            date_display_text = f"{date_icon} {display_date}{reminder_time_str}"
         
         # ========== 获取音乐名称和状态 ==========
         music_name = None
@@ -10505,13 +10511,13 @@ def main(page: ft.Page):
             if hasattr(event, 'workday_only') and event.workday_only:
                 if event.reminders:
                     time_str = format_reminder_time(event.reminders)
-                    return f"工作日提醒 {time_str}" if time_str else "工作日提醒"
+                    return f"{time_str}" if time_str else "工作日提醒"
                 else:
                     return "工作日提醒"
             else:
                 if event.reminders:
                     time_str = format_reminder_time(event.reminders)
-                    return f"每天 {time_str}" if time_str else "每天"
+                    return f"{time_str}" if time_str else "每天"
                 else:
                     return "每天"
 
