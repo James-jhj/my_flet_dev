@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.198"
-APP_VERSION_CODE = 198
+APP_VERSION = "1.0.199"
+APP_VERSION_CODE = 199
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -15508,12 +15508,12 @@ def main(page: ft.Page):
                 confirm_content = ft.Container(
                     content=ft.Column([
                         ft.Container(
-                            content=ft.Icon(ft.Icons.INFO, size=55, color=ft.Colors.BLUE_700),
+                            content=ft.Icon(ft.Icons.INFO, size=55, color=ft.Colors.GREEN_700),
                             padding=10,
                             bgcolor=ft.Colors.BLUE_50,
                             border_radius=50,
                         ),
-                        ft.Text("确认导入", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, text_align=ft.TextAlign.CENTER),
+                        ft.Text("确认导入", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_700, text_align=ft.TextAlign.CENTER),
                         ft.Divider(),
                         ft.Text(f"即将导入 {imported_count} 条记账记录", size=14),
                         ft.Text(f"当前有 {len(transactions)} 条记录将被替换", size=12, color=ft.Colors.ORANGE_700),
@@ -15521,7 +15521,7 @@ def main(page: ft.Page):
                         ft.Row([
                             ft.ElevatedButton("取消", on_click=lambda e: cancel_replace(), expand=True),
                             ft.ElevatedButton("确认导入", on_click=lambda e: confirm_replace(), expand=True,
-                                            style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE)),
+                                            style=ft.ButtonStyle(bgcolor=ft.Colors.GREEN_700, color=ft.Colors.WHITE)),
                         ], spacing=12),
                     ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                     width=320, padding=20, bgcolor=ft.Colors.WHITE, border_radius=16,
@@ -15549,12 +15549,12 @@ def main(page: ft.Page):
         menu_content = ft.Container(
             content=ft.Column([
                 ft.Container(
-                    content=ft.Icon(ft.Icons.FOLDER_OPEN, size=55, color=ft.Colors.BLUE_700),
+                    content=ft.Icon(ft.Icons.FOLDER_OPEN, size=55, color=ft.Colors.GREEN_700),
                     padding=15,
                     bgcolor=ft.Colors.BLUE_50,
                     border_radius=50,
                 ),
-                ft.Text("导入记账数据", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, text_align=ft.TextAlign.CENTER),
+                ft.Text("导入记账数据", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_700, text_align=ft.TextAlign.CENTER),
                 ft.Divider(),
                 ft.Text("请选择记账Excel文件", size=14, text_align=ft.TextAlign.CENTER),
                 ft.Text("支持格式: .xlsx, .xls", size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
@@ -15566,7 +15566,7 @@ def main(page: ft.Page):
                         "选择Excel文件", 
                         on_click=lambda e: on_select_file(),  # 使用包装函数
                         expand=True,
-                        style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE),
+                        style=ft.ButtonStyle(bgcolor=ft.Colors.GREEN_700, color=ft.Colors.WHITE),
                     ),
                 ], alignment=ft.MainAxisAlignment.CENTER),
                 ft.Row([
@@ -15949,7 +15949,7 @@ def main(page: ft.Page):
                         "选择Excel文件", 
                         on_click=lambda e: [close_menu(), asyncio.create_task(select_file_and_import())], 
                         expand=True,
-                        style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE),
+                        style=ft.ButtonStyle(bgcolor=ft.Colors.PURPLE_700, color=ft.Colors.WHITE),
                     ),
                 ], alignment=ft.MainAxisAlignment.CENTER),
                 ft.Row([
