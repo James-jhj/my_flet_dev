@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.200"
-APP_VERSION_CODE = 200
+APP_VERSION = "1.0.201"
+APP_VERSION_CODE = 201
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -11059,7 +11059,7 @@ def main(page: ft.Page):
         # ========== 确保下拉框存在 ==========
         if not hasattr(refresh_events_list, 'view_dropdown'):
             
-            # 视图选项（使用统一定义）
+            # 首先定义视图选项和对应的统计函数
             view_options = [
                 ("all", "📋 全部事件"),
                 ("today", "📌 今日事件"),
@@ -11071,22 +11071,127 @@ def main(page: ft.Page):
                 ("event", "💝 纪念日"),
                 ("once", "🎯 一次性事件"),
             ]
+
+            # ========== 统计各视图的事件数量 ==========
+            def get_view_count(view_type):
+                """获取指定视图的事件数量"""
+                today = datetime.now().date()
+                
+                if view_type == "all":
+                    return len(events)
+                
+                elif view_type == "today":
+                    count = 0
+                    for event in events.values():
+                        if event.event_type == "daily" or event.event_type == "weekly":
+                            continue
+                        month, day, year, base_year, days_until = event.get_next_date_info()
+                        if month == today.month and day == today.day:
+                            if event.repeat_type == "once":
+                                if not event.completed and days_until >= 0:
+                                    count += 1
+                            else:
+                                count += 1
+                    return count
+                
+                elif view_type == "three_days":
+                    count = 0
+                    for event in events.values():
+                        if event.event_type == "daily" or event.event_type == "weekly":
+                            continue
+                        month, day, year, base_year, days_until = event.get_next_date_info()
+                        if event.repeat_type == "once" and (event.completed or days_until < 0):
+                            continue
+                        if 0 < days_until <= 3:
+                            count += 1
+                    return count
+                
+                elif view_type == "daily":
+                    return len([e for e in events.values() if e.event_type == "daily"])
+                
+                elif view_type == "weekly":
+                    return len([e for e in events.values() if e.event_type == "weekly"])
+                
+                elif view_type == "monthly":
+                    return len([e for e in events.values() if e.event_type == "monthly"])
+                
+                elif view_type == "birthday":
+                    return len([e for e in events.values() if e.event_type == "birthday"])
+                
+                elif view_type == "event":
+                    return len([e for e in events.values() if e.event_type == "event"])
+                
+                elif view_type == "once":
+                    return len([e for e in events.values() if e.repeat_type == "once"])
+                
+                return 0
             
-            # 获取当前选中视图的显示文本
+            # ========== 获取带数量的显示文本（用于顶部显示） ==========
             def get_view_display_text(value):
+                count = get_view_count(value)
                 for v, text in view_options:
                     if v == value:
-                        return text
-                return "📋 全部事件"
+                        return f"{text} ({count})"
+                return f"📋 全部事件 ({len(events)})"
+            
+            def select_view_popup(value):
+                # ========== 顶部只显示名称，不显示数量 ==========
+                # 获取对应的显示名称
+                display_name = "📋 全部事件"
+                for v, text in view_options:
+                    if v == value:
+                        display_name = text
+                        break
+                view_popup.content.controls[0].value = display_name
+                
+                # ========== 重新构建菜单项（保持靠右对齐） ==========
+                new_items = []
+                for i, (val, text) in enumerate(view_options):
+                    count = get_view_count(val)
+                    new_items.append(
+                        ft.PopupMenuItem(
+                            content=ft.Container(
+                                content=ft.Row([
+                                    ft.Text(text, size=14, color=ft.Colors.BLACK),
+                                    ft.Container(expand=True),
+                                    ft.Text(f"{count}", size=14, color=ft.Colors.GREY_500),
+                                ], alignment=ft.MainAxisAlignment.START),
+                                width=200,
+                            ),
+                            on_click=lambda e, v=val: select_view_popup(v),
+                            height=40,
+                        )
+                    )
+                    if i < len(view_options) - 1:
+                        new_items.append(
+                            ft.PopupMenuItem(
+                                content=ft.Divider(height=1, color=ft.Colors.GREY_300),
+                                disabled=True,
+                                height=2,
+                            )
+                        )
+                view_popup.items = new_items
+                
+                on_view_change(value)
+                page.update()
 
-            # 重新构建 items，在选项之间添加分割线
+            # 获取当前选中视图的显示文本
+            current_display_text = get_view_display_text(current_view)
+
+            # ========== 关键：构建带数量且靠右对齐的下拉菜单项 ==========
             popup_items = []
             for i, (value, text) in enumerate(view_options):
+                count = get_view_count(value)
+                # ========== 使用 Row 布局：文字靠左，数量靠右 ==========
                 popup_items.append(
                     ft.PopupMenuItem(
                         content=ft.Container(
-                            content=ft.Text(text, size=14),
-                            width=150,
+                            content=ft.Row([
+                                ft.Text(text, size=14, color=ft.Colors.BLACK),
+                                ft.Container(expand=True),  # 弹性空间，把数量推到右边
+                                ft.Text(f"{count}", size=14, color=ft.Colors.GREY_500),
+                            ], alignment=ft.MainAxisAlignment.START),
+                            width=200,
                         ),
                         on_click=lambda e, val=value: select_view_popup(val),
                         height=40,
@@ -11101,22 +11206,72 @@ def main(page: ft.Page):
                         )
                     )
 
+            # ========== 顶部显示：只显示名称，不显示数量 ==========
             view_popup = ft.PopupMenuButton(
                 content=ft.Row([
-                    ft.Text(get_view_display_text(current_view), size=14, weight=ft.FontWeight.BOLD),
+                    ft.Text("📋 全部事件", size=14, weight=ft.FontWeight.BOLD),  # 直接使用固定名称
                     ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18),
                 ], spacing=5, alignment=ft.MainAxisAlignment.CENTER),
                 items=popup_items,
                 bgcolor=ft.Colors.WHITE,
+                # ========== 设置菜单位置：显示在下拉框下方 ==========
+                menu_position=ft.PopupMenuPosition.UNDER,  # 关键：菜单出现在按钮下方
             )
-
-            def select_view_popup(value):
-                view_popup.content.controls[0].value = get_view_display_text(value)
-                on_view_change(value)
-                page.update()
 
             refresh_events_list.view_dropdown = view_popup
             refresh_events_list.view_dropdown.value = current_view
+
+            # ========== 更新下拉框显示（仅在控件已添加到页面后执行） ==========
+            # ========== 关键修复：检查控件是否已添加到页面 ==========
+            if hasattr(refresh_events_list, 'view_dropdown'):
+                try:
+                    # ========== 顶部只显示名称，不显示数量 ==========
+                    display_name = "📋 全部事件"
+                    for v, text in view_options:
+                        if v == current_view:
+                            display_name = text
+                            break
+                    refresh_events_list.view_dropdown.content.controls[0].value = display_name
+                    
+                    # ========== 更新下拉菜单项（靠右对齐样式） ==========
+                    new_items = []
+                    for i, (value, text) in enumerate(view_options):
+                        count = get_view_count(value)
+                        # ========== 使用 Row 布局：文字靠左，数量靠右 ==========
+                        new_items.append(
+                            ft.PopupMenuItem(
+                                content=ft.Container(
+                                    content=ft.Row([
+                                        ft.Text(text, size=14, color=ft.Colors.BLACK),
+                                        ft.Container(expand=True),  # 弹性空间，把数量推到右边
+                                        ft.Text(f"{count}", size=14, color=ft.Colors.GREY_500),
+                                    ], alignment=ft.MainAxisAlignment.START),
+                                    width=200,
+                                    padding=ft.padding.only(left=10, right=10),
+                                ),
+                                on_click=lambda e, val=value: select_view_popup(val),
+                                height=40,
+                            )
+                        )
+                        if i < len(view_options) - 1:
+                            new_items.append(
+                                ft.PopupMenuItem(
+                                    content=ft.Divider(height=1, color=ft.Colors.GREY_300),
+                                    disabled=True,
+                                    height=2,
+                                )
+                            )
+                    refresh_events_list.view_dropdown.items = new_items
+                    
+                    # ========== 关键修复：只有在控件已添加到页面时才调用 update() ==========
+                    try:
+                        refresh_events_list.view_dropdown.update()
+                    except RuntimeError:
+                        # 控件尚未添加到页面，跳过更新
+                        pass
+                        
+                except Exception as e:
+                    print(f"更新下拉框失败: {e}")
 
         # ========== 获取视图标题 ==========
         def get_view_title():
