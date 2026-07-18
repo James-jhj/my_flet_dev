@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.201"
-APP_VERSION_CODE = 201
+APP_VERSION = "1.0.202"
+APP_VERSION_CODE = 202
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -2221,7 +2221,7 @@ class Event:
             "reminded_this_year": self.reminded_this_year,
             "last_remind_year": self.last_remind_year,
             "completed": getattr(self, 'completed', False) ,        # 一次性事件完成标记
-            "reminders": getattr(self, 'reminders', []),            # 新增
+            "reminders": self.reminders if self.reminders else [],  # 确保不是 None
             "workday_only": getattr(self, 'workday_only', False),
         }
     
@@ -2233,6 +2233,8 @@ class Event:
         # 先处理 birth_date
         birth_date = data.get("birth_date", "")
         event_type = data.get("event_type", "birthday")
+        # 确保 reminders 中的 enabled 字段被正确加载
+        reminders = data.get("reminders", [])
         
         # 如果是每天事件且 birth_date 为空或无效，设置为空字符串
         if event_type == "daily" and (not birth_date or birth_date == "01-01"):
@@ -3612,6 +3614,10 @@ def main(page: ft.Page):
                     pass
             
             # 写入新文件
+            # 打印调试信息，看看 reminders 是否被正确序列化
+            for e in events.values():
+                print(f"[保存调试] 事件: {e.name}, reminders: {e.reminders}")
+
             with open(json_path, "w", encoding="utf-8") as f:
                 json.dump([e.to_dict() for e in events.values()], f, ensure_ascii=False, indent=2)
             
@@ -10010,7 +10016,7 @@ def main(page: ft.Page):
             #border = ft.border.all(1, ft.Colors.BLUE_300)  # 蓝色边框
         else:
             bg_color = ft.Colors.WHITE
-            border = None
+            #border = None
 
         #bg_color = ft.Colors.WHITE
 
@@ -10041,12 +10047,24 @@ def main(page: ft.Page):
             status_color = ft.Colors.GREY_600
             status_text = ""
             
+            # ========== 检查提醒是否全部被禁用 ==========
+            def has_enabled_reminder(reminders):
+                """检查是否有启用的提醒"""
+                if not reminders:
+                    return False
+                return any(r.get("enabled", True) for r in reminders)
+            
+            all_disabled = event.reminders and not has_enabled_reminder(event.reminders)
+            
             # ========== 每天事件特殊处理（放在最前面） ==========
             if event.event_type == "daily":
                 is_workday_only = getattr(event, 'workday_only', False)
                 
-                if is_workday_only:
-                    # 工作日提醒：计算下一个工作日的提醒时间
+                if all_disabled:
+                    status_text = "⏸️ 提醒已禁用"
+                    status_color = ft.Colors.GREY_500
+                elif is_workday_only:
+                    # 工作日提醒逻辑...
                     now = datetime.now()
                     now_time = now.strftime("%H:%M")
                     is_today_workday = is_workday(now)
@@ -10055,7 +10073,7 @@ def main(page: ft.Page):
                     reminder_time = None
                     if event.reminders:
                         for reminder in event.reminders:
-                            if reminder.get("enabled"):
+                            if reminder.get("enabled") and reminder.get("time"):
                                 reminder_time = reminder.get("time", "")
                                 break
                     
@@ -10079,7 +10097,6 @@ def main(page: ft.Page):
                         
                         # 计算时间差
                         time_diff = target_datetime - now
-                        
                         if time_diff.total_seconds() > 0:
                             total_seconds = int(time_diff.total_seconds())
                             days = total_seconds // 86400
@@ -10111,14 +10128,17 @@ def main(page: ft.Page):
                         status_text = "工作日"
                         status_color = ft.Colors.BLUE_700
                 else:
-                    # 普通每天提醒：原来的逻辑
-                    if event.reminders:
+                    # 普通每天提醒
+                    if all_disabled:
+                        status_text = "⏸️ 提醒已禁用"
+                        status_color = ft.Colors.GREY_500
+                    elif event.reminders:
                         now_time = now.strftime("%H:%M")
                         next_reminder_time = None
                         is_today_reminder = False
                         
                         for reminder in event.reminders:
-                            if reminder.get("enabled"):
+                            if reminder.get("enabled") and reminder.get("time"):
                                 reminder_time = reminder.get("time", "")
                                 if reminder_time:
                                     if reminder_time > now_time:
@@ -10160,7 +10180,10 @@ def main(page: ft.Page):
             
             # ========== 其他事件类型 ==========
             elif event.event_type == "weekly":
-                if days_until == 0:
+                if all_disabled:
+                    status_text = "⏸️ 提醒已禁用"
+                    status_color = ft.Colors.GREY_500
+                elif days_until == 0:
                     status_text = "今天"
                     status_color = ft.Colors.RED_700
                 elif days_until == 1:
@@ -10171,7 +10194,10 @@ def main(page: ft.Page):
                     status_color = ft.Colors.BLUE_700
             
             elif event.repeat_type == "once":
-                if event.completed:
+                if all_disabled:
+                    status_text = "⏸️ 提醒已禁用"
+                    status_color = ft.Colors.GREY_500
+                elif event.completed:
                     status_text = "已完成"
                     status_color = ft.Colors.GREY_500
                 elif days_until < 0:
@@ -10185,7 +10211,10 @@ def main(page: ft.Page):
                     status_color = ft.Colors.ORANGE_700
             
             elif event.event_type == "monthly":
-                if days_until == 0:
+                if all_disabled:
+                    status_text = "⏸️ 提醒已禁用"
+                    status_color = ft.Colors.GREY_500
+                elif days_until == 0:
                     status_text = "今天"
                     status_color = ft.Colors.RED_700
                 elif days_until == 1:
@@ -10196,7 +10225,10 @@ def main(page: ft.Page):
                     status_color = ft.Colors.BLUE_700
             
             elif event.event_type == "birthday":
-                if days_until == 0:
+                if all_disabled:
+                    status_text = "⏸️ 提醒已禁用"
+                    status_color = ft.Colors.GREY_500
+                elif days_until == 0:
                     status_text = "今天"
                     status_color = ft.Colors.RED_700
                 elif days_until <= 7:
@@ -10207,7 +10239,10 @@ def main(page: ft.Page):
                     status_color = ft.Colors.BLUE_700
             
             elif event.event_type == "event":
-                if days_until == 0:
+                if all_disabled:
+                    status_text = "⏸️ 提醒已禁用"
+                    status_color = ft.Colors.GREY_500
+                elif days_until == 0:
                     status_text = "今天"
                     status_color = ft.Colors.RED_700
                 elif days_until <= 7:
@@ -10449,59 +10484,87 @@ def main(page: ft.Page):
     def get_display_date(event):
         """获取事件显示日期"""
         month, day, year, base_year, _ = event.get_next_date_info()
+
+        # ========== 辅助函数：格式化提醒时间 ==========
+        def format_reminder_time(reminders):
+            """格式化提醒时间列表"""
+            if not reminders:
+                return ""
+            time_parts = []
+            for r in reminders:
+                if r.get("time"):
+                    time_str = r.get("time", "")
+                    if r.get("enabled", True):
+                        time_parts.append(time_str)
+                    else:
+                        time_parts.append(f"{time_str} ⏸️")
+            return " ".join(time_parts)
         
         if event.event_type == "daily":
             # 检查是否开启了法定工作日提醒
             if hasattr(event, 'workday_only') and event.workday_only:
-                # 显示工作日提醒
                 if event.reminders:
-                    time_list = [r.get("time", "") for r in event.reminders if r.get("enabled")]
-                    time_str = " ".join(time_list)
-                    return f"{time_str}"
+                    time_str = format_reminder_time(event.reminders)
+                    return f"工作日提醒 {time_str}" if time_str else "工作日提醒"
                 else:
                     return "工作日提醒"
             else:
-                # 普通每天提醒
                 if event.reminders:
-                    time_list = [r.get("time", "") for r in event.reminders if r.get("enabled")]
-                    time_str = " ".join(time_list)
-                    return f"每天 {time_str}"
+                    time_str = format_reminder_time(event.reminders)
+                    return f"每天 {time_str}" if time_str else "每天"
                 else:
                     return "每天"
+
         elif event.event_type == "weekly":
             weekday_names = ["", "周一", "周二", "周三", "周四", "周五", "周六", "周日"]
             weekday_num = int(event.birth_date) if event.birth_date else 1
             if event.reminders:
-                time_list = [r.get("time", "") for r in event.reminders if r.get("enabled")]
-                return f"{weekday_names[weekday_num]} {' '.join(time_list)}"
+                time_str = format_reminder_time(event.reminders)
+                return f"{weekday_names[weekday_num]} {time_str}"
             return f"{weekday_names[weekday_num]}"
+
         elif event.event_type == "birthday":
             if event.calendar_type == "solar":
                 lunar_parts = event.birth_date.split("-")
-                return f"阳历 {int(lunar_parts[0])}年{int(lunar_parts[1])}月{int(lunar_parts[2])}日"
+                base_text = f"阳历 {int(lunar_parts[0])}年{int(lunar_parts[1])}月{int(lunar_parts[2])}日"
             else:
                 lunar_parts = event.birth_date.split("-")
-                return f"农历 {int(lunar_parts[0])}年{int(lunar_parts[1])}月{int(lunar_parts[2])}日"
+                base_text = f"农历 {int(lunar_parts[0])}年{int(lunar_parts[1])}月{int(lunar_parts[2])}日"
+            if event.reminders:
+                time_str = format_reminder_time(event.reminders)
+                return f"{base_text} {time_str}"
+            return base_text
+
         elif event.event_type == "monthly":
             day_num = int(event.birth_date)
             if event.reminders:
-                time_list = [r.get("time", "") for r in event.reminders if r.get("enabled")]
-                return f"{day_num}日 {' '.join(time_list)}"
+                time_str = format_reminder_time(event.reminders)
+                return f"{day_num}日 {time_str}"
             return f"{day_num}日"
+
         elif event.repeat_type == "once":
             if event.calendar_type == "solar":
                 lunar_parts = event.birth_date.split("-")
-                return f"阳历 {int(lunar_parts[0])}年{int(lunar_parts[1])}月{int(lunar_parts[2])}日"
+                base_text = f"阳历 {int(lunar_parts[0])}年{int(lunar_parts[1])}月{int(lunar_parts[2])}日"
             else:
                 lunar_parts = event.birth_date.split("-")
-                return f"农历 {int(lunar_parts[0])}年{int(lunar_parts[1])}月{int(lunar_parts[2])}日"
-        else:
+                base_text = f"农历 {int(lunar_parts[0])}年{int(lunar_parts[1])}月{int(lunar_parts[2])}日"
+            if event.reminders:
+                time_str = format_reminder_time(event.reminders)
+                return f"{base_text} {time_str}"
+            return base_text
+
+        else: # event
             if event.calendar_type == "solar":
                 lunar_parts = event.birth_date.split("-")
-                return f"阳历 {int(lunar_parts[0])}年{int(lunar_parts[1])}月{int(lunar_parts[2])}日"
+                base_text = f"阳历 {int(lunar_parts[0])}年{int(lunar_parts[1])}月{int(lunar_parts[2])}日"
             else:
                 lunar_parts = event.birth_date.split("-")
-                return f"农历 {int(lunar_parts[0])}年{int(lunar_parts[1])}月{int(lunar_parts[2])}日"
+                base_text = f"农历 {int(lunar_parts[0])}年{int(lunar_parts[1])}月{int(lunar_parts[2])}日"
+            if event.reminders:
+                time_str = format_reminder_time(event.reminders)
+                return f"{base_text} {time_str}"
+            return base_text
             
     def get_age_text(event, today, base_year):
         """获取年龄或年份显示文本"""
@@ -11646,16 +11709,20 @@ def main(page: ft.Page):
         open_add_dialog.reminders_list = reminders_list
         
         # 定义添加提醒时间的函数
-        def add_reminder_time(time_str=None):
+        def add_reminder_time(time_str=None, enabled=True):
             """添加提醒时间"""
-            print(f"[添加提醒时间] time_str={time_str}")  # 调试输出
+            print(f"[添加提醒时间] time_str={time_str}, enabled={enabled}")
 
-            # 解析初始时间（如果有）
+            # ========== 使用 StringVar 或直接存储值 ==========
+            # 存储时间的变量
+            stored_time = time_str if time_str else ""
+
+            # 解析初始时间
             initial_hour = 9
             initial_minute = 0
-            if time_str:
+            if stored_time:
                 try:
-                    parts = time_str.split(":")
+                    parts = stored_time.split(":")
                     if len(parts) == 2:
                         initial_hour = int(parts[0])
                         initial_minute = int(parts[1])
@@ -11665,92 +11732,80 @@ def main(page: ft.Page):
             # 创建时间选择器
             time_picker = ft.TimePicker()
             
-            def on_time_display_field_blur(e):
-                # 名称输入框失去焦点时的操作
-                pass
-
-            # 时间显示字段
+            # ========== 时间显示字段 ==========
             time_display_field = ft.TextField(
                 label="提醒时间",
-                hint_text="点击选择时间（可选）",
+                hint_text="点击选择时间",
                 read_only=True,
-                #width=120,
                 expand=True,
-                value=time_str if time_str else "",  # 直接设置显示值
-                on_blur=on_time_display_field_blur,  # 添加失去焦点事件
+                value=stored_time,
             )
 
-            # 如果传入了时间参数，设置显示值
-            if time_str:
-                time_display_field.value = time_str
-                print(f"[添加提醒时间] 设置初始时间: {time_str}")
-
             def open_time_picker(e):
-                """打开时间选择器，并用当前显示的时间初始化"""
                 try:
-                    # 从显示字段读取当前时间
                     current_time = time_display_field.value
                     if current_time:
-                        # 如果已有时间，用该时间初始化选择器
                         h, m = map(int, current_time.split(":"))
                         from datetime import time
                         time_picker.value = time(h, m)
                     else:
-                        # 如果没有时间，使用默认时间
                         from datetime import time
                         time_picker.value = time(initial_hour, initial_minute)
-                    
-                    # 显示时间选择器
                     page.show_dialog(time_picker)
                 except (ValueError, TypeError, AttributeError):
-                    # 如果解析失败，使用默认时间
                     from datetime import time
                     time_picker.value = time(initial_hour, initial_minute)
                     page.show_dialog(time_picker)
 
             def on_time_selected(e):
-                """时间选择后的回调"""
                 if time_picker.value:
                     time_str = time_picker.value.strftime("%H:%M")
                     time_display_field.value = time_str
                     time_display_field.update()
                     page.update()
 
-            # 绑定事件
             time_picker.on_change = on_time_selected
-
-            # 设置点击字段时打开选择器
             time_display_field.on_click = open_time_picker
 
-            checkbox = ft.Checkbox(value=True, label="启用")
+            checkbox = ft.Checkbox(value=enabled, label="启用")
 
             delete_button = ft.IconButton(
                 ft.Icons.DELETE_OUTLINE,
                 icon_size=20,
                 icon_color=ft.Colors.RED_400,
+                tooltip="删除此提醒",
             )
 
-            # 创建行
             row = ft.Row([
                 time_display_field,
                 checkbox,
                 delete_button,
             ], spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER)
             
-            # 设置删除按钮的点击事件（此时 row 已经定义）
-            delete_button.on_click = lambda e, r=row: remove_reminder_row(r)
+            def on_delete(e, r=row):
+                reminders_list.controls.remove(r)
+                page.update()
+            delete_button.on_click = on_delete
             
             reminders_list.controls.append(row)
             page.update()
+            
+            # ========== 返回时间值，方便调试 ==========
+            return stored_time
         
         def remove_reminder_row(row):
+            """删除提醒行（完全移除）"""
             reminders_list.controls.remove(row)
             page.update()
         
-        # 如果是编辑模式，加载已有的提醒时间
+        # 在 open_add_dialog 函数中，加载已有提醒时间的部分
         if is_edit and selected_event and selected_event.reminders:
             for reminder in selected_event.reminders:
-                add_reminder_time(reminder.get("time", "09:00"))
+                # ========== 修复：传入 enabled 状态 ==========
+                add_reminder_time(
+                    time_str=reminder.get("time", "09:00"),
+                    enabled=reminder.get("enabled", True)  # 传入启用状态
+                )
 
         # 定义回调函数
         def on_date_selected(e):
@@ -13018,17 +13073,30 @@ def main(page: ft.Page):
                 workday_only = open_add_dialog.workday_only_switch.value
                 print(f"[保存] 工作日选项: {workday_only}")
             
-            # ========== 收集提醒时间（关键修复） ==========
+            # ========== 收集提醒时间 ==========
             reminders = []
-            # 尝试从 open_add_dialog.reminders_list 获取
             if hasattr(open_add_dialog, 'reminders_list') and open_add_dialog.reminders_list:
-                for row in open_add_dialog.reminders_list.controls:
+                # ========== 调试：打印所有行 ==========
+                print(f"[调试] reminders_list 控件数量: {len(open_add_dialog.reminders_list.controls)}")
+                
+                for idx, row in enumerate(open_add_dialog.reminders_list.controls):
                     if len(row.controls) >= 2:
                         time_display_field = row.controls[0]
                         checkbox = row.controls[1]
-                        if checkbox.value and time_display_field.value:
-                            reminders.append({"time": time_display_field.value, "enabled": True})
-                            print(f"[保存] 添加提醒时间: {time_display_field.value}")
+                        
+                        # ========== 调试：打印每行的值 ==========
+                        print(f"[调试] 行 {idx}: time='{time_display_field.value}', checkbox={checkbox.value}")
+                        
+                        # ========== 关键修复：只要时间字段有值就保存 ==========
+                        if time_display_field.value:
+                            reminders.append({
+                                "time": time_display_field.value,
+                                "enabled": checkbox.value  # 保存启用状态
+                            })
+                            print(f"[保存] 添加提醒: {time_display_field.value}, 启用: {checkbox.value}")
+                        else:
+                            # ========== 即使时间为空，也保留 enabled=False 的占位？不保存空时间 ==========
+                            print(f"[保存] 时间为空，跳过")
             
             print(f"[保存] 总共收集到 {len(reminders)} 个提醒时间")
 
@@ -13098,14 +13166,21 @@ def main(page: ft.Page):
                 calendar_type_value = calendar_selected
                 repeat_type_value = "yearly"
 
-            # 收集提醒时间
+            # ========== 收集提醒时间 ==========
             reminders = []
             if hasattr(open_add_dialog, 'reminders_list') and open_add_dialog.reminders_list:
                 for row in open_add_dialog.reminders_list.controls:
-                    time_display_field = row.controls[0]
-                    checkbox = row.controls[1]
-                    if checkbox.value and time_display_field.value:
-                        reminders.append({"time": time_display_field.value, "enabled": True})
+                    if len(row.controls) >= 2:
+                        time_display_field = row.controls[0]
+                        checkbox = row.controls[1]
+                        if time_display_field.value:
+                            reminders.append({
+                                "time": time_display_field.value,
+                                "enabled": checkbox.value
+                            })
+                            print(f"[保存] 添加提醒: {time_display_field.value}, 启用: {checkbox.value}")
+            
+            print(f"[保存] 总共收集到 {len(reminders)} 个提醒时间")
             
             # 保存事件
             if is_edit and selected_event:
@@ -13120,7 +13195,9 @@ def main(page: ft.Page):
                     selected_event.event_type = event_type_selected
                     selected_event.repeat_type = repeat_type_value
                     selected_event.sound_file = music_field.value.strip()
-                    selected_event.reminders = reminders
+                    # ========== 关键修复：确保 reminders 被正确赋值 ==========
+                    selected_event.reminders = reminders  # 直接赋值
+                    print(f"[保存] 设置 reminders: {selected_event.reminders}")
                     if repeat_type_value == "once":
                         selected_event.completed = False
                     save_events(trigger_check=False)
