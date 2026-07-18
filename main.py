@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.205"
-APP_VERSION_CODE = 205
+APP_VERSION = "1.0.206"
+APP_VERSION_CODE = 206
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -3014,19 +3014,35 @@ if IS_WINDOWS:
                 pystray.MenuItem("🚪 退出", on_tray_exit)
             )
 
+            #单击事件无用，待调试
+            def on_tray_click(icon, item, button):
+                """处理所有点击事件"""
+                print(f"点击事件: button={button}")
+                if button == 1:  # 左键
+                    print("左键单击，打开主界面")
+                    self._show_main_window()
+                # 右键会自动弹出菜单，不需要额外处理
+
             self.icon = pystray.Icon(
                 "event_reminder", 
                 image, 
                 "事件提醒助手", 
-                menu
+                menu,
+                on_tray_icon_click=on_tray_click  # 绑定点击事件
             )
             
             self.running = True
-            
-            thread = threading.Thread(target=self.icon.run, daemon=True)
-            thread.start()
+
+            # 使用 run_detached 方式运行
+            self.icon.run_detached()
             print("✅ 托盘图标已启动")
             return self.icon
+            
+            # 启动托盘
+            #thread = threading.Thread(target=self.icon.run, daemon=True)
+            #thread.start()
+            #print("✅ 托盘图标已启动")
+            #return self.icon
 
         def _show_main_window(self):
             """显示主窗口"""
@@ -10037,7 +10053,7 @@ def main(page: ft.Page):
         # ========== 设置背景色 ==========
         if all_disabled:
             # 所有提醒都被禁用：灰色背景
-            bg_color = ft.Colors.GREY_300
+            bg_color = ft.Colors.GREY_200
         elif is_playing_event:
             # 播放中的事件：浅蓝色背景
             bg_color = ft.Colors.BLUE_50
@@ -10086,7 +10102,7 @@ def main(page: ft.Page):
                 is_workday_only = getattr(event, 'workday_only', False)
                 
                 if all_disabled:
-                    status_text = "⏸️ 提醒已禁用"
+                    status_text = "🔕 提醒已禁用" # 🔇 提醒已禁用  ， ⛔ 提醒已禁用
                     status_color = ft.Colors.GREY_500
                 elif is_workday_only:
                     # 工作日提醒逻辑...
@@ -10155,7 +10171,7 @@ def main(page: ft.Page):
                 else:
                     # 普通每天提醒
                     if all_disabled:
-                        status_text = "⏸️ 提醒已禁用"
+                        status_text = "🔕 提醒已禁用"
                         status_color = ft.Colors.GREY_500
                     elif event.reminders:
                         now_time = now.strftime("%H:%M")
@@ -10206,7 +10222,7 @@ def main(page: ft.Page):
             # ========== 其他事件类型 ==========
             elif event.event_type == "weekly":
                 if all_disabled:
-                    status_text = "⏸️ 提醒已禁用"
+                    status_text = "🔕 提醒已禁用"
                     status_color = ft.Colors.GREY_500
                 elif days_until == 0:
                     status_text = "今天"
@@ -10220,7 +10236,7 @@ def main(page: ft.Page):
             
             elif event.repeat_type == "once":
                 if all_disabled:
-                    status_text = "⏸️ 提醒已禁用"
+                    status_text = "🔕 提醒已禁用"
                     status_color = ft.Colors.GREY_500
                 elif event.completed:
                     status_text = "已完成"
@@ -10237,7 +10253,7 @@ def main(page: ft.Page):
             
             elif event.event_type == "monthly":
                 if all_disabled:
-                    status_text = "⏸️ 提醒已禁用"
+                    status_text = "🔕 提醒已禁用"
                     status_color = ft.Colors.GREY_500
                 elif days_until == 0:
                     status_text = "今天"
@@ -10251,7 +10267,7 @@ def main(page: ft.Page):
             
             elif event.event_type == "birthday":
                 if all_disabled:
-                    status_text = "⏸️ 提醒已禁用"
+                    status_text = "🔕 提醒已禁用"
                     status_color = ft.Colors.GREY_500
                 elif days_until == 0:
                     status_text = "今天"
@@ -10265,7 +10281,7 @@ def main(page: ft.Page):
             
             elif event.event_type == "event":
                 if all_disabled:
-                    status_text = "⏸️ 提醒已禁用"
+                    status_text = "🔕 提醒已禁用"
                     status_color = ft.Colors.GREY_500
                 elif days_until == 0:
                     status_text = "今天"
@@ -10454,7 +10470,7 @@ def main(page: ft.Page):
             else:  # 鼠标离开
                 # 恢复原来的背景色
                 if all_disabled:
-                    e.control.bgcolor = ft.Colors.GREY_300
+                    e.control.bgcolor = ft.Colors.GREY_200
                 elif is_playing_event:
                     e.control.bgcolor = ft.Colors.BLUE_50
                 else:
@@ -10543,7 +10559,7 @@ def main(page: ft.Page):
                     if r.get("enabled", True):
                         time_parts.append(time_str)
                     else:
-                        time_parts.append(f"{time_str} ⏸️")
+                        time_parts.append(f"{time_str} 🔕")  # 🔕 提醒已禁用，⛔ 提醒已禁用，🔇 提醒已禁用
             return " ".join(time_parts)
         
         if event.event_type == "daily":
