@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.204"
-APP_VERSION_CODE = 204
+APP_VERSION = "1.0.205"
+APP_VERSION_CODE = 205
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -3035,11 +3035,21 @@ if IS_WINDOWS:
             # ========== 修复：用 self.page，不是 page ==========
             if self.page:
                 try:
+                    # 显示窗口
                     self.page.window.visible = True
                     self.page.window.minimized = False
                     self.page.window.always_on_top = True
                     self.page.update()
-                    threading.Timer(0.2, lambda: setattr(self.page.window, 'always_on_top', False)).start()
+                    
+                    # 延迟取消置顶
+                    def reset_top():
+                        try:
+                            self.page.window.always_on_top = False
+                            self.page.update()
+                        except:
+                            pass
+                    
+                    threading.Timer(0.2, reset_top).start()
                     print("✅ 窗口已显示")
                     return
                 except Exception as e:
@@ -3049,8 +3059,9 @@ if IS_WINDOWS:
             try:
                 hwnd = ctypes.windll.user32.FindWindowW(None, "事件提醒助手")
                 if hwnd:
-                    ctypes.windll.user32.ShowWindow(hwnd, 9)
-                    ctypes.windll.user32.ShowWindow(hwnd, 5)
+                    # 显示窗口
+                    ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                    ctypes.windll.user32.ShowWindow(hwnd, 5)  # SW_SHOW
                     ctypes.windll.user32.SetForegroundWindow(hwnd)
                     print("✅ 窗口已显示 (API)")
             except Exception as e:
@@ -3181,6 +3192,10 @@ def main(page: ft.Page):
     # 保存 page 引用到 tray_manager
     if IS_WINDOWS and tray_manager:
         tray_manager.page = page
+
+    # ========== 窗口最小化检测 + 系统托盘 ==========
+    was_minimized = False
+    minimize_check_task = None
 
 
     page.window_icon = "icon.png"
@@ -16985,22 +17000,11 @@ def main(page: ft.Page):
     )
 
     # ========== 创建托盘图标按钮（仅 Windows） ==========
-    if IS_WINDOWS:
-        tray_button = ft.IconButton(
-            icon=ft.Icons.REMOVE,  # EXPAND_MORE
-            icon_size=20,
-            icon_color=ft.Colors.BLUE_700,
-            on_click=lambda e: minimize_to_tray(page),
-            tooltip="最小化到系统托盘",
-            padding=5,
-            visible=True,
-        )
-    else:
-        tray_button = ft.Container(
-                            width=arrow_button.width if hasattr(arrow_button, 'width') and arrow_button.width else 40,
-                            height=1,
-                            bgcolor=ft.Colors.TRANSPARENT,
-                        )
+    tray_button = ft.Container(
+                        width=arrow_button.width if hasattr(arrow_button, 'width') and arrow_button.width else 40,
+                        height=1,
+                        bgcolor=ft.Colors.TRANSPARENT,
+                    )
 
     # 修改日历和日期文本的组合
     calendar_section = ft.Column([
@@ -17296,17 +17300,6 @@ def main(page: ft.Page):
         # 更新下拉框的显示
         update_view_dropdown_display(current_view)
         page.update()
-
-    # ========== 设置页面关闭回调 ==========
-    def on_page_close():
-        """页面关闭时清理所有通知"""
-        cancel_notification(MUSIC_NOTIFICATION_ID)
-        cancel_notification(EVENT_NOTIFICATION_ID)
-        cancel_notification(BACKGROUND_NOTIFICATION_ID)
-        print("✅ 已清理所有通知")
-    
-    # 设置页面关闭回调
-    page.on_close = on_page_close
     
     # =============  windows 系统托盘功能开始 ============================
     def get_window_handle():
@@ -17321,9 +17314,57 @@ def main(page: ft.Page):
             return find_window_by_title("事件提醒助手")
         except:
             return None
+        
+    async def check_window_state():
+        """检测窗口最小化状态，最小化时进入托盘"""
+        nonlocal was_minimized
+        
+        # 等待页面加载完成
+        await asyncio.sleep(2)
+        
+        while True:
+            await asyncio.sleep(0.5)
+            
+            try:
+                # 检查窗口是否最小化
+                is_minimized = False
+                
+                # 方法1：尝试使用 is_minimized 属性
+                if hasattr(page.window, 'is_minimized'):
+                    is_minimized = page.window.is_minimized
+                else:
+                    # 方法2：检测窗口位置和尺寸
+                    x = page.window.left if hasattr(page.window, 'left') else 0
+                    y = page.window.top if hasattr(page.window, 'top') else 0
+                    w = page.window.width if hasattr(page.window, 'width') else 0
+                    h = page.window.height if hasattr(page.window, 'height') else 0
+                    
+                    # 在Windows上，最小化窗口的位置通常在屏幕外或尺寸为0
+                    is_minimized = (x < -10000 or y < -10000) or (w < 10 or h < 10)
+                
+                # 状态变化时处理
+                if is_minimized != was_minimized:
+                    if is_minimized:
+                        print("窗口被最小化，进入系统托盘...")
+                        # 调用最小化到托盘函数
+                        minimize_to_tray(page)
+                    else:
+                        print("窗口从最小化恢复")
+                        # 窗口恢复时，确保托盘状态正确
+                        global tray_manager
+                        if IS_WINDOWS and tray_manager:
+                            # 窗口恢复时，取消托盘图标的"退出"状态
+                            pass
+                    
+                    was_minimized = is_minimized
+                    page.update()
+                    
+            except Exception as e:
+                print(f"窗口状态检查出错: {e}")
+                await asyncio.sleep(1)
 
     def minimize_to_tray(page_obj):
-        """最小化到托盘"""
+        """最小化到托盘（从窗口最小化检测中调用）"""
         if not IS_WINDOWS:
             show_bottom_message("📱 手机版不支持系统托盘")
             return
@@ -17334,17 +17375,44 @@ def main(page: ft.Page):
             tray_manager = TrayManager(page_obj)
             tray_manager.create_tray_icon()
         
+        # 更新 page 引用
+        tray_manager.page = page_obj
+        
+        # 获取窗口句柄并隐藏
         handle = get_window_handle()
         if handle:
-            print(f"最小化窗口: {handle}")
-            # 最小化
-            ctypes.windll.user32.ShowWindow(ctypes.c_void_p(handle), SW_MINIMIZE)
-            time.sleep(0.1)
-            # 从任务栏隐藏
-            hide_window_from_taskbar(handle)
-            print("✅ 已最小化到托盘")
-        else:
-            print("⚠️ 无法获取窗口句柄")
+            try:
+                # 从任务栏隐藏
+                hide_window_from_taskbar(handle)
+                print("✅ 已最小化到托盘")
+            except Exception as e:
+                print(f"最小化到托盘失败: {e}")
+
+    # ========== 启动窗口检测任务 ==========
+    # 在页面加载完成后启动
+    async def start_minimize_check():
+        await asyncio.sleep(1)  # 等待页面完全加载
+        await check_window_state()
+    
+    # 启动检测任务
+    minimize_check_task = asyncio.create_task(start_minimize_check())
+
+    # ========== 页面关闭时清理任务 ==========
+    #original_on_close = page.on_close if page.on_close else lambda: None
+
+    def on_page_close():
+        """页面关闭时清理所有资源"""
+        # 停止窗口检测任务
+        if minimize_check_task:
+            minimize_check_task.cancel()
+        
+        # 清理通知
+        cancel_notification(MUSIC_NOTIFICATION_ID)
+        cancel_notification(EVENT_NOTIFICATION_ID)
+        cancel_notification(BACKGROUND_NOTIFICATION_ID)
+        print("✅ 已清理所有资源")
+    
+    page.on_close = on_page_close
 
     # 窗口关闭事件 - 最小化到托盘
     def on_close(e):
