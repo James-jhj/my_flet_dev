@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.207"
-APP_VERSION_CODE = 207
+APP_VERSION = "1.0.208"
+APP_VERSION_CODE = 208
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -6948,17 +6948,6 @@ def main(page: ft.Page):
                     clear_btn.update()
                     refresh_records_list()
             
-            def clear_search(e):
-                """清除搜索"""
-                nonlocal search_query, is_search_mode
-                search_query = ""
-                is_search_mode = False
-                close_dialog()
-                clear_btn.visible = False
-                clear_btn.update()
-                refresh_records_list()
-                show_bottom_message("已清除搜索")
-            
             def cancel_search(e):
                 """取消搜索"""
                 close_dialog()
@@ -7021,10 +7010,11 @@ def main(page: ft.Page):
                     ft.Text("支持搜索: 分类、备注、金额（精确匹配）", size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
                     ft.Divider(height=1, color=ft.Colors.GREY_300),
                     search_text_field,
+                    ft.Divider(height=1, color=ft.Colors.GREY_300),
                     ft.Row([
                         ft.ElevatedButton(
-                            "清除",
-                            on_click=clear_search,
+                            "取消",
+                            on_click=cancel_search,
                             expand=True,
                             style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.GREY_700),
                         ),
@@ -7035,14 +7025,6 @@ def main(page: ft.Page):
                             style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE),
                         ),
                     ], spacing=12, alignment=ft.MainAxisAlignment.CENTER),
-                    ft.Row([
-                        ft.TextButton(
-                            "取消",
-                            on_click=cancel_search,
-                            expand=True,
-                            style=ft.ButtonStyle(color=ft.Colors.GREY_600),
-                        ),
-                    ], alignment=ft.MainAxisAlignment.CENTER),
                 ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                 width=340,
                 padding=20,
@@ -17409,30 +17391,6 @@ def main(page: ft.Page):
             on_click=lambda e: search_field.focus(),
         )
         
-        # 快捷搜索标签
-        quick_tags = ["生日", "纪念日", "每月", "每日", "每周", "一次性"]
-        
-        # 在 quick_tags_row 中，确保搜索后关闭对话框
-        quick_tags_row = ft.Row(
-            [ft.TextButton(
-                tag,
-                on_click=lambda e, t=tag: [
-                    setattr(search_field, 'value', t),
-                    close_dialog(),  # 先关闭对话框
-                    do_search(e)     # 然后执行搜索
-                ],
-                style=ft.ButtonStyle(
-                    bgcolor=ft.Colors.BLUE_50,
-                    color=ft.Colors.BLUE_700,
-                    shape=ft.RoundedRectangleBorder(radius=12),
-                    padding=8,
-                ),
-            ) for tag in quick_tags],
-            spacing=8,
-            alignment=ft.MainAxisAlignment.CENTER,
-            wrap=True,
-        )
-        
         # 对话框内容
         dialog_content = ft.Container(
             content=ft.Column([
@@ -17448,8 +17406,6 @@ def main(page: ft.Page):
                 ft.Text("支持搜索: 名称、类型、日期、音乐文件名", size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
                 ft.Divider(height=1, color=ft.Colors.GREY_300),
                 search_text_field,
-                ft.Text("快捷搜索:", size=12, color=ft.Colors.GREY_600),
-                quick_tags_row,
                 ft.Divider(height=1, color=ft.Colors.GREY_300),
                 ft.Row([
                     ft.ElevatedButton(
