@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.206"
-APP_VERSION_CODE = 206
+APP_VERSION = "1.0.207"
+APP_VERSION_CODE = 207
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -3190,6 +3190,7 @@ def main(page: ft.Page):
     global sent_reminders,sent_music_notifications
     global memo_notes,search_focused
     global tray_manager
+    global previous_view  # 添加这一行
     
     # ========== 仅 Windows 平台启动托盘 ==========
     if IS_WINDOWS:
@@ -3291,6 +3292,9 @@ def main(page: ft.Page):
 
     # 需要关闭下拉框的控件列表
     keyboard_controls = []
+
+    # 找到类似下面的位置（大约在第 590 行附近），添加初始化
+    previous_view = "all"  # 添加这一行
 
     # ========== 手动跟踪焦点状态 ==========
     search_focused = False
@@ -6780,6 +6784,10 @@ def main(page: ft.Page):
         filter_expense_categories = []  # 选中的支出分类
         is_filter_active = False  # 是否启用筛选
 
+        # ========== 搜索相关变量 ==========
+        search_query = ""
+        is_search_mode = False
+
         # 保存原来的点击事件，并替换为记账页面的添加菜单
         original_floating_add_click = floating_add_button.on_click
         floating_add_button.on_click = lambda e: show_accounting_add_menu()
@@ -6875,6 +6883,196 @@ def main(page: ft.Page):
             expand=True,
             on_scroll=on_scroll_changed,
         )
+
+        # ========== 定义清除搜索函数（在 clear_btn 使用前定义） ==========
+        def clear_search_state():
+            """清除搜索状态"""
+            nonlocal search_query, is_search_mode
+            search_query = ""
+            is_search_mode = False
+            clear_btn.visible = False
+            clear_btn.update()
+            refresh_records_list()
+            show_bottom_message("已清除搜索")
+
+        # ========== 创建搜索按钮和清除按钮 ==========
+        search_btn = ft.IconButton(
+            icon=ft.Icons.SEARCH,
+            icon_size=22,
+            icon_color=ft.Colors.BLUE_700,
+            on_click=lambda e: show_search_dialog(),
+            tooltip="查询交易",
+            padding=5,
+        )
+
+        # ========== 清除按钮（仅在搜索模式下显示） ==========
+        clear_btn = ft.IconButton(
+            icon=ft.Icons.CLEAR,
+            icon_size=22,
+            icon_color=ft.Colors.RED_400,
+            on_click=lambda e: clear_search_state(),
+            tooltip="清除搜索",
+            padding=5,
+            visible=False,  # 初始隐藏
+        )
+
+        # ========== 定义查询对话框函数 ==========
+        def show_search_dialog():
+            """显示查询对话框"""
+            dialog_container = None
+            
+            def close_dialog():
+                nonlocal dialog_container
+                if dialog_container and dialog_container in page.overlay:
+                    page.overlay.remove(dialog_container)
+                    dialog_container = None
+                    page.update()
+            
+            def do_search(e):
+                """执行查询"""
+                nonlocal search_query, is_search_mode
+                keyword = search_field.value.strip()
+                search_query = keyword
+                is_search_mode = True if keyword else False
+                close_dialog()
+                
+                if keyword:
+                    show_bottom_message(f"🔍 正在搜索: {keyword}")
+                    clear_btn.visible = True
+                    clear_btn.update()
+                    refresh_records_list()
+                else:
+                    show_bottom_message("请输入搜索关键词")
+                    is_search_mode = False
+                    clear_btn.visible = False
+                    clear_btn.update()
+                    refresh_records_list()
+            
+            def clear_search(e):
+                """清除搜索"""
+                nonlocal search_query, is_search_mode
+                search_query = ""
+                is_search_mode = False
+                close_dialog()
+                clear_btn.visible = False
+                clear_btn.update()
+                refresh_records_list()
+                show_bottom_message("已清除搜索")
+            
+            def cancel_search(e):
+                """取消搜索"""
+                close_dialog()
+            
+            def on_search_blur(e):
+                pass
+            
+            def on_search_focus(e):
+                pass
+            
+            # 搜索框
+            search_field = ft.TextField(
+                hint_text="输入关键词搜索交易...",
+                expand=True,
+                autofocus=True,
+                on_blur=on_search_blur,
+                on_focus=on_search_focus,
+                suffix=ft.IconButton(
+                    ft.Icons.CLEAR,
+                    on_click=lambda e: setattr(search_field, 'value', '') or search_field.update(),
+                    icon_color=ft.Colors.GREY_500,
+                    icon_size=20,
+                    visible=False,
+                ),
+                on_change=lambda e: setattr(search_field.suffix, 'visible', bool(search_field.value)) or search_field.update(),
+                border=ft.InputBorder.OUTLINE,
+                border_color=ft.Colors.TRANSPARENT,
+                focused_border_color=ft.Colors.TRANSPARENT,
+                bgcolor=ft.Colors.WHITE,
+                text_style=ft.TextStyle(size=16, color=ft.Colors.BLACK_54),
+                hint_style=ft.TextStyle(color=ft.Colors.GREY_400, size=16),
+            )
+
+            search_text_field = ft.Container(
+                content=search_field,
+                expand=True,
+                height=45,
+                shadow=ft.BoxShadow(
+                    spread_radius=1,
+                    blur_radius=8,
+                    color=ft.Colors.BLACK12,
+                    offset=ft.Offset(0, 2),
+                ),
+                border_radius=20,
+                on_click=lambda e: search_field.focus(),
+            )
+            
+            # 对话框内容
+            dialog_content = ft.Container(
+                content=ft.Column([
+                    ft.Container(
+                        content=ft.Icon(ft.Icons.SEARCH, size=48, color=ft.Colors.BLUE_700),
+                        padding=10,
+                        bgcolor=ft.Colors.BLUE_50,
+                        border_radius=50,
+                    ),
+                    ft.Text("🔍 查询交易", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, text_align=ft.TextAlign.CENTER),
+                    ft.Divider(height=1, color=ft.Colors.GREY_300),
+                    ft.Text("输入关键词搜索交易记录", size=14, color=ft.Colors.GREY_700, text_align=ft.TextAlign.CENTER),
+                    ft.Text("支持搜索: 分类、备注、金额（精确匹配）", size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
+                    ft.Divider(height=1, color=ft.Colors.GREY_300),
+                    search_text_field,
+                    ft.Row([
+                        ft.ElevatedButton(
+                            "清除",
+                            on_click=clear_search,
+                            expand=True,
+                            style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.GREY_700),
+                        ),
+                        ft.ElevatedButton(
+                            "搜索",
+                            on_click=do_search,
+                            expand=True,
+                            style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE),
+                        ),
+                    ], spacing=12, alignment=ft.MainAxisAlignment.CENTER),
+                    ft.Row([
+                        ft.TextButton(
+                            "取消",
+                            on_click=cancel_search,
+                            expand=True,
+                            style=ft.ButtonStyle(color=ft.Colors.GREY_600),
+                        ),
+                    ], alignment=ft.MainAxisAlignment.CENTER),
+                ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                width=340,
+                padding=20,
+                bgcolor=ft.Colors.WHITE,
+                border_radius=16,
+                shadow=ft.BoxShadow(
+                    spread_radius=1,
+                    blur_radius=15,
+                    color=ft.Colors.BLACK12,
+                    offset=ft.Offset(0, 4),
+                ),
+            )
+            
+            dialog_container = ft.Container(
+                content=ft.Column([
+                    ft.Container(expand=True),
+                    ft.Row([
+                        ft.Container(expand=True),
+                        dialog_content,
+                        ft.Container(expand=True),
+                    ]),
+                    ft.Container(expand=True),
+                ]),
+                expand=True,
+                bgcolor=ft.Colors.BLACK26,
+                on_click=lambda e: close_dialog(),
+            )
+            
+            page.overlay.append(dialog_container)
+            page.update()
 
         def delete_transaction(transaction_id, transaction_name):
             """删除记录（带确认对话框）"""
@@ -8194,13 +8392,19 @@ def main(page: ft.Page):
                 padding=5,
                 border_radius=4,
             )
-
+            
+            # 修改 summary_container 中的 Row，将查询按钮放在日期标题旁边
             summary_container.controls.append(
                 ft.Container(
                     content=ft.Column([
                         ft.Divider(height=1),
-
-                        date_label_container,
+                        # ========== 日期标题 + 查询按钮在同一行 ==========
+                        ft.Row([
+                            date_label_container,  # 日期标题（可点击）
+                            ft.Container(expand=True),  # 弹性空间
+                            clear_btn,  # 清除按钮（搜索模式下显示）
+                            search_btn,  # 查询按钮
+                        ], alignment=ft.MainAxisAlignment.START),
                         ft.Row([
                             ft.Column([
                                 ft.Text("收入", size=12, color=ft.Colors.GREY_600),
@@ -8428,91 +8632,146 @@ def main(page: ft.Page):
             page.update()
 
         def refresh_records_list():
-            """刷新记录列表"""
+            """刷新记录列表（支持搜索过滤）"""
             records_list.controls.clear()
+
+            # ========== 如果搜索结束但没有结果，隐藏清除按钮 ==========
+            if not is_search_mode:
+                try:
+                    # 检查 clear_btn 是否已添加到页面
+                    if hasattr(clear_btn, 'page') and clear_btn.page is not None:
+                        clear_btn.visible = False
+                        clear_btn.update()
+                except:
+                    pass
             
             # ========== 根据查询模式筛选记录 ==========
-            if query_mode == "month":
-                month_str = f"{current_year}-{current_month:02d}"
-                month_records = [t for t in transactions if t.date.startswith(month_str)]
+            if is_search_mode and search_query:
+                # 搜索模式：获取所有交易记录
+                base_records = transactions.copy()
+                print(f"[搜索模式] 搜索全部 {len(base_records)} 条记录")
             else:
-                # 区间查询
-                start_str = start_date.strftime("%Y-%m-%d")
-                end_str = end_date.strftime("%Y-%m-%d")
-                month_records = [t for t in transactions if start_str <= t.date <= end_str]
+                # 非搜索模式：按时间范围筛选
+                if query_mode == "month":
+                    month_str = f"{current_year}-{current_month:02d}"
+                    base_records = [t for t in transactions if t.date.startswith(month_str)]
+                else:
+                    start_str = start_date.strftime("%Y-%m-%d")
+                    end_str = end_date.strftime("%Y-%m-%d")
+                    base_records = [t for t in transactions if start_str <= t.date <= end_str]
             
-
             # ========== 应用分类筛选 ==========
-            filtered_records = month_records  # 默认使用全部
+            filtered_records = base_records
             if is_filter_active:
                 filtered_records = []
-                for t in month_records:
+                for t in base_records:
                     if t.type == "income":
-                        # 收入：检查是否在选中的收入分类中
                         if filter_income_categories and t.category in filter_income_categories:
                             filtered_records.append(t)
                     else:
-                        # 支出：检查是否在选中的支出分类中
                         if filter_expense_categories and t.category in filter_expense_categories:
                             filtered_records.append(t)
-
-            # ========== 用于显示的列表（按日期+时间降序，最新的在前） ==========
+            
+            # ========== 应用搜索过滤 ==========
+            if is_search_mode and search_query:
+                keyword = search_query.lower()
+                search_results = []
+                for t in filtered_records:
+                    matched = False
+                    
+                    # 搜索分类
+                    if keyword in t.category.lower():
+                        matched = True
+                    
+                    # 搜索备注
+                    if not matched and t.note and keyword in t.note.lower():
+                        matched = True
+                    
+                    # ========== 搜索金额（精确匹配） ==========
+                    if not matched:
+                        try:
+                            # 尝试将关键词转换为数字进行精确匹配
+                            search_num = float(keyword)
+                            # 精确匹配金额（保留两位小数比较）
+                            if abs(t.amount - search_num) < 0.001:
+                                matched = True
+                        except ValueError:
+                            # 如果关键词不是数字，跳过金额匹配
+                            pass
+                    
+                    # 搜索日期
+                    if not matched:
+                        if keyword in t.date:
+                            matched = True
+                    
+                    if matched:
+                        search_results.append(t)
+                
+                filtered_records = search_results
+                print(f"[搜索模式] 找到 {len(filtered_records)} 条匹配记录")
+            
+            # ========== 用于显示的列表（按日期+时间降序） ==========
             def sort_key_desc(record):
                 time_str = getattr(record, 'time', '00:00')
                 return f"{record.date} {time_str}"
             
             display_records = sorted(filtered_records, key=sort_key_desc, reverse=True)
             
-            # ========== 计算实时余额（按日期+时间正序，从早到晚） ==========
-            # 关键修复：使用相同的排序键，但正序排列
+            # ========== 计算实时余额 ==========
             def sort_key_asc(record):
                 time_str = getattr(record, 'time', '00:00')
                 return f"{record.date} {time_str}"
             
-            # 获取所有交易记录，按日期+时间正序排序（从早到晚）
             all_transactions_sorted = sorted(transactions, key=sort_key_asc)
             
-            # 计算每条记录的累计余额
             running_balance = 0
-            balance_map = {}  # {记录ID: 累计余额}
-            
+            balance_map = {}
             for t in all_transactions_sorted:
                 if t.type == "income":
                     running_balance += t.amount
                 else:
                     running_balance -= t.amount
                 balance_map[t.id] = running_balance
-
-            # ========== 计算统计信息 ==========
+            
+            # ========== 计算统计信息（基于筛选后的记录） ==========
             month_income = sum(t.amount for t in filtered_records if t.type == "income")
             month_expense = sum(t.amount for t in filtered_records if t.type == "expense")
             
-            # 计算上月末结余
-            if query_mode == "month":
-                first_day_of_month = datetime(current_year, current_month, 1).date()
-                first_day_str = first_day_of_month.strftime("%Y-%m-%d")
+            # ========== 搜索模式：结余显示为 0 ==========
+            if is_search_mode and search_query:
+                # 搜索模式：结余显示为 0
+                month_balance = 0
+                cumulative_balance = 0
             else:
-                first_day_str = start_date.strftime("%Y-%m-%d")
+                # 非搜索模式：正常计算
+                cumulative_balance = running_balance
+                if query_mode == "month":
+                    first_day_of_month = datetime(current_year, current_month, 1).date()
+                    first_day_str = first_day_of_month.strftime("%Y-%m-%d")
+                else:
+                    first_day_str = start_date.strftime("%Y-%m-%d")
+                
+                prev_records = [t for t in transactions if t.date < first_day_str]
+                if prev_records:
+                    prev_records_sorted = sorted(prev_records, key=sort_key_asc)
+                    last_prev_record = prev_records_sorted[-1]
+                    previous_month_balance = balance_map.get(last_prev_record.id, 0)
+                else:
+                    previous_month_balance = 0
+                
+                month_balance = previous_month_balance + month_income - month_expense
             
-            prev_records = [t for t in transactions if t.date < first_day_str]
-            if prev_records:
-                prev_records_sorted = sorted(prev_records, key=sort_key_asc)
-                last_prev_record = prev_records_sorted[-1]
-                previous_month_balance = balance_map.get(last_prev_record.id, 0)
-            else:
-                previous_month_balance = 0
-            
-            month_balance = previous_month_balance + month_income - month_expense
-            
-            # ========== 显示记录卡片（使用 display_records） ==========
+            # ========== 显示记录卡片 ==========
             if not display_records:
+                # 显示空状态
+                empty_text = "暂无匹配的记录" if is_search_mode else "暂无记录，点击 + 添加"
                 records_list.controls.append(
                     ft.Container(
-                        content=ft.Text("暂无记录，点击 + 添加", size=14, color=ft.Colors.GREY_500),
+                        content=ft.Text(empty_text, size=14, color=ft.Colors.GREY_500),
                         padding=20,
                     )
                 )
-                # 即使没有记录，也显示统计信息
+                # 显示统计信息
                 records_list.controls.append(
                     ft.Container(
                         content=ft.Column([
@@ -8536,6 +8795,10 @@ def main(page: ft.Page):
                                     ft.Text(f"¥ {month_balance:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
                                 ], expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                             ], spacing=5),
+                            ft.Divider(height=1),
+                            ft.Row([
+                                ft.Text(f"累计结余: ¥ {cumulative_balance:,.2f}", size=12, color=ft.Colors.GREY_600),
+                            ], alignment=ft.MainAxisAlignment.END),
                         ], spacing=8),
                         padding=15,
                         bgcolor=ft.Colors.TRANSPARENT,
@@ -8550,11 +8813,8 @@ def main(page: ft.Page):
                 is_income = t.type == "income"
                 amount_color = ft.Colors.GREEN_700 if is_income else ft.Colors.RED_700
                 amount_prefix = "+" if is_income else "-"
-                
-                # ========== 关键修复：从 balance_map 获取正确的实时余额 ==========
                 current_balance = balance_map.get(t.id, 0)
                 
-                # 日期显示（包含时间）
                 if hasattr(t, 'time') and t.time and t.time != "00:00":
                     date_display = f"{t.date} {t.time}"
                 else:
@@ -8618,6 +8878,10 @@ def main(page: ft.Page):
                                 ft.Text(f"¥ {month_balance:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
                             ], expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                         ], spacing=5),
+                        ft.Divider(height=1),
+                        ft.Row([
+                            ft.Text(f"累计结余: ¥ {cumulative_balance:,.2f}", size=12, color=ft.Colors.GREY_600),
+                        ], alignment=ft.MainAxisAlignment.END),
                     ], spacing=8),
                     padding=15,
                     bgcolor=ft.Colors.TRANSPARENT,
@@ -8625,10 +8889,8 @@ def main(page: ft.Page):
                 )
             )
             
-            # 底部内边距
             records_list.controls.append(ft.Container(height=130))
             
-            # 重置滚动位置
             async def reset_scroll():
                 try:
                     if scroll_container and hasattr(scroll_container, 'page') and scroll_container.page is not None:
@@ -10910,6 +11172,11 @@ def main(page: ft.Page):
         """下拉框选择改变时的回调"""
         global current_view, previous_view
 
+        # 如果当前是搜索视图，先恢复到之前的视图
+        if current_view == "search":
+            current_view = previous_view if previous_view else "all"
+            show_bottom_message("已退出搜索")
+
         # ========== 支持两种调用方式 ==========
         if hasattr(e, 'data'):
             # 从事件对象获取（Dropdown 调用）
@@ -10993,46 +11260,38 @@ def main(page: ft.Page):
             return "一次性事件视图"
         else:
             return "事件视图"
-
+    
+    # 修改 restore_previous_view 函数，支持搜索视图的恢复
     def restore_previous_view():
         """恢复到之前的视图"""
         global current_view, previous_view
         
-        print(f"[恢复视图] previous_view: {previous_view}, current_view: {current_view}")
+        # 如果当前是搜索视图，恢复到之前的视图
+        if current_view == "search":
+            if previous_view:
+                current_view = previous_view
+            else:
+                current_view = "all"
+            
+            # 更新下拉框的值
+            if hasattr(refresh_events_list, 'view_dropdown'):
+                refresh_events_list.view_dropdown.value = current_view
+            
+            # 根据恢复的视图刷新事件列表
+            refresh_current_view_by_state()
+            show_bottom_message("已返回")
+            return
         
-        # 如果 previous_view 存在，恢复到该视图
+        # 原有的恢复逻辑
         if previous_view:
             current_view = previous_view
         else:
-            # 如果 previous_view 不存在，默认返回到全部事件
             current_view = "all"
         
-        # 更新下拉框的值
         if hasattr(refresh_events_list, 'view_dropdown'):
             refresh_events_list.view_dropdown.value = current_view
         
-        # 根据恢复的视图刷新事件列表
-        if current_view == "all":
-            display_all_events()
-        elif current_view == "today":
-            show_today_events()
-        elif current_view == "three_days":
-            show_three_days_events()
-        elif current_view == "daily":
-            show_daily_events()
-        elif current_view == "weekly":
-            show_weekly_events()
-        elif current_view == "monthly":
-            show_monthly_events()
-        elif current_view == "birthday":
-            show_birthday_events()
-        elif current_view == "event":
-            show_event_events()
-        elif current_view == "once":
-            show_once_events()
-        else:
-            display_all_events()
-        
+        refresh_current_view_by_state()
         show_bottom_message("已返回")
     
     # 重新计算 three_days_events
@@ -17014,13 +17273,16 @@ def main(page: ft.Page):
         tooltip="切换日历显示",
         padding=5,
     )
-
-    # ========== 创建托盘图标按钮（仅 Windows） ==========
-    tray_button = ft.Container(
-                        width=arrow_button.width if hasattr(arrow_button, 'width') and arrow_button.width else 40,
-                        height=1,
-                        bgcolor=ft.Colors.TRANSPARENT,
-                    )
+    
+    # 创建搜索图标按钮
+    search_icon_button = ft.IconButton(
+        icon=ft.Icons.SEARCH,
+        icon_size=20,
+        icon_color=ft.Colors.BLUE_700,
+        on_click=lambda e: show_event_search_dialog(),
+        tooltip="搜索事件",
+        padding=5,
+    )
 
     # 修改日历和日期文本的组合
     calendar_section = ft.Column([
@@ -17034,10 +17296,255 @@ def main(page: ft.Page):
                 expand=True,
                 alignment=ft.Alignment(0, 0),
             ),
-            # 右边添加空白占位，宽度与 arrow_button 相同
-            tray_button,
+            # 右边：搜索图标
+            search_icon_button,
         ], alignment=ft.MainAxisAlignment.START, spacing=5),
     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+
+    # ========== 添加事件搜索功能 ==========
+    def show_event_search_dialog():
+        """显示事件搜索对话框"""
+        dialog_container = None
+        
+        def close_dialog():
+            nonlocal dialog_container
+            if dialog_container and dialog_container in page.overlay:
+                page.overlay.remove(dialog_container)
+                dialog_container = None
+                page.update()
+        
+        def do_search(e):
+            """执行搜索"""
+            keyword = search_field.value.strip()
+            if not keyword:
+                show_bottom_message("请输入搜索关键词")
+                return
+            
+            close_dialog()
+            
+            # 执行搜索
+            search_results = []
+            keyword_lower = keyword.lower()
+            
+            for event in events.values():
+                # 搜索名称
+                if keyword_lower in event.name.lower():
+                    search_results.append(event)
+                    continue
+                
+                # 搜索分类
+                if event.event_type and keyword_lower in event.event_type.lower():
+                    search_results.append(event)
+                    continue
+                
+                # 搜索日期
+                if event.birth_date and keyword_lower in event.birth_date:
+                    search_results.append(event)
+                    continue
+                
+                # 搜索备注/描述（如果有）
+                if hasattr(event, 'note') and event.note and keyword_lower in event.note.lower():
+                    search_results.append(event)
+                    continue
+                
+                # 搜索音乐文件名
+                if event.sound_file and keyword_lower in os.path.basename(event.sound_file).lower():
+                    search_results.append(event)
+                    continue
+            
+            if not search_results:
+                show_bottom_message(f"🔍 未找到包含「{keyword}」的事件")
+                return
+            
+            # 显示搜索结果
+            show_bottom_message(f"🔍 找到 {len(search_results)} 个包含「{keyword}」的事件")
+            
+            # 切换到搜索结果视图
+            display_search_results(search_results, keyword)
+        
+        def cancel_search(e):
+            close_dialog()
+            show_bottom_message("已取消搜索")
+        
+        def on_search_focus(e):
+            pass
+        
+        def on_search_blur(e):
+            pass
+        
+        # 搜索框
+        search_field = ft.TextField(
+            hint_text="输入关键词搜索事件...",
+            expand=True,
+            autofocus=True,
+            on_blur=on_search_blur,
+            on_focus=on_search_focus,
+            suffix=ft.IconButton(
+                ft.Icons.CLEAR,
+                on_click=lambda e: setattr(search_field, 'value', '') or search_field.update(),
+                icon_color=ft.Colors.GREY_500,
+                icon_size=20,
+                visible=False,
+            ),
+            on_change=lambda e: setattr(search_field.suffix, 'visible', bool(search_field.value)) or search_field.update(),
+            border=ft.InputBorder.OUTLINE,
+            border_color=ft.Colors.TRANSPARENT,
+            focused_border_color=ft.Colors.TRANSPARENT,
+            bgcolor=ft.Colors.WHITE,
+            text_style=ft.TextStyle(size=16, color=ft.Colors.BLACK_54),
+            hint_style=ft.TextStyle(color=ft.Colors.GREY_400, size=16),
+        )
+        
+        search_text_field = ft.Container(
+            content=search_field,
+            expand=True,
+            height=45,
+            shadow=ft.BoxShadow(
+                spread_radius=1,
+                blur_radius=8,
+                color=ft.Colors.BLACK12,
+                offset=ft.Offset(0, 2),
+            ),
+            border_radius=20,
+            on_click=lambda e: search_field.focus(),
+        )
+        
+        # 快捷搜索标签
+        quick_tags = ["生日", "纪念日", "每月", "每日", "每周", "一次性"]
+        
+        # 在 quick_tags_row 中，确保搜索后关闭对话框
+        quick_tags_row = ft.Row(
+            [ft.TextButton(
+                tag,
+                on_click=lambda e, t=tag: [
+                    setattr(search_field, 'value', t),
+                    close_dialog(),  # 先关闭对话框
+                    do_search(e)     # 然后执行搜索
+                ],
+                style=ft.ButtonStyle(
+                    bgcolor=ft.Colors.BLUE_50,
+                    color=ft.Colors.BLUE_700,
+                    shape=ft.RoundedRectangleBorder(radius=12),
+                    padding=8,
+                ),
+            ) for tag in quick_tags],
+            spacing=8,
+            alignment=ft.MainAxisAlignment.CENTER,
+            wrap=True,
+        )
+        
+        # 对话框内容
+        dialog_content = ft.Container(
+            content=ft.Column([
+                ft.Container(
+                    content=ft.Icon(ft.Icons.SEARCH, size=48, color=ft.Colors.BLUE_700),
+                    padding=10,
+                    bgcolor=ft.Colors.BLUE_50,
+                    border_radius=50,
+                ),
+                ft.Text("🔍 搜索事件", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, text_align=ft.TextAlign.CENTER),
+                ft.Divider(height=1, color=ft.Colors.GREY_300),
+                ft.Text("输入关键词搜索事件", size=14, color=ft.Colors.GREY_700, text_align=ft.TextAlign.CENTER),
+                ft.Text("支持搜索: 名称、类型、日期、音乐文件名", size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
+                ft.Divider(height=1, color=ft.Colors.GREY_300),
+                search_text_field,
+                ft.Text("快捷搜索:", size=12, color=ft.Colors.GREY_600),
+                quick_tags_row,
+                ft.Divider(height=1, color=ft.Colors.GREY_300),
+                ft.Row([
+                    ft.ElevatedButton(
+                        "取消",
+                        on_click=cancel_search,
+                        expand=True,
+                        style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.GREY_700),
+                    ),
+                    ft.ElevatedButton(
+                        "搜索",
+                        on_click=do_search,
+                        expand=True,
+                        style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE),
+                    ),
+                ], spacing=12, alignment=ft.MainAxisAlignment.CENTER),
+            ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+            width=340,
+            padding=20,
+            bgcolor=ft.Colors.WHITE,
+            border_radius=16,
+            shadow=ft.BoxShadow(
+                spread_radius=1,
+                blur_radius=15,
+                color=ft.Colors.BLACK12,
+                offset=ft.Offset(0, 4),
+            ),
+        )
+        
+        dialog_container = ft.Container(
+            content=ft.Column([
+                ft.Container(expand=True),
+                ft.Row([
+                    ft.Container(expand=True),
+                    dialog_content,
+                    ft.Container(expand=True),
+                ]),
+                ft.Container(expand=True),
+            ]),
+            expand=True,
+            bgcolor=ft.Colors.BLACK26,
+            on_click=lambda e: close_dialog(),
+        )
+        
+        page.overlay.append(dialog_container)
+        page.update()
+
+    def display_search_results(results, keyword):
+        """显示搜索结果"""
+        global current_view, events_list, card_duration_texts, previous_view  # 添加 previous_view
+        
+        # 保存当前视图（如果不是搜索视图）
+        if current_view != "search":
+            previous_view = current_view
+        
+        current_view = "search"
+        
+        # 清空卡片引用
+        card_duration_texts.clear()
+        
+        events_list.controls.clear()
+        
+        # 显示搜索标题
+        events_list.controls.append(ft.Row([
+            ft.Text(f"🔍 搜索结果: 「{keyword}」 ({len(results)} 个)", size=14, weight=ft.FontWeight.BOLD, expand=True),
+            ft.TextButton(
+                "✕ 关闭",
+                on_click=lambda e: restore_previous_view(),
+                style=ft.ButtonStyle(color=ft.Colors.RED_700),
+            ),
+        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN))
+        events_list.controls.append(ft.Divider(height=10))
+        
+        if not results:
+            events_list.controls.append(
+                ft.Container(
+                    content=ft.Column([
+                        ft.Text("✨ 未找到匹配的事件", size=14, color=ft.Colors.GREEN_700),
+                    ], spacing=8),
+                    padding=20,
+                )
+            )
+            page.update()
+            return
+        
+        # ========== 按播放状态排序 ==========
+        results = get_sorted_events_for_display(results)
+        
+        for event in results:
+            display_event_card(event, is_filter_mode=True)
+        
+        # 移除最后一个多余的分隔符
+        if events_list.controls and isinstance(events_list.controls[-1], ft.Divider):
+            events_list.controls.pop()
+        
+        page.update()
 
     # ========== 可滚动的内容区域（其他所有内容） ==========
     scrollable_content =ft.Column(
