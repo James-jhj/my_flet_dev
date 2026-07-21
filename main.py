@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.218"
-APP_VERSION_CODE = 218
+APP_VERSION = "1.0.219"
+APP_VERSION_CODE = 219
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5817,7 +5817,7 @@ def main(page: ft.Page):
                 
                 BUTTON_WIDTH = 200
                 CARD_HEIGHT = 90
-                CARD_WIDTH = 380
+                CARD_WIDTH = 378
                 
                 # ========== 底层操作按钮（放在右侧，左滑时露出） ==========
                 action_row = ft.Row(
@@ -5988,7 +5988,7 @@ def main(page: ft.Page):
                 for note in filtered_notes:
                     notes_list.controls.append(create_normal_card(note))
 
-                 # 在列表底部添加一些空白
+                # 在列表底部添加一些空白
                 notes_list.controls.append(ft.Container(height=80))
                 
                 page.update()
@@ -6682,6 +6682,9 @@ def main(page: ft.Page):
                 
                 for note in filtered_notes:
                     select_list.controls.append(create_select_card(note))
+
+                # 在列表底部添加一些空白
+                select_list.controls.append(ft.Container(height=80))
                 
                 # 更新选中数量
                 update_selected_count()
