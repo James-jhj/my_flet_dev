@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.215"
-APP_VERSION_CODE = 215
+APP_VERSION = "1.0.216"
+APP_VERSION_CODE = 216
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5761,8 +5761,6 @@ def main(page: ft.Page):
                     #width=400,
                     expand=True,
                 )
-
-                
                 
                 # ========== 置顶按钮（圆形） ==========
                 pin_button = ft.Container(
@@ -5800,7 +5798,7 @@ def main(page: ft.Page):
                 
                 BUTTON_WIDTH = 200
                 CARD_HEIGHT = 75
-                CARD_WIDTH = 360
+                CARD_WIDTH = 355
                 
                 # ========== 底层操作按钮（放在右侧，左滑时露出） ==========
                 action_row = ft.Row(
@@ -6706,26 +6704,6 @@ def main(page: ft.Page):
                 
                 show_delete_confirm_dialog(f"确定要删除选中的 {len(memo_selected_ids)} 条笔记吗？", confirm_delete)
             
-            # 全选/取消全选切换时更新图标
-            def toggle_all():
-                filtered_notes = memo_notes.copy()
-                all_selected = all(n.id in memo_selected_ids for n in filtered_notes)
-                
-                if all_selected:
-                    for n in filtered_notes:
-                        memo_selected_ids.discard(n.id)
-                    select_all_btn.icon = ft.Icons.CHECK_CIRCLE_OUTLINE
-                    select_all_btn.tooltip = "全选"
-                else:
-                    for n in filtered_notes:
-                        memo_selected_ids.add(n.id)
-                    select_all_btn.icon = ft.Icons.CHECK_CIRCLE
-                    select_all_btn.tooltip = "取消全选"
-                
-                select_all_btn.update()
-                update_selected_count()
-                render_select_list()
-            
             
             # 返回按钮
             back_btn = ft.IconButton(
@@ -6739,44 +6717,38 @@ def main(page: ft.Page):
             # 已选数量文本（需要引用，以便更新）
             selected_count_text = ft.Text(f"已选 {len(memo_selected_ids)} 条", size=14, color=ft.Colors.GREY_700)
             
-            # 全选按钮 - 使用 IconButton
-            select_all_btn = ft.IconButton(
-                icon=ft.Icons.CHECK_CIRCLE_OUTLINE,
-                icon_size=24,
-                icon_color=ft.Colors.BLUE_700,
+            # 全选按钮 - 使用 Container 替代 IconButton
+            select_all_btn = ft.Container(
+                content=ft.Row([
+                    ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE, size=22, color=ft.Colors.BLUE_700),
+                    ft.Text("全选", size=13, color=ft.Colors.BLUE_700, weight=ft.FontWeight.BOLD),
+                ], spacing=4, alignment=ft.MainAxisAlignment.CENTER),
+                padding=ft.Padding(left=8, right=8, top=6, bottom=6),
+                border_radius=8,
+                ink=True,  # 点击涟漪效果
                 on_click=lambda e: toggle_all(),
-                tooltip="全选",
-                style=ft.ButtonStyle(
-                    overlay_color=ft.Colors.BLUE_50,
-                ),
             )
-            
-            # 删除按钮 - 使用 IconButton
-            delete_btn = ft.IconButton(
-                icon=ft.Icons.DELETE_OUTLINE,
-                icon_size=24,
-                icon_color=ft.Colors.RED_700,
+
+            # 删除按钮 - 使用 Container 替代 IconButton
+            delete_btn = ft.Container(
+                content=ft.Row([
+                    ft.Icon(ft.Icons.DELETE_OUTLINE, size=22, color=ft.Colors.RED_700),
+                    ft.Text("删除", size=13, color=ft.Colors.RED_700, weight=ft.FontWeight.BOLD),
+                ], spacing=4, alignment=ft.MainAxisAlignment.CENTER),
+                padding=ft.Padding(left=8, right=8, top=6, bottom=6),
+                border_radius=8,
+                ink=True,  # 点击涟漪效果
                 on_click=lambda e: delete_selected(),
-                tooltip="删除",
-                style=ft.ButtonStyle(
-                    overlay_color=ft.Colors.RED_50,
-                ),
             )
-            
-            # 底部栏（直接放在 Column 底部，不用 overlay）
+
+            # 底部栏
             bottom_bar = ft.Container(
                 content=ft.Row([
-                    ft.Container(
-                        content=select_all_btn,
-                        padding=ft.Padding(left=0, right=0, top=0, bottom=0),
-                    ),
+                    select_all_btn,
                     ft.Container(width=10),
-                    ft.Container(
-                        content=delete_btn,
-                        padding=ft.Padding(left=0, right=0, top=0, bottom=0),
-                    ),
-                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                padding=ft.Padding(left=20, right=20, top=0, bottom=0),  # bottom 加大
+                    delete_btn,
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                padding=ft.Padding(left=20, right=20, top=5, bottom=5),
                 bgcolor=ft.Colors.WHITE,
                 border=ft.border.Border(top=ft.border.BorderSide(1, ft.Colors.GREY_200)),
                 border_radius=ft.BorderRadius.only(
@@ -6791,7 +6763,32 @@ def main(page: ft.Page):
                     color=ft.Colors.BLACK12, 
                     offset=ft.Offset(0, -3)
                 ),
+                height=56,  # 固定高度，与内容匹配
             )
+
+            # 更新全选/取消全选时切换图标和文字
+            def toggle_all():
+                filtered_notes = memo_notes.copy()
+                all_selected = all(n.id in memo_selected_ids for n in filtered_notes)
+                
+                if all_selected:
+                    for n in filtered_notes:
+                        memo_selected_ids.discard(n.id)
+                    # 更新全选按钮
+                    select_all_btn.content.controls[0].icon = ft.Icons.CHECK_CIRCLE_OUTLINE
+                    select_all_btn.content.controls[1].value = "全选"
+                    select_all_btn.tooltip = "全选"
+                else:
+                    for n in filtered_notes:
+                        memo_selected_ids.add(n.id)
+                    # 更新全选按钮
+                    select_all_btn.content.controls[0].icon = ft.Icons.CHECK_CIRCLE
+                    select_all_btn.content.controls[1].value = "取消全选"
+                    select_all_btn.tooltip = "取消全选"
+                
+                select_all_btn.update()
+                update_selected_count()
+                render_select_list()
             
             # 标题栏
             main_content = ft.Column([
@@ -6842,8 +6839,8 @@ def main(page: ft.Page):
                     content=bottom_bar,
                     left=0,
                     right=0,
-                    bottom=0,  # 固定在底部
-                    height=60,  # 固定高度
+                    bottom=-3,  # 固定在底部
+                    height=56,  # 固定高度
                 ),
             ], expand=True)
             
