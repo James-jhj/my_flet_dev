@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.213"
-APP_VERSION_CODE = 213
+APP_VERSION = "1.0.214"
+APP_VERSION_CODE = 214
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5724,7 +5724,6 @@ def main(page: ft.Page):
                     border_width = 1
                 
                 # ========== 卡片内容 ==========
-                # ========== 卡片内容 ==========
                 card_content = ft.Container(
                     content=ft.Column([
                         ft.Row([
@@ -5750,7 +5749,7 @@ def main(page: ft.Page):
                             ),
                         ], spacing=5, expand=True),
                     ], spacing=4),
-                    padding=15,
+                    padding=ft.Padding(left=0, right=0, top=5, bottom=5),
                     bgcolor=ft.Colors.WHITE,
                     border_radius=8,
                     border=ft.border.Border(
@@ -5801,7 +5800,7 @@ def main(page: ft.Page):
                 
                 BUTTON_WIDTH = 200
                 CARD_HEIGHT = 75
-                CARD_WIDTH = 390
+                CARD_WIDTH = 366
                 
                 # ========== 底层操作按钮（放在右侧，左滑时露出） ==========
                 action_row = ft.Row(
@@ -6193,7 +6192,6 @@ def main(page: ft.Page):
                     #max_lines=15, # 不限制行数
                     border=ft.InputBorder.NONE,  # 取消边框
                     focused_border_color=ft.Colors.TRANSPARENT,  # 聚焦时边框透明
-                    #content_padding=ft.padding.only(left=0, top=4),  # 调整内边距
                     text_style=ft.TextStyle(size=15),  # 内容字体大小
                     hint_style=ft.TextStyle(size=15, color=ft.Colors.GREY_400),
                 )
@@ -6202,15 +6200,21 @@ def main(page: ft.Page):
                 top_bar = ft.Row([
                     ft.IconButton(
                         icon=ft.Icons.ARROW_BACK,
-                        icon_size=24,
-                        icon_color=ft.Colors.RED_700,
+                        icon_size=28,
+                        #con_color=ft.Colors.RED_700,
                         tooltip="取消",
                         on_click=lambda e: close_edit_dialog(),
                     ),
-                    ft.Text(title_text, size=18, weight=ft.FontWeight.BOLD, expand=True, text_align=ft.TextAlign.CENTER),
+                    ft.Text(
+                        title_text, 
+                        size=20, 
+                        weight=ft.FontWeight.BOLD, 
+                        expand=True,  # 这个会让标题占据剩余空间
+                        text_align=ft.TextAlign.CENTER,
+                    ),
                     ft.IconButton(
                         icon=ft.Icons.CHECK,
-                        icon_size=24,
+                        icon_size=28,
                         icon_color=ft.Colors.GREEN_700,
                         tooltip="保存",
                         on_click=save_note,
@@ -6240,21 +6244,46 @@ def main(page: ft.Page):
                         content=content_field,
                         expand=True,  # 让内容区域占满剩余空间
                     ),
-                ], spacing=15, scroll=ft.ScrollMode.HIDDEN, expand=True)
+                ], spacing=0, scroll=ft.ScrollMode.HIDDEN, expand=True)
                 
-                # ========== 整体布局 ==========
+                # ========== 整体布局（各部分独立，各自设置边距） ==========
+                # 顶部栏（有自己的边距）
+                top_section = ft.Container(
+                    content=ft.Column([
+                        ft.Container(height=14),  # 手机顶部留白
+                        top_bar,
+                    ]),
+                    bgcolor=ft.Colors.WHITE,
+                    padding=5,
+                )
+
+                # 可滚动内容（有自己的边距）
+                scroll_section = ft.Container(
+                    content=scrollable_content,
+                    expand=True,
+                    bgcolor=ft.Colors.WHITE,
+                    padding=15,
+                )
+
+                # 底部删除按钮（有自己的边距）
+                bottom_section = ft.Container(
+                    content=bottom_delete if bottom_delete else ft.Container(),
+                    bgcolor=ft.Colors.WHITE,
+                    padding=15,
+                )
+
+                # 组合
                 dialog_content = ft.Column([
-                    top_bar,
-                    #ft.Divider(height=5),
-                    scrollable_content,
-                    bottom_delete if bottom_delete else ft.Container(),
-                ], spacing=10, expand=True) # 使用 expand=True 代替固定高度
-                
+                    top_section,
+                    scroll_section,
+                    bottom_section,
+                ], spacing=0, expand=True)
+
                 edit_dialog_container = ft.Container(
                     content=ft.Container(
                         content=dialog_content,
                         bgcolor=ft.Colors.WHITE,
-                        padding=20,
+                        padding=0,  # 外层容器不设边距，由各部分自己控制
                         border_radius=12,
                         shadow=ft.BoxShadow(
                             spread_radius=1,
@@ -6410,30 +6439,60 @@ def main(page: ft.Page):
             main_content = ft.Container(
                 content=ft.Column([
                     ft.Container(height=16),
+                    # ========== 顶部标题行：返回按钮靠左，标题居中 ==========
                     ft.Row([
-                        back_btn_main,
-                        ft.Text("📝 备忘录", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, expand=True, text_align=ft.TextAlign.CENTER),
-                        ft.Container(width=48),
+                        ft.Container(
+                            content=back_btn_main,
+                            padding=ft.Padding(left=0, right=0, top=0, bottom=0),  # 左边距 10
+                        ),
+                        ft.Text(
+                            "📝 备忘录", 
+                            size=20, 
+                            weight=ft.FontWeight.BOLD, 
+                            color=ft.Colors.BLUE_700, 
+                            expand=True, 
+                            text_align=ft.TextAlign.CENTER,
+                        ),
+                        ft.Container(width=48),  # 右侧占位，保持对称
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                    
                     ft.Divider(),
-                    ft.Row([
-                        category_dropdown,
-                    ], alignment=ft.MainAxisAlignment.START, spacing=5),
-                    ft.Row([count_text, ft.Container(expand=True)]),
-                    #ft.Divider(),
-                    ft.Row([
-                        search_field,
-                    ], alignment=ft.MainAxisAlignment.START, spacing=5),
+                    
+                    # ========== 分类下拉框 ==========
+                    ft.Container(
+                        content=ft.Row([
+                            category_dropdown,
+                        ], alignment=ft.MainAxisAlignment.START),
+                        padding=ft.Padding(left=15, right=15, top=5, bottom=5),  # 左右 15，上下 5
+                    ),
+                    
+                    # ========== 笔记数量统计 ==========
+                    ft.Container(
+                        content=ft.Row([
+                            count_text, 
+                            ft.Container(expand=True),
+                        ]),
+                        padding=ft.Padding(left=15, right=15, top=0, bottom=0),  # 左右 15
+                    ),
+                    
+                    # ========== 搜索框 ==========
+                    ft.Container(
+                        content=ft.Row([
+                            search_field,
+                        ], alignment=ft.MainAxisAlignment.START),
+                        padding=ft.Padding(left=15, right=15, top=5, bottom=5),  # 左右 15，上下 5
+                    ),
+                    
                     ft.Divider(height=5),
-                    notes_list,
-                ], spacing=8, expand=True)
-                , 
-                expand=True,
-                on_click=lambda e: hide_search_keyboard() if hasattr(search_text_field, 'hide_keyboard') else None,
-            )
-
-            # 在 build_normal_mode 中，在 Stack 最上层添加透明容器监听点击
-            page_click_listener = ft.Container(
+                    
+                    # ========== 笔记列表 ==========
+                    ft.Container(
+                        content=notes_list,
+                        expand=True,
+                        padding=ft.Padding(left=10, right=10, top=5, bottom=5),  # 左右 10，上下 5
+                    ),
+                    
+                ], spacing=8, expand=True),
                 expand=True,
                 bgcolor=ft.Colors.TRANSPARENT,
                 on_click=lambda e: hide_search_keyboard() if hasattr(search_text_field, 'hide_keyboard') else None,
@@ -6710,20 +6769,51 @@ def main(page: ft.Page):
             
             # 标题栏
             main_content = ft.Column([
-                ft.Container(height=10),
+                ft.Container(height=16),
+                
+                # ========== 顶部标题行 ==========
                 ft.Row([
-                    back_btn,
-                    ft.Text("📝 选择笔记", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, expand=True, text_align=ft.TextAlign.CENTER),
-                    ft.Container(width=48),
+                    ft.Container(
+                        content=back_btn,
+                        padding=ft.Padding(left=0, right=0, top=0, bottom=0),  # 返回按钮左边距 10
+                    ),
+                    ft.Text(
+                        "📝 选择笔记", 
+                        size=20, 
+                        weight=ft.FontWeight.BOLD, 
+                        color=ft.Colors.BLUE_700, 
+                        expand=True, 
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                    ft.Container(width=48),  # 右侧占位保持对称
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                
                 ft.Divider(),
-                ft.Row([
-                    selected_count_text,
-                    ft.Container(expand=True),
-                ]),
+                
+                # ========== 已选数量统计 ==========
+                ft.Container(
+                    content=ft.Row([
+                        selected_count_text,
+                        ft.Container(expand=True),
+                    ]),
+                    padding=ft.Padding(left=15, right=15, top=5, bottom=5),  # 左右 15，上下 5
+                ),
+                
                 ft.Divider(height=5),
-                select_list,
-                bottom_bar,
+                
+                # ========== 笔记列表（选择模式） ==========
+                ft.Container(
+                    content=select_list,
+                    expand=True,
+                    padding=ft.Padding(left=0, right=0, top=5, bottom=5),  # 左右 10，上下 5
+                ),
+                
+                # ========== 底部操作栏 ==========
+                ft.Container(
+                    content=bottom_bar,
+                    padding=ft.Padding(left=15, right=15, top=10, bottom=10),  # 底部栏边距
+                ),
+                
             ], spacing=8, expand=True)
             
             memo_stack = ft.Stack([
@@ -7424,7 +7514,7 @@ def main(page: ft.Page):
             top_bar = ft.Row([
                 ft.IconButton(
                     icon=ft.Icons.CLOSE,
-                    icon_size=24,
+                    icon_size=28,
                     icon_color=ft.Colors.RED_700,
                     tooltip="取消",
                     on_click=lambda e: close_edit_dialog(),
@@ -7432,7 +7522,7 @@ def main(page: ft.Page):
                 ft.Text(f"{title_icon} {title_text}", size=18, weight=ft.FontWeight.BOLD, expand=True, text_align=ft.TextAlign.CENTER),
                 ft.IconButton(
                     icon=ft.Icons.CHECK,
-                    icon_size=24,
+                    icon_size=28,
                     icon_color=ft.Colors.GREEN_700,
                     tooltip="保存",
                     on_click=save_edit,
