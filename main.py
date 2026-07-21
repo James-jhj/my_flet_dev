@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.217"
-APP_VERSION_CODE = 217
+APP_VERSION = "1.0.218"
+APP_VERSION_CODE = 218
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5704,28 +5704,36 @@ def main(page: ft.Page):
                 # ========== 判断是否已置顶（直接从 note 对象读取） ==========
                 is_pinned = note.is_pinned  # 直接使用 note 的属性
 
-                # ========== 根据置顶状态决定分隔符样式 ==========
+                # 根据置顶状态决定样式
                 if is_pinned:
-                    # 置顶：使用橙色粗分隔符
-                    divider = ft.Container(
-                        content=ft.Icon(ft.Icons.CIRCLE, size=4, color=ft.Colors.ORANGE_700),
-                        #padding=ft.padding.only(left=4, right=4),
-                    )
                     title_color = ft.Colors.ORANGE_700
                     preview_color = ft.Colors.ORANGE_700
                     border_color = ft.Colors.ORANGE_700
                     border_width = 2
+                    bg_color = ft.Colors.ORANGE_50  # 置顶卡片浅橙色背景
+                    # 置顶时使用星号或特殊符号
+                    divider = ft.Text("✦", size=10, color=ft.Colors.ORANGE_700)  # 使用星号
                 else:
-                    # 未置顶：使用灰色细分隔符
-                    divider = ft.Text("|", size=10, color=ft.Colors.GREY_300)
                     title_color = ft.Colors.BLACK
                     preview_color = ft.Colors.GREY_600
                     border_color = ft.Colors.GREY_200
                     border_width = 1
+                    bg_color = ft.Colors.WHITE
+                    # 普通时使用竖线
+                    divider = ft.Text("|", size=10, color=ft.Colors.GREY_300)
+
+                # 分类标签
+                category_label = ft.Container(
+                    content=ft.Text(note.category, size=10, color=ft.Colors.BLUE_700),
+                    bgcolor=ft.Colors.BLUE_50,
+                    border_radius=4,
+                    padding=ft.Padding(left=8, right=8, top=2, bottom=2),
+                )
                 
                 # ========== 卡片内容 ==========
                 card_content = ft.Container(
                     content=ft.Column([
+                        # 第一行：标题 + 分类标签
                         ft.Row([
                             ft.Text(
                                 note.title, 
@@ -5733,11 +5741,14 @@ def main(page: ft.Page):
                                 weight=ft.FontWeight.BOLD, 
                                 expand=True,
                                 color=title_color,
+                                max_lines=1,
+                                overflow=ft.TextOverflow.ELLIPSIS,
                             ),
-                            get_category_label(note.category),
+                            category_label,
                         ]),
+                        # 第二行：日期 + 分隔符 + 预览
                         ft.Row([
-                            ft.Text(f"{display_date}", size=10, color=ft.Colors.GREY_500),
+                            ft.Text(f"{display_date}", size=11, color=ft.Colors.GREY_500),
                             divider,  # 根据置顶状态显示不同分隔符
                             ft.Text(
                                 preview_text, 
@@ -5747,18 +5758,26 @@ def main(page: ft.Page):
                                 max_lines=1,
                                 overflow=ft.TextOverflow.ELLIPSIS,
                             ),
-                        ], spacing=5, expand=True),
+                        ], spacing=5, expand=True, vertical_alignment=ft.CrossAxisAlignment.CENTER),
                     ], spacing=4),
-                    padding=ft.Padding(left=0, right=0, top=5, bottom=5),
-                    bgcolor=ft.Colors.WHITE,
-                    border_radius=8,
+                    padding=ft.Padding(left=15, right=15, top=12, bottom=12),
+                    bgcolor=bg_color,
+                    border_radius=12,
                     border=ft.border.Border(
-                        bottom=ft.border.BorderSide(border_width, border_color)
+                        left=ft.border.BorderSide(border_width, border_color),
+                        top=ft.border.BorderSide(border_width, border_color),
+                        right=ft.border.BorderSide(border_width, border_color),
+                        bottom=ft.border.BorderSide(border_width, border_color),
+                    ),
+                    shadow=ft.BoxShadow(
+                        spread_radius=1,
+                        blur_radius=8,
+                        color=ft.Colors.BLACK12,
+                        offset=ft.Offset(0, 2),
                     ),
                     ink=True,
                     on_click=lambda e: open_memo_edit_dialog(note.id),
                     on_long_press=lambda e: enter_multi_select_mode(),
-                    #width=400,
                     expand=True,
                 )
                 
@@ -5797,8 +5816,8 @@ def main(page: ft.Page):
                 )
                 
                 BUTTON_WIDTH = 200
-                CARD_HEIGHT = 75
-                CARD_WIDTH = 355
+                CARD_HEIGHT = 90
+                CARD_WIDTH = 380
                 
                 # ========== 底层操作按钮（放在右侧，左滑时露出） ==========
                 action_row = ft.Row(
@@ -5877,6 +5896,7 @@ def main(page: ft.Page):
                     width=CARD_WIDTH,
                     height=CARD_HEIGHT,
                     clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                    margin=ft.Padding(left=0, right=0, top=5, bottom=5),  # 卡片之间的间距
                 )
 
             # ========================  笔记卡片设置为可滑动结束 ==============================
@@ -5923,7 +5943,6 @@ def main(page: ft.Page):
                 # 更新分类下拉框的显示
                 # ========== 更新分类下拉框的显示（包括数量和菜单项） ==========
                 category_popup.content.controls[0].value = get_current_display()
-                # ========== 重新构建菜单项，更新数量 ==========
                 category_popup.items = build_category_menu_items()
                 category_popup.update()
                 
@@ -5965,8 +5984,12 @@ def main(page: ft.Page):
                     page.update()
                     return
                 
+                 # 使用 Column 包裹卡片，让它们垂直排列
                 for note in filtered_notes:
                     notes_list.controls.append(create_normal_card(note))
+
+                 # 在列表底部添加一些空白
+                notes_list.controls.append(ft.Container(height=80))
                 
                 page.update()
             
@@ -6478,7 +6501,7 @@ def main(page: ft.Page):
                         content=ft.Row([
                             search_field,
                         ], alignment=ft.MainAxisAlignment.START),
-                        padding=ft.Padding(left=15, right=15, top=5, bottom=5),  # 左右 15，上下 5
+                        padding=ft.Padding(left=5, right=5, top=5, bottom=5),  # 左右 15，上下 5
                     ),
                     
                     ft.Divider(height=5),
@@ -6487,7 +6510,7 @@ def main(page: ft.Page):
                     ft.Container(
                         content=notes_list,
                         expand=True,
-                        padding=ft.Padding(left=10, right=10, top=5, bottom=5),  # 左右 10，上下 5
+                        padding=ft.Padding(left=0, right=0, top=5, bottom=5),  # 左右 10，上下 5
                     ),
                     
                 ], spacing=8, expand=True),
@@ -6497,7 +6520,6 @@ def main(page: ft.Page):
             )
             
             memo_stack = ft.Stack([
-                #page_click_listener,  # 放在最上层，透明监听点击
                 main_content,         # 放在上层，可以接收点击
                 ft.Container(content=memo_fab, right=20, bottom=20),
             ], expand=True)
@@ -6532,60 +6554,119 @@ def main(page: ft.Page):
                 selected_count_text.update()
             
             def create_select_card(note):
+                """创建可选择卡片风格的笔记卡片（与主界面一致）"""
                 is_selected = note.id in memo_selected_ids
+                display_date = note.updated_at if note.updated_at else note.created_at
+                preview_text = note.get_preview(30)
+                note_id = note.id
+                
+                # ========== 判断是否已置顶 ==========
+                is_pinned = note.is_pinned
+
+                # ========== 根据置顶状态决定样式 ==========
+                if is_pinned:
+                    title_color = ft.Colors.ORANGE_700
+                    preview_color = ft.Colors.ORANGE_700
+                    border_color = ft.Colors.ORANGE_700
+                    border_width = 2
+                    bg_color = ft.Colors.ORANGE_50 if not is_selected else ft.Colors.BLUE_50
+                    divider = ft.Text("✦", size=10, color=ft.Colors.ORANGE_700)
+                else:
+                    title_color = ft.Colors.BLACK
+                    preview_color = ft.Colors.GREY_600
+                    border_color = ft.Colors.GREY_200
+                    border_width = 1
+                    bg_color = ft.Colors.WHITE if not is_selected else ft.Colors.BLUE_50
+                    divider = ft.Text("|", size=10, color=ft.Colors.GREY_300)
+                
+                # 分类标签
+                category_label = ft.Container(
+                    content=ft.Text(note.category, size=10, color=ft.Colors.BLUE_700),
+                    bgcolor=ft.Colors.BLUE_50,
+                    border_radius=4,
+                    padding=ft.Padding(left=8, right=8, top=2, bottom=2),
+                )
                 
                 def on_click(e):
                     if note.id in memo_selected_ids:
                         memo_selected_ids.remove(note.id)
                     else:
                         memo_selected_ids.add(note.id)
-                    # 更新选中数量
                     update_selected_count()
                     render_select_list()
                 
-                display_date = note.updated_at if note.updated_at else note.created_at
-                preview_text = note.get_preview(40)
-                
+                # ========== 卡片内容（与主界面风格一致） ==========
                 return ft.Container(
-                    content=ft.Row([
-                        ft.Column([
-                            ft.Row([
-                                ft.Text(note.title, size=16, weight=ft.FontWeight.BOLD, expand=True),
-                                get_category_label(note.category),
-                            ]),
-                            ft.Row([
-                                ft.Text(f"{display_date}", size=10, color=ft.Colors.GREY_500),
-                                ft.Text("|", size=10, color=ft.Colors.GREY_300),
-                                ft.Text(
-                                    preview_text, 
-                                    size=12, 
-                                    color=ft.Colors.GREY_600, 
-                                    expand=True,
-                                    max_lines=1,
-                                    overflow=ft.TextOverflow.ELLIPSIS,
-                                ),
-                            ], spacing=5),
-                        ], expand=True),
-                        ft.Checkbox(
-                            value=is_selected,
-                            on_change=lambda e: on_click(e),
-                            active_color=ft.Colors.BLUE_700,
-                        ),
-                    ], spacing=8),
-                    padding=12,
-                    bgcolor=ft.Colors.BLUE_50 if is_selected else ft.Colors.WHITE,
-                    border_radius=8,
-                    border=ft.border.Border(bottom=ft.border.BorderSide(1, ft.Colors.GREY_200)),
+                    content=ft.Column([
+                        # 第一行：标题 + 分类标签 + 复选框
+                        ft.Row([
+                            ft.Text(
+                                note.title, 
+                                size=16, 
+                                weight=ft.FontWeight.BOLD, 
+                                expand=True,
+                                color=title_color,
+                                max_lines=1,
+                                overflow=ft.TextOverflow.ELLIPSIS,
+                            ),
+                            category_label,
+                            ft.Container(width=8),  # 间距
+                            ft.Checkbox(
+                                value=is_selected,
+                                on_change=lambda e: on_click(e),
+                                active_color=ft.Colors.BLUE_700,
+                                scale=0.9,
+                            ),
+                        ]),
+                        # 第二行：日期 + 分隔符 + 预览
+                        ft.Row([
+                            ft.Text(f"{display_date}", size=11, color=ft.Colors.GREY_500),
+                            divider,  # 根据置顶状态显示不同分隔符
+                            ft.Text(
+                                preview_text, 
+                                size=12, 
+                                color=preview_color,
+                                expand=True,
+                                max_lines=1,
+                                overflow=ft.TextOverflow.ELLIPSIS,
+                            ),
+                        ], spacing=5, expand=True, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                    ], spacing=4),
+                    padding=ft.Padding(left=15, right=15, top=12, bottom=12),
+                    bgcolor=bg_color,
+                    border_radius=12,
+                    border=ft.border.Border(
+                        left=ft.border.BorderSide(border_width, border_color),
+                        top=ft.border.BorderSide(border_width, border_color),
+                        right=ft.border.BorderSide(border_width, border_color),
+                        bottom=ft.border.BorderSide(border_width, border_color),
+                    ),
+                    shadow=ft.BoxShadow(
+                        spread_radius=1,
+                        blur_radius=8,
+                        color=ft.Colors.BLACK12,
+                        offset=ft.Offset(0, 2),
+                    ),
                     ink=True,
                     on_click=on_click,
+                    margin=ft.Padding(left=0, right=0, top=5, bottom=5),  # 卡片间距
+                     # ========== 添加固定高度，与普通模式一致 ==========
+                    height=90,  # 与 create_normal_card 中的 CARD_HEIGHT 保持一致
                 )
             
             def render_select_list():
                 select_list.controls.clear()
                 
-                # 获取所有笔记（不筛选，直接显示全部）
+                # 获取所有笔记
                 filtered_notes = memo_notes.copy()
-                filtered_notes.sort(key=lambda x: x.updated_at, reverse=True)
+                # 排序：置顶的在前，然后按更新时间倒序
+                pinned_notes = [n for n in filtered_notes if n.is_pinned]
+                unpinned_notes = [n for n in filtered_notes if not n.is_pinned]
+                
+                pinned_notes.sort(key=lambda x: x.updated_at, reverse=True)
+                unpinned_notes.sort(key=lambda x: x.updated_at, reverse=True)
+                
+                filtered_notes = pinned_notes + unpinned_notes
                 
                 if not filtered_notes:
                     select_list.controls.append(
