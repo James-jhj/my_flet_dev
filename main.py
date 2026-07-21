@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.210"
-APP_VERSION_CODE = 210
+APP_VERSION = "1.0.211"
+APP_VERSION_CODE = 211
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -6185,12 +6185,12 @@ def main(page: ft.Page):
                 
                 # ========== 内容输入（无边框） ==========
                 content_field = ft.TextField(
-                    hint_text="内容",
+                    hint_text="内容（无字数限制）",
                     value=initial_content,
                     expand=True,
                     multiline=True,
                     min_lines=5,
-                    max_lines=15,
+                    #max_lines=15, # 不限制行数
                     border=ft.InputBorder.NONE,  # 取消边框
                     focused_border_color=ft.Colors.TRANSPARENT,  # 聚焦时边框透明
                     #content_padding=ft.padding.only(left=0, top=4),  # 调整内边距
@@ -6236,7 +6236,10 @@ def main(page: ft.Page):
                 scrollable_content = ft.Column([
                     title_field,
                     datetime_category_row,
-                    content_field,
+                    ft.Container(
+                        content=content_field,
+                        expand=True,  # 让内容区域占满剩余空间
+                    ),
                 ], spacing=15, scroll=ft.ScrollMode.AUTO, expand=True)
                 
                 # ========== 整体布局 ==========
@@ -6245,7 +6248,7 @@ def main(page: ft.Page):
                     #ft.Divider(height=5),
                     scrollable_content,
                     bottom_delete if bottom_delete else ft.Container(),
-                ], spacing=10, height=450)
+                ], spacing=10, expand=True) # 使用 expand=True 代替固定高度
                 
                 edit_dialog_container = ft.Container(
                     content=ft.Container(
@@ -6260,10 +6263,10 @@ def main(page: ft.Page):
                         ),
                         expand=True,
                     ),
-                    left=20,
-                    top=50,
-                    right=20,
-                    bottom=50,
+                    left=10,   # 减小左边边距
+                    top=30,    # 减小顶部边距
+                    right=10,  # 减小右边边距
+                    bottom=30, # 减小底部边距
                 )
                 
                 page.overlay.append(edit_dialog_container)
