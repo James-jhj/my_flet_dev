@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.208"
-APP_VERSION_CODE = 208
+APP_VERSION = "1.0.209"
+APP_VERSION_CODE = 209
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -10474,6 +10474,9 @@ def main(page: ft.Page):
                 elif days_until == 1:
                     status_text = "明天"
                     status_color = ft.Colors.ORANGE_700
+                elif days_until == 2:
+                    status_text = "后天"
+                    status_color = ft.Colors.GREEN_700
                 else:
                     status_text = f"{days_until}天后"
                     status_color = ft.Colors.BLUE_700
@@ -10505,6 +10508,9 @@ def main(page: ft.Page):
                 elif days_until == 1:
                     status_text = "明天"
                     status_color = ft.Colors.ORANGE_700
+                elif days_until == 2:
+                    status_text = "后天"
+                    status_color = ft.Colors.GREEN_700
                 else:
                     status_text = f"{days_until}天后"
                     status_color = ft.Colors.BLUE_700
@@ -10516,6 +10522,12 @@ def main(page: ft.Page):
                 elif days_until == 0:
                     status_text = "今天"
                     status_color = ft.Colors.RED_700
+                elif days_until == 1:
+                    status_text = "明天"
+                    status_color = ft.Colors.ORANGE_700
+                elif days_until == 2:
+                    status_text = "后天"
+                    status_color = ft.Colors.GREEN_700
                 elif days_until <= 7:
                     status_text = f"{days_until}天后"
                     status_color = ft.Colors.ORANGE_700
@@ -10530,6 +10542,12 @@ def main(page: ft.Page):
                 elif days_until == 0:
                     status_text = "今天"
                     status_color = ft.Colors.RED_700
+                elif days_until == 1:
+                    status_text = "明天"
+                    status_color = ft.Colors.ORANGE_700
+                elif days_until == 2:
+                    status_text = "后天"
+                    status_color = ft.Colors.GREEN_700
                 elif days_until <= 7:
                     status_text = f"{days_until}天后"
                     status_color = ft.Colors.ORANGE_700
@@ -10542,6 +10560,12 @@ def main(page: ft.Page):
                 if days_until == 0:
                     status_text = "今天"
                     status_color = ft.Colors.RED_700
+                elif days_until == 1:
+                    status_text = "明天"
+                    status_color = ft.Colors.ORANGE_700
+                elif days_until == 2:
+                    status_text = "后天"
+                    status_color = ft.Colors.GREEN_700
                 else:
                     status_text = f"{days_until}天后"
                     status_color = ft.Colors.BLUE_700
