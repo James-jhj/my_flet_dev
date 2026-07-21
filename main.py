@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.212"
-APP_VERSION_CODE = 212
+APP_VERSION = "1.0.213"
+APP_VERSION_CODE = 213
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5465,7 +5465,7 @@ def main(page: ft.Page):
         # ========== 构建普通模式界面 ==========
         def build_normal_mode():
             """构建普通模式界面"""
-            notes_list = ft.Column(spacing=8, scroll=ft.ScrollMode.AUTO, expand=True)
+            notes_list = ft.Column(spacing=8, scroll=ft.ScrollMode.HIDDEN, expand=True)
 
             # ========== 存储卡片的滑动状态 ==========
             card_swipe_states = {}  # {note_id: offset_x}
@@ -6240,7 +6240,7 @@ def main(page: ft.Page):
                         content=content_field,
                         expand=True,  # 让内容区域占满剩余空间
                     ),
-                ], spacing=15, scroll=ft.ScrollMode.AUTO, expand=True)
+                ], spacing=15, scroll=ft.ScrollMode.HIDDEN, expand=True)
                 
                 # ========== 整体布局 ==========
                 dialog_content = ft.Column([
@@ -6456,7 +6456,7 @@ def main(page: ft.Page):
             """构建选择模式界面"""
             print("[构建] 选择模式界面")
             
-            select_list = ft.Column(spacing=8, scroll=ft.ScrollMode.AUTO, expand=True)
+            select_list = ft.Column(spacing=8, scroll=ft.ScrollMode.HIDDEN, expand=True)
             memo_selected_ids.clear()
 
             # ========== 使用 Text 控件作为按钮内容 ==========
