@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.216"
-APP_VERSION_CODE = 216
+APP_VERSION = "1.0.217"
+APP_VERSION_CODE = 217
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -6751,12 +6751,7 @@ def main(page: ft.Page):
                 padding=ft.Padding(left=20, right=20, top=5, bottom=5),
                 bgcolor=ft.Colors.WHITE,
                 border=ft.border.Border(top=ft.border.BorderSide(1, ft.Colors.GREY_200)),
-                border_radius=ft.BorderRadius.only(
-                    top_left=25,
-                    top_right=25,
-                    bottom_left=0,
-                    bottom_right=0
-                ),
+                border_radius=0,
                 shadow=ft.BoxShadow(
                     spread_radius=1, 
                     blur_radius=12, 
