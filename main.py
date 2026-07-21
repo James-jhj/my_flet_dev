@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.209"
-APP_VERSION_CODE = 209
+APP_VERSION = "1.0.210"
+APP_VERSION_CODE = 210
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -420,7 +420,7 @@ class MemoNote:
         self.id = id
         self.title = title
         self.content = content
-        self.category = category  # 未分类、个人、工作、其他
+        self.category = category  # 未分类、个人、工作、开发、其他
         self.created_at = created_at if created_at else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.updated_at = updated_at if updated_at else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.is_pinned = is_pinned  # 新增：置顶状态
@@ -5471,7 +5471,7 @@ def main(page: ft.Page):
             card_swipe_states = {}  # {note_id: offset_x}
             
             # ========== 分类下拉框（PopupMenuButton 风格） ==========
-            category_options = ["全部笔记", "未分类", "个人", "工作", "其他"]
+            category_options = ["全部笔记", "未分类", "个人", "工作", "开发", "其他"]
             current_category = "全部笔记"
 
             # ========== 计算每个分类的笔记数量 ==========
@@ -6110,7 +6110,7 @@ def main(page: ft.Page):
                 )
                 
                 # ========== 分类下拉框（PopupMenuButton 风格，与主界面一致） ==========
-                category_options_edit = ["未分类", "个人", "工作", "其他"]
+                category_options_edit = ["未分类", "个人", "工作", "开发", "其他"]
                 current_category_edit = initial_category
                 
                 # ========== 关键：创建菜单项的函数 ==========
@@ -16397,7 +16397,7 @@ def main(page: ft.Page):
                             elif col_name == 'content':
                                 content = value_str
                             elif col_name == 'category':
-                                category = value_str if value_str in ["未分类", "个人", "工作", "其他"] else "未分类"
+                                category = value_str if value_str in ["未分类", "个人", "工作", "开发", "其他"] else "未分类"
                             elif col_name == 'created_at':
                                 created_at = value_str
                             elif col_name == 'updated_at':
