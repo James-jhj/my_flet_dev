@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.211"
-APP_VERSION_CODE = 211
+APP_VERSION = "1.0.212"
+APP_VERSION_CODE = 212
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -6263,10 +6263,10 @@ def main(page: ft.Page):
                         ),
                         expand=True,
                     ),
-                    left=10,   # 减小左边边距
-                    top=30,    # 减小顶部边距
-                    right=10,  # 减小右边边距
-                    bottom=30, # 减小底部边距
+                    left=0,   # 减小左边边距
+                    top=0,    # 减小顶部边距
+                    right=0,  # 减小右边边距
+                    bottom=0, # 减小底部边距
                 )
                 
                 page.overlay.append(edit_dialog_container)
