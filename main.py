@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.214"
-APP_VERSION_CODE = 214
+APP_VERSION = "1.0.215"
+APP_VERSION_CODE = 215
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5800,7 +5800,7 @@ def main(page: ft.Page):
                 
                 BUTTON_WIDTH = 200
                 CARD_HEIGHT = 75
-                CARD_WIDTH = 366
+                CARD_WIDTH = 360
                 
                 # ========== 底层操作按钮（放在右侧，左滑时露出） ==========
                 action_row = ft.Row(
@@ -6706,6 +6706,7 @@ def main(page: ft.Page):
                 
                 show_delete_confirm_dialog(f"确定要删除选中的 {len(memo_selected_ids)} 条笔记吗？", confirm_delete)
             
+            # 全选/取消全选切换时更新图标
             def toggle_all():
                 filtered_notes = memo_notes.copy()
                 all_selected = all(n.id in memo_selected_ids for n in filtered_notes)
@@ -6713,14 +6714,15 @@ def main(page: ft.Page):
                 if all_selected:
                     for n in filtered_notes:
                         memo_selected_ids.discard(n.id)
-                    select_all_text.value = "☑️ 全选"
+                    select_all_btn.icon = ft.Icons.CHECK_CIRCLE_OUTLINE
+                    select_all_btn.tooltip = "全选"
                 else:
                     for n in filtered_notes:
                         memo_selected_ids.add(n.id)
-                    select_all_text.value = "☑️ 取消全选"
+                    select_all_btn.icon = ft.Icons.CHECK_CIRCLE
+                    select_all_btn.tooltip = "取消全选"
                 
-                # 更新按钮
-                select_all_text.update()
+                select_all_btn.update()
                 update_selected_count()
                 render_select_list()
             
@@ -6737,34 +6739,58 @@ def main(page: ft.Page):
             # 已选数量文本（需要引用，以便更新）
             selected_count_text = ft.Text(f"已选 {len(memo_selected_ids)} 条", size=14, color=ft.Colors.GREY_700)
             
-            # ========== 全选按钮使用 content 包裹 Text ==========
-            select_all_btn = ft.ElevatedButton(
-                content=select_all_text,
+            # 全选按钮 - 使用 IconButton
+            select_all_btn = ft.IconButton(
+                icon=ft.Icons.CHECK_CIRCLE_OUTLINE,
+                icon_size=24,
+                icon_color=ft.Colors.BLUE_700,
                 on_click=lambda e: toggle_all(),
+                tooltip="全选",
                 style=ft.ButtonStyle(
-                    bgcolor=ft.Colors.BLUE_700,
-                    color=ft.Colors.WHITE,
+                    overlay_color=ft.Colors.BLUE_50,
                 ),
             )
             
-            # 删除按钮
-            delete_btn = ft.Button(
-                "🗑️ 删除",
+            # 删除按钮 - 使用 IconButton
+            delete_btn = ft.IconButton(
+                icon=ft.Icons.DELETE_OUTLINE,
+                icon_size=24,
+                icon_color=ft.Colors.RED_700,
                 on_click=lambda e: delete_selected(),
-                style=ft.ButtonStyle(bgcolor=ft.Colors.RED_700, color=ft.Colors.WHITE),
+                tooltip="删除",
+                style=ft.ButtonStyle(
+                    overlay_color=ft.Colors.RED_50,
+                ),
             )
             
             # 底部栏（直接放在 Column 底部，不用 overlay）
             bottom_bar = ft.Container(
                 content=ft.Row([
-                    select_all_btn,
+                    ft.Container(
+                        content=select_all_btn,
+                        padding=ft.Padding(left=0, right=0, top=0, bottom=0),
+                    ),
                     ft.Container(width=10),
-                    delete_btn,
+                    ft.Container(
+                        content=delete_btn,
+                        padding=ft.Padding(left=0, right=0, top=0, bottom=0),
+                    ),
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                padding=10,
+                padding=ft.Padding(left=20, right=20, top=0, bottom=0),  # bottom 加大
                 bgcolor=ft.Colors.WHITE,
                 border=ft.border.Border(top=ft.border.BorderSide(1, ft.Colors.GREY_200)),
-                shadow=ft.BoxShadow(spread_radius=1, blur_radius=8, color=ft.Colors.BLACK12, offset=ft.Offset(0, -2)),
+                border_radius=ft.BorderRadius.only(
+                    top_left=25,
+                    top_right=25,
+                    bottom_left=0,
+                    bottom_right=0
+                ),
+                shadow=ft.BoxShadow(
+                    spread_radius=1, 
+                    blur_radius=12, 
+                    color=ft.Colors.BLACK12, 
+                    offset=ft.Offset(0, -3)
+                ),
             )
             
             # 标题栏
@@ -6808,16 +6834,17 @@ def main(page: ft.Page):
                     padding=ft.Padding(left=0, right=0, top=5, bottom=5),  # 左右 10，上下 5
                 ),
                 
-                # ========== 底部操作栏 ==========
-                ft.Container(
-                    content=bottom_bar,
-                    padding=ft.Padding(left=15, right=15, top=10, bottom=10),  # 底部栏边距
-                ),
-                
             ], spacing=8, expand=True)
             
             memo_stack = ft.Stack([
                 main_content,
+                ft.Container(
+                    content=bottom_bar,
+                    left=0,
+                    right=0,
+                    bottom=0,  # 固定在底部
+                    height=60,  # 固定高度
+                ),
             ], expand=True)
             
             page.clean()
