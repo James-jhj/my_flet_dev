@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.219"
-APP_VERSION_CODE = 219
+APP_VERSION = "1.0.220"
+APP_VERSION_CODE = 220
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -3226,7 +3226,7 @@ def main(page: ft.Page):
     
     # ========== Windows 平台模拟手机尺寸(华为mate60 RS) ==========
     if platform.system() == "Windows":
-        page.window.width = 410
+        page.window.width = 403
         page.window.height = 840
         page.window.resizable = False
 
@@ -5816,7 +5816,7 @@ def main(page: ft.Page):
                 )
                 
                 BUTTON_WIDTH = 200
-                CARD_HEIGHT = 90
+                CARD_HEIGHT = 94
                 CARD_WIDTH = 378
                 
                 # ========== 底层操作按钮（放在右侧，左滑时露出） ==========
@@ -6651,7 +6651,7 @@ def main(page: ft.Page):
                     on_click=on_click,
                     margin=ft.Padding(left=0, right=0, top=5, bottom=5),  # 卡片间距
                      # ========== 添加固定高度，与普通模式一致 ==========
-                    height=90,  # 与 create_normal_card 中的 CARD_HEIGHT 保持一致
+                    height=94,  # 与 create_normal_card 中的 CARD_HEIGHT 保持一致
                 )
             
             def render_select_list():
@@ -6684,7 +6684,7 @@ def main(page: ft.Page):
                     select_list.controls.append(create_select_card(note))
 
                 # 在列表底部添加一些空白
-                select_list.controls.append(ft.Container(height=80))
+                select_list.controls.append(ft.Container(height=50))
                 
                 # 更新选中数量
                 update_selected_count()
