@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.220"
-APP_VERSION_CODE = 220
+APP_VERSION = "1.0.221"
+APP_VERSION_CODE = 221
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -6501,7 +6501,7 @@ def main(page: ft.Page):
                         content=ft.Row([
                             search_field,
                         ], alignment=ft.MainAxisAlignment.START),
-                        padding=ft.Padding(left=5, right=5, top=5, bottom=5),  # 左右 15，上下 5
+                        padding=ft.Padding(left=0, right=0, top=5, bottom=5),  # 左右 15，上下 5
                     ),
                     
                     ft.Divider(height=5),
@@ -6539,7 +6539,7 @@ def main(page: ft.Page):
             memo_selected_ids.clear()
 
             # ========== 使用 Text 控件作为按钮内容 ==========
-            select_all_text = ft.Text("☑️ 全选", size=14, color=ft.Colors.WHITE)
+            #select_all_text = ft.Text("☑️ 全选", size=14, color=ft.Colors.WHITE)
             
             def get_category_label(category):
                 return ft.Container(
@@ -6632,7 +6632,7 @@ def main(page: ft.Page):
                             ),
                         ], spacing=5, expand=True, vertical_alignment=ft.CrossAxisAlignment.CENTER),
                     ], spacing=4),
-                    padding=ft.Padding(left=15, right=15, top=12, bottom=12),
+                    padding=ft.Padding(left=15, right=0, top=12, bottom=12),
                     bgcolor=bg_color,
                     border_radius=12,
                     border=ft.border.Border(
@@ -6641,12 +6641,7 @@ def main(page: ft.Page):
                         right=ft.border.BorderSide(border_width, border_color),
                         bottom=ft.border.BorderSide(border_width, border_color),
                     ),
-                    shadow=ft.BoxShadow(
-                        spread_radius=1,
-                        blur_radius=8,
-                        color=ft.Colors.BLACK12,
-                        offset=ft.Offset(0, 2),
-                    ),
+                    #shadow=ft.BoxShadow(spread_radius=1,blur_radius=8,color=ft.Colors.BLACK12,offset=ft.Offset(0, 2),), 阴影效果
                     ink=True,
                     on_click=on_click,
                     margin=ft.Padding(left=0, right=0, top=5, bottom=5),  # 卡片间距
@@ -6684,11 +6679,12 @@ def main(page: ft.Page):
                     select_list.controls.append(create_select_card(note))
 
                 # 在列表底部添加一些空白
-                select_list.controls.append(ft.Container(height=50))
+                select_list.controls.append(ft.Container(height=55))
                 
                 # 更新选中数量
                 update_selected_count()
                 page.update()
+                print(f"[选择模式] 已选 {selected_count_text.value} 张卡片")
                 print(f"[选择模式] 显示 {len(filtered_notes)} 张卡片")
             
             def exit_select_mode():
@@ -6836,12 +6832,7 @@ def main(page: ft.Page):
                 bgcolor=ft.Colors.WHITE,
                 border=ft.border.Border(top=ft.border.BorderSide(1, ft.Colors.GREY_200)),
                 border_radius=0,
-                shadow=ft.BoxShadow(
-                    spread_radius=1, 
-                    blur_radius=12, 
-                    color=ft.Colors.BLACK12, 
-                    offset=ft.Offset(0, -3)
-                ),
+                #shadow=ft.BoxShadow(spread_radius=1, blur_radius=12, color=ft.Colors.BLACK12, offset=ft.Offset(0, -3)), 阴影效果
                 height=56,  # 固定高度，与内容匹配
             )
 
