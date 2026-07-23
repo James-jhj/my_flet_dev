@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.221"
-APP_VERSION_CODE = 221
+APP_VERSION = "1.0.222"
+APP_VERSION_CODE = 222
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -14078,42 +14078,53 @@ def main(page: ft.Page):
                     else:
                         other_events.append(event)
             
-            # 构建生日列表
+            # ========== 修改：构建生日列表（用逗号分隔） ==========
             events_text = []
             music_file = None
             event_name_for_music = None  # 新增：用于播放的事件名称
             event_id_for_music = None  # 新增：用于播放的事件id
             
             if birthday_events:
-                events_text.append(ft.Text("🎂 生日祝福：", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.RED_700))
+                # ========== 收集所有生日名称，用逗号分隔 ==========
+                birthday_names = []
                 for event in birthday_events:
                     month, day, year, birth_year, _ = event.get_next_date_info()
                     age = datetime.now().year - birth_year
                     calendar_icon = "☀️" if event.calendar_type == "solar" else "🌙"
-                    events_text.append(ft.Text(f"  {calendar_icon} {event.name}（{age}岁）", size=14))
+                    birthday_names.append(f"{event.name}{age}岁生日")
+                    
                     if not music_file and event.sound_file:
                         music_file = event.sound_file
-                        event_name_for_music = event.name  # 保存事件名称
-                        event_id_for_music = event.id      # 保存事件id
+                        event_name_for_music = event.name
+                        event_id_for_music = event.id
+                
+                # ========== 所有生日在同一行，用逗号分隔 ==========
+                events_text.append(ft.Text("🎉 生日祝福：", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.RED_700))
+                events_text.append(ft.Text("、".join(birthday_names), size=14))
             
             if other_events:
-                events_text.append(ft.Text("📅 纪念日提醒：", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700))
+                # ========== 收集所有纪念日名称，用逗号分隔 ==========
+                event_names = []
                 for event in other_events:
-                    calendar_icon = "☀️" if event.calendar_type == "solar" else "🌙"
-                    events_text.append(ft.Text(f"  {calendar_icon} {event.name}", size=14))
+                    event_names.append(f"{event.name}")
+                    
                     if not music_file and event.sound_file:
                         music_file = event.sound_file
-                        event_name_for_music = event.name  # 保存事件名称
-                        event_id_for_music = event.id      # 保存事件id
+                        event_name_for_music = event.name
+                        event_id_for_music = event.id
+                
+                # ========== 所有纪念日在同一行，用逗号分隔 ==========
+                events_text.append(ft.Text("💝 纪念日提醒：", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700))
+                events_text.append(ft.Text("、".join(event_names), size=14))
             
-            title = "🎉 今日提醒"
+            title = "📌 今日提醒"
             title_color = ft.Colors.PURPLE_700
             
             # 创建美化后的内容容器
             content_column = ft.Column([
                 # 顶部图标
                 ft.Container(
-                    content=ft.Icon(ft.Icons.CELEBRATION, size=48, color=ft.Colors.PURPLE_700),
+                    content=ft.Icon(ft.Icons.TODAY, size=48, color=ft.Colors.PURPLE_700),
                     padding=10,
                     bgcolor=ft.Colors.PURPLE_50,
                     border_radius=50,
@@ -14122,16 +14133,23 @@ def main(page: ft.Page):
                 ft.Divider(height=1, color=ft.Colors.GREY_300),
                 ft.Column(events_text, spacing=8),
                 ft.Divider(height=1, color=ft.Colors.GREY_300),
-                ft.Row([
-                    ft.ElevatedButton(
-                        "关闭", 
+                # ========== 修改：关闭按钮宽度最大化 ==========
+                ft.Container(
+                    content=ft.ElevatedButton(
+                        "我知道了", 
                         on_click=lambda e: close_combined_reminder(),
                         style=ft.ButtonStyle(
-                            bgcolor=ft.Colors.BLUE_700,
+                            bgcolor=ft.Colors.BLUE_600,
                             color=ft.Colors.WHITE,
+                            shape=ft.RoundedRectangleBorder(radius=12),
+                            padding=ft.Padding(left=40, right=40, top=14, bottom=14),
                         ),
+                        expand=True,
                     ),
-                ], alignment=ft.MainAxisAlignment.CENTER),
+                    width=float("inf"),
+                    bgcolor=ft.Colors.TRANSPARENT,
+                    padding=ft.Padding(left=0, right=0, top=5, bottom=5),
+                ),
             ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
             
         else:
@@ -14140,12 +14158,13 @@ def main(page: ft.Page):
             
             events_by_day_list = []
             music_file = None
-            event_name_for_music = None      # 新增：用于播放的事件名称
-            event_id_for_music = None        # 新增：用于播放的事件id
+            event_name_for_music = None
+            event_id_for_music = None
 
             # ========== 使用 set 去重 ==========
             seen_event_ids = set()
             
+            # ========== 修改：按天分组，同一类型用逗号分隔 ==========
             for days_left in sorted(events_by_day.keys()):
                 if days_left == 1:
                     day_text = "明天"
@@ -14157,32 +14176,50 @@ def main(page: ft.Page):
                 birthday_names = []
                 event_names = []
                 
+                # 获取该天的月份和日期（从第一个事件获取）
+                month, day, year, birth_year, _ = events_by_day[days_left][0].get_next_date_info()
+                
                 for event in events_by_day[days_left]:
                     # 如果事件ID已经处理过，跳过
                     if event.id in seen_event_ids:
                         continue
                     seen_event_ids.add(event.id)
 
-                    calendar_icon = "☀️" if event.calendar_type == "solar" else "🌙"
+                    # 生日事件显示年龄
                     if event.event_type == "birthday":
-                        birthday_names.append(f"{calendar_icon} {event.name}（生日）")
+                        month_b, day_b, year_b, birth_year_b, _ = event.get_next_date_info()
+                        age = datetime.now().year - birth_year_b
+                        birthday_names.append(f"{event.name}{age}岁生日")
                     else:
-                        event_names.append(f"{calendar_icon} {event.name}")
+                        event_names.append(f"{event.name}")
+
                     if not music_file and event.sound_file:
                         music_file = event.sound_file
-                        event_name_for_music = event.name  # 保存事件名称
-                        event_id_for_music = event.id      # 保存事件id
+                        event_name_for_music = event.name
+                        event_id_for_music = event.id
                 
-                text_parts = []
+                # ========== 构建该天的显示文本（同一类型用逗号分隔） ==========
+                day_items = []
+
+                # 如果有生日，添加生日行
                 if birthday_names:
-                    text_parts.append("🎂 " + "、".join(birthday_names))
-                if event_names:
-                    text_parts.append("📅 " + "、".join(event_names))
+                    day_items.append(f"🎉 {day_text}（{month}月{day}日）：{'、'.join(birthday_names)}")
                 
-                month, day, year, birth_year, _ = events_by_day[days_left][0].get_next_date_info()
-                events_by_day_list.append(
-                    ft.Text(f"• {day_text}（{month}月{day}日）：{'，'.join(text_parts)}", size=14)
-                )
+                # 如果有事件，添加事件行
+                if event_names:
+                    day_items.append(f"💝 {day_text}（{month}月{day}日）：{'、'.join(event_names)}")
+                
+                # 如果只有一种类型，不显示分类图标，直接显示
+                if len(day_items) == 1:
+                    # 去掉前面的分类图标（🎉 或 💝），直接显示
+                    day_items[0] = day_items[0][2:]  # 移除前两个字符（图标和空格）
+                
+                # 添加到列表
+                for item in day_items:
+                    events_by_day_list.append(
+                        ft.Text(f"• {item}", size=14)
+                    )
+                
             
             # 创建美化后的内容容器
             content_column = ft.Column([
@@ -14199,16 +14236,23 @@ def main(page: ft.Page):
                 ft.Column(events_by_day_list, spacing=8),
                 ft.Text("记得提前准备哦！", size=12, color=ft.Colors.GREY_500),
                 ft.Divider(height=1, color=ft.Colors.GREY_300),
-                ft.Row([
-                    ft.ElevatedButton(
-                        "关闭", 
+                # ========== 修改：关闭按钮宽度最大化 ==========
+                ft.Container(
+                    content=ft.ElevatedButton(
+                        "我知道了", 
                         on_click=lambda e: close_combined_reminder(),
                         style=ft.ButtonStyle(
-                            bgcolor=ft.Colors.BLUE_700,
+                            bgcolor=ft.Colors.BLUE_600,
                             color=ft.Colors.WHITE,
+                            shape=ft.RoundedRectangleBorder(radius=12),
+                            padding=ft.Padding(left=40, right=40, top=14, bottom=14),
                         ),
+                        expand=True,
                     ),
-                ], alignment=ft.MainAxisAlignment.CENTER),
+                    width=float("inf"),
+                    bgcolor=ft.Colors.TRANSPARENT,
+                    padding=ft.Padding(left=0, right=0, top=5, bottom=5),
+                ),
             ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
 
             # 自动播放音乐（预警事件）- 如果有音乐在播放，则跳过
@@ -15735,23 +15779,56 @@ def main(page: ft.Page):
             
             def confirm_replace():
                 close_confirm_dialog()
+                
+                # ========== 1. 替换事件数据 ==========
                 events.clear()
                 events.update(new_events)
                 save_events(trigger_check=False)
 
+                # ========== 2. 刷新当前视图 ==========
                 refresh_current_view_by_state()
 
+                # ========== 3. 更新日历 ==========
                 update_calendar()
 
-                # ========== 导入成功后，立即检查今日事件 ==========
-                # 直接调用，不需要 Timer
-                check_events()
+                # ========== 4. 重置今日事件提醒标记（防止重复检查遗漏） ==========
+                today = datetime.now().date()
+                today_key = f"today_{today.strftime('%Y-%m-%d')}"
+                if today_key in sent_notifications:
+                    sent_notifications.discard(today_key)
+                    print(f"[导入] 已重置今日事件提醒标记: {today_key}")
+                
+                # ========== 5. 重新计算 three_days_events ==========
+                three_days_events.clear()
+                for evt in events.values():
+                    if evt.event_type == "daily" or evt.event_type == "weekly":
+                        continue
+                    month, day, year, base_year, days_until = evt.get_next_date_info()
+                    if evt.repeat_type == "once" and (evt.completed or days_until < 0):
+                        continue
+                    if 0 < days_until <= 3:
+                        three_days_events.append((evt, days_until))
+                
+                # ========== 6. 更新顶部日期文本 ==========
+                update_date_text_with_events(today, three_days_events)
+
+                # ========== 7. 立即检查今日事件和预警事件 ==========
+                print("[导入] 触发事件检查...")
+                
+                # 检查今日事件和预警事件（会弹框和播放音乐）
+                check_startup_events()
+                
+                # 检查时间提醒（如果有设置提醒时间）
                 check_time_reminders()
-                # ========== 导入后重新检查视图 ==========
+                
+                # ========== 8. 确定启动视图 ==========
                 determine_startup_view()
                 
-                show_bottom_message(f"成功导入 {imported_count} 条事件")
+                # ========== 9. 强制刷新页面 ==========
                 page.update()
+                
+                show_bottom_message(f"成功导入 {imported_count} 条事件")
+                print("[导入] 事件检查完成")
             
             def cancel_replace():
                 close_confirm_dialog()
