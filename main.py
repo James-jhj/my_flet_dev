@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.222"
-APP_VERSION_CODE = 222
+APP_VERSION = "1.0.223"
+APP_VERSION_CODE = 223
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -3561,14 +3561,17 @@ def main(page: ft.Page):
             return
     
         if days_left == 0:
-            title = "🎉 今日事件提醒"
+            title = "📌 今日事件提醒"
             message = f"{event_name} 就在今天！"
         elif days_left == 1:
-            title = "⏰ 事件提醒"
+            title = "🎈 事件提醒"
             message = f"{event_name} 明天就到啦！"
+        elif days_left == 2:
+                    title = "🎈 事件提醒"
+                    message = f"{event_name} 后天就到啦！"
         else:
-            title = "⏰ 事件提醒"
-            message = f"{event_name} 还有 {days_left} 天"
+            title = "🎈 事件提醒"
+            message = f"{event_name} 还有 {days_left} 天！"
         
         show_notification(page, title, message, notification_id=EVENT_NOTIFICATION_ID)
 
@@ -14009,10 +14012,14 @@ def main(page: ft.Page):
         else:
             day_text = f"{days_left}天后"
         
-        # ========== 去重检查 ==========
-        reminder_key = f"{event_id}_{days_left}_{datetime.now().strftime('%Y-%m-%d')}"
+        # ========== 使用更精确的 key ==========
+        today = datetime.now().strftime('%Y-%m-%d')
+        reminder_key = f"{event_id}_{today}_{days_left}" if event_id else f"{event_name}_{today}_{days_left}"
+        
+        # ========== 检查是否已发送 ==========
         if reminder_key in sent_reminders:
-            return  # 已发送过，跳过
+            print(f"[去重] 已发送过 {event_name} 的提醒，跳过")
+            return
         
         sent_reminders.add(reminder_key)
         
@@ -14031,15 +14038,6 @@ def main(page: ft.Page):
         if not events_by_day:
             print("[弹框调试] events_by_day 为空，返回")
             return
-        
-        # ========== 发送通知（使用统一函数，带去重） ==========
-        for days, events in events_by_day.items():
-            for event in events:
-                if is_today:
-                    log_event_reminder(event.name, 0, event.id)
-                else:
-                    log_event_reminder(event.name, days, event.id)
-
         
         def close_combined_reminder():
             try:
@@ -18388,15 +18386,16 @@ def main(page: ft.Page):
     # 1. 检查错过的提醒（设置了提醒时间且时间已过）
     check_missed_reminders()
     
-    # 2. 检查今日事件和预警事件（使用 check_startup_events）
-    check_startup_events()
+    # 2. 检查今日事件和预警事件（会触发弹框和通知）
+    check_startup_events() # 这个已经包含了通知
     
     # 3. 设置启动视图
     determine_startup_view()
     
     # 4. 延迟执行首次检查（但这次 check_events 会检查去重标记，不会重复弹框）
     debug_log("设置首次检查定时器（2秒后）")
-    threading.Timer(2.0, check_events).start()
+    # ========== 注释掉这行，避免重复检查 ==========
+    # threading.Timer(2.0, check_events).start()  # 删除这行，因为 check_startup_events 已经做了检查
 
     # ================= windows 托盘功能开始 ======================
     # 页面加载完成
