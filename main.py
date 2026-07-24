@@ -33,6 +33,9 @@ import subprocess
 import uuid
 import sys
 
+import hashlib
+import base64
+
 # ========== 平台检测 ==========
 IS_WINDOWS = platform.system() == "Windows"
 
@@ -79,8 +82,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.225"
-APP_VERSION_CODE = 225
+APP_VERSION = "1.0.226"
+APP_VERSION_CODE = 226
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -412,6 +415,35 @@ class KeyboardManager:
             self._page.on_click = self._original_on_click
         self._controls.clear()
 
+# ========== 密码加密工具函数 ==========
+def encrypt_password(password: str) -> str:
+    """对密码进行加密（使用 SHA-256 哈希）"""
+    if not password:
+        return ""
+    # 使用 SHA-256 哈希，并转换为 base64 编码
+    hashed = hashlib.sha256(password.encode('utf-8')).digest()
+    return base64.b64encode(hashed).decode('utf-8')
+
+def verify_password(password: str, hashed_password: str) -> bool:
+    """验证密码是否匹配"""
+    if not password and not hashed_password:
+        return True
+    if not password or not hashed_password:
+        return False
+    return encrypt_password(password) == hashed_password
+
+def is_password_hashed(password_str: str) -> bool:
+    """检查密码字符串是否已经是哈希值（Base64 格式）"""
+    if not password_str:
+        return False
+    # 检查是否看起来像 Base64 编码的哈希值（长度44，包含特定字符）
+    try:
+        # 尝试解码，如果成功说明可能是 Base64
+        base64.b64decode(password_str)
+        return True
+    except:
+        return False
+
 # ========== 备忘录数据类 ==========
 class MemoNote:
     """备忘录笔记类"""
@@ -426,7 +458,11 @@ class MemoNote:
         self.updated_at = updated_at if updated_at else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.is_pinned = is_pinned  # 新增：置顶状态
         self.is_encrypted = is_encrypted  # 是否加密
-        self.password = password  # 解密后保留密码
+        # ========== 如果传入的是明文密码，进行加密存储 ==========
+        if password and not is_password_hashed(password):
+            self.password = encrypt_password(password)
+        else:
+            self.password = password
         self.original_content = original_content  # 保存原始内容
     
     def to_dict(self):
@@ -439,12 +475,13 @@ class MemoNote:
             "updated_at": self.updated_at,
             "is_pinned": self.is_pinned,  # 新增
             "is_encrypted": self.is_encrypted,  # 新增
-            "password": self.password,  # 新增（实际使用中应加密）
+            "password": self.password,  # 已经是加密后的值
             "original_content": self.original_content,  # 新增
         }
     
     @classmethod
     def from_dict(cls, data):
+        # ========== 从字典加载时，密码已经是加密状态，直接使用 ==========
         return cls(
             data["id"],
             data["title"],
@@ -454,7 +491,7 @@ class MemoNote:
             data.get("updated_at"),
             data.get("is_pinned", False),  # 新增，兼容旧数据
             data.get("is_encrypted", False),  # 新增，兼容旧数据
-            data.get("password", ""),  # 新增，兼容旧数据
+            data.get("password", ""),  # 密码已经是加密的哈希值
             data.get("original_content", ""),  # 新增，兼容旧数据
         )
     
@@ -6004,12 +6041,11 @@ def main(page: ft.Page):
                     # ========== 未加密 -> 加密 ==========
                     # 如果笔记已有密码（之前解密过），直接重新加密
                     if note.password:
-                        # 使用已有密码重新加密
+                        # 使用已有密码重新加密（密码已经是加密状态）
                         note.is_encrypted = True
                         note.content = "🔒 此笔记已加密，请输入密码查看内容"
                         save_memo_notes()
                         
-                        # 重置滑动状态
                         if note.id in card_swipe_states:
                             card_swipe_states[note.id] = 0
                         
@@ -6050,8 +6086,8 @@ def main(page: ft.Page):
                     if not note.original_content and note.content:
                         note.original_content = note.content
                     
-                    # 标记为加密并替换内容
-                    note.password = password
+                    # ========== 加密密码并保存 ==========
+                    note.password = encrypt_password(password)  # 加密后存储
                     note.is_encrypted = True
                     note.content = "🔒 此笔记已加密，请输入密码查看内容"
                     save_memo_notes()
@@ -6178,30 +6214,25 @@ def main(page: ft.Page):
                         show_bottom_message("请输入密码", is_error=True)
                         return
                     
-                    if password == note.password:
-                        # ========== 密码正确，解密笔记 ==========
-                        # 恢复原始内容
+                    # ========== 使用加密验证函数 ==========
+                    if verify_password(password, note.password):
+                        # 密码正确，解密笔记
                         if note.original_content:
                             note.content = note.original_content
                         else:
-                            # 如果没有保存原始内容（兼容旧数据），提示用户
                             note.content = "（请手动恢复内容）"
                         
                         note.is_encrypted = False
-                        # ========== 关键修改：保留密码，不置空 ==========
-                        # note.password = ""  # 删除这行，保留密码
-                        # note.original_content = ""  # 保留原始内容，方便重新加密
+                        # 保留密码（已经是加密状态）
                         save_memo_notes()
                         close_dialog()
                         
-                        # 重置滑动状态
                         if note.id in card_swipe_states:
                             card_swipe_states[note.id] = 0
                         
                         render_notes()
                         show_bottom_message("✅ 笔记已解密（密码已保留，可重新加密）")
                         
-                        # ========== 关键修复：延迟调用编辑对话框，确保界面已刷新 ==========
                         def open_edit():
                             open_memo_edit_dialog(note.id)
                         
@@ -6470,7 +6501,7 @@ def main(page: ft.Page):
                         note.content = content
                         note.category = category
                         note.updated_at = current_datetime
-                        # ========== 如果笔记已解密，但原本是加密的，保留原始内容 ==========
+                        # 如果笔记已解密，但原本是加密的，保留原始内容
                         if not note.is_encrypted and note.original_content:
                             note.original_content = content  # 更新原始内容
                         show_bottom_message(f"✅ 已保存「{title}」")
@@ -6592,10 +6623,8 @@ def main(page: ft.Page):
                     expand=True,
                     border=ft.InputBorder.NONE,  # 取消边框
                     focused_border_color=ft.Colors.TRANSPARENT,  # 聚焦时边框透明
-                    #content_padding=ft.padding.only(left=0, bottom=4),  # 调整内边距
                     text_style=ft.TextStyle(size=18, weight=ft.FontWeight.BOLD),  # 标题字体加大加粗
                     hint_style=ft.TextStyle(size=18, weight=ft.FontWeight.BOLD, color=ft.Colors.GREY_400),
-                    # ========== 自动获取焦点 ==========
                     autofocus=True,  # 关键：自动获取焦点
                 )
                 
@@ -6727,35 +6756,63 @@ def main(page: ft.Page):
                     return ft.Icons.LOCK_OUTLINE, ft.Colors.GREY_400, "未加密"
                 
                 lock_icon, lock_color, lock_tooltip = get_lock_icon_and_color()
+
+                # ========== 判断是添加模式还是编辑模式 ==========
+                is_add_mode = (note_id is None)  # 添加模式
                 
-                # ========== 顶部按钮栏（修复：正确判断 is_decrypted） ==========
-                top_bar = ft.Row([
-                    # 左边：保存按钮
-                    ft.IconButton(
-                        icon=ft.Icons.ARROW_BACK,
-                        icon_size=28,
-                        #con_color=ft.Colors.RED_700,
-                        tooltip="保存",
-                        on_click=save_note,
-                    ),
-                    ft.Text(
-                        title_text, 
-                        size=20, 
-                        weight=ft.FontWeight.BOLD, 
-                        expand=True,  # 这个会让标题占据剩余空间
-                        text_align=ft.TextAlign.CENTER,
-                    ),
-                    # 右边：锁按钮（根据状态显示不同图标）
-                    ft.IconButton(
-                        icon=lock_icon,
-                        icon_size=28,
-                        icon_color=lock_color,
-                        tooltip=lock_tooltip,
-                        on_click=toggle_lock,
-                    ),
-                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+                # ========== 顶部按钮栏（添加模式 vs 编辑模式） ==========
+                if is_add_mode:
+                    # ========== 添加模式：左边取消，右边保存 ==========
+                    top_bar = ft.Row([
+                        ft.IconButton(
+                            icon=ft.Icons.ARROW_BACK,
+                            icon_size=28,
+                            icon_color=ft.Colors.RED_700,
+                            tooltip="取消",
+                            on_click=lambda e: close_edit_dialog(),
+                        ),
+                        ft.Text(
+                            "添加笔记", 
+                            size=20, 
+                            weight=ft.FontWeight.BOLD, 
+                            expand=True,
+                            text_align=ft.TextAlign.CENTER,
+                        ),
+                        ft.IconButton(
+                            icon=ft.Icons.CHECK,
+                            icon_size=28,
+                            icon_color=ft.Colors.GREEN_700,
+                            tooltip="保存",
+                            on_click=save_note,
+                        ),
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+                else:
+                    # ========== 编辑模式：左边保存，右边锁按钮 ==========
+                    top_bar = ft.Row([
+                        ft.IconButton(
+                            icon=ft.Icons.ARROW_BACK,
+                            icon_size=28,
+                            icon_color=ft.Colors.GREEN_700,
+                            tooltip="保存",
+                            on_click=save_note,
+                        ),
+                        ft.Text(
+                            "编辑笔记", 
+                            size=20, 
+                            weight=ft.FontWeight.BOLD, 
+                            expand=True,
+                            text_align=ft.TextAlign.CENTER,
+                        ),
+                        ft.IconButton(
+                            icon=lock_icon,
+                            icon_size=28,
+                            icon_color=lock_color,
+                            tooltip=lock_tooltip,
+                            on_click=toggle_lock,
+                        ),
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER)
                 
-                # ========== 底部删除按钮（编辑模式） ==========
+                # ========== 底部删除按钮（仅编辑模式） ==========
                 bottom_delete = None
                 if note_id:
                     bottom_delete = ft.Row([
@@ -17128,34 +17185,36 @@ def main(page: ft.Page):
                     header_row_idx = row_idx
                     header_row = row_data
                     print(f"[导入备忘录] 找到表头行: 第 {row_idx} 行")
+                    print(f"[导入备忘录] 表头内容: {header_row}")
                     break
             
             if header_row_idx is None:
-                # 如果没找到表头，默认从第6行开始（兼容旧格式）
                 header_row_idx = 6
                 header_row = ["标题", "内容", "分类", "创建时间", "更新时间", "置顶", "是否加密", "密码", "原始内容"]
                 print(f"[导入备忘录] 未找到表头，使用默认表头")
             
-            # ========== 确定各列索引 ==========
+            # ========== 确定各列索引（直接按位置映射，不依赖顺序） ==========
+            # 直接根据表头内容确定列位置
             col_index = {}
             for idx, col_name in enumerate(header_row):
-                if "标题" in col_name:
+                col_name_clean = col_name.strip()
+                if col_name_clean == "标题":
                     col_index['title'] = idx
-                elif "内容" in col_name:
+                elif col_name_clean == "内容":
                     col_index['content'] = idx
-                elif "分类" in col_name:
+                elif col_name_clean == "分类":
                     col_index['category'] = idx
-                elif "创建时间" in col_name:
+                elif col_name_clean == "创建时间":
                     col_index['created_at'] = idx
-                elif "更新时间" in col_name:
+                elif col_name_clean == "更新时间":
                     col_index['updated_at'] = idx
-                elif "置顶" in col_name:
+                elif col_name_clean == "置顶":
                     col_index['is_pinned'] = idx
-                elif "是否加密" in col_name or "加密" in col_name:
+                elif col_name_clean in ["是否加密", "加密"]:
                     col_index['is_encrypted'] = idx
-                elif "密码" in col_name:
+                elif col_name_clean == "密码":
                     col_index['password'] = idx
-                elif "原始内容" in col_name:
+                elif col_name_clean == "原始内容":
                     col_index['original_content'] = idx
             
             print(f"[导入备忘录] 列索引: {col_index}")
@@ -17205,15 +17264,16 @@ def main(page: ft.Page):
                     if not title:
                         continue
                     
-                    # ========== 如果导入的数据是加密状态，但密码为空，自动设置为未加密 ==========
+                    # ========== 直接使用内容，如果内容为空则用原始内容 ==========
+                    if not content and original_content:
+                        content = original_content
+                        print(f"[导入备忘录] 第 {row_idx} 行: 内容为空，使用原始内容")
+                    
+                    # 如果标记为加密但密码为空，改为未加密
                     if is_encrypted and not password:
-                        print(f"[导入备忘录] 第 {row_idx} 行: 标记为加密但密码为空，自动改为未加密")
                         is_encrypted = False
                     
-                    # ========== 如果导入的数据是加密状态，但原始内容为空，使用当前内容作为原始内容 ==========
-                    if is_encrypted and not original_content:
-                        original_content = content
-                    
+                    # 创建笔记
                     new_note = MemoNote(
                         id=str(int(datetime.now().timestamp() * 1000) + imported_count),
                         title=title,
@@ -17228,7 +17288,7 @@ def main(page: ft.Page):
                     )
                     new_notes.append(new_note)
                     imported_count += 1
-                    print(f"[导入备忘录] 成功导入第 {row_idx} 行: {title} (加密: {is_encrypted})")
+                    print(f"[导入备忘录] 第 {row_idx} 行: {title} (内容长度: {len(content)})")
                     
                 except Exception as row_error:
                     print(f"[导入备忘录] 第 {row_idx} 行处理失败: {row_error}")
@@ -17254,7 +17314,7 @@ def main(page: ft.Page):
                     global memo_notes
                     memo_notes = new_notes
                     save_memo_notes()
-                    show_bottom_message(f"成功导入 {imported_count} 条备忘录（含加密字段）")
+                    show_bottom_message(f"成功导入 {imported_count} 条备忘录")
                     page.update()
                 
                 def cancel_replace():
