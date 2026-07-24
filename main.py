@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.223"
-APP_VERSION_CODE = 223
+APP_VERSION = "1.0.224"
+APP_VERSION_CODE = 224
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -416,7 +416,8 @@ class KeyboardManager:
 class MemoNote:
     """备忘录笔记类"""
     def __init__(self, id: str, title: str, content: str, category: str = "未分类", 
-                 created_at: str = None, updated_at: str = None,is_pinned: bool = False):
+                 created_at: str = None, updated_at: str = None, is_pinned: bool = False,
+                 is_encrypted: bool = False, password: str = "", original_content: str = ""):
         self.id = id
         self.title = title
         self.content = content
@@ -424,6 +425,9 @@ class MemoNote:
         self.created_at = created_at if created_at else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.updated_at = updated_at if updated_at else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.is_pinned = is_pinned  # 新增：置顶状态
+        self.is_encrypted = is_encrypted  # 是否加密
+        self.password = password  # 解密后保留密码
+        self.original_content = original_content  # 保存原始内容
     
     def to_dict(self):
         return {
@@ -434,6 +438,9 @@ class MemoNote:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "is_pinned": self.is_pinned,  # 新增
+            "is_encrypted": self.is_encrypted,  # 新增
+            "password": self.password,  # 新增（实际使用中应加密）
+            "original_content": self.original_content,  # 新增
         }
     
     @classmethod
@@ -446,6 +453,9 @@ class MemoNote:
             data.get("created_at"),
             data.get("updated_at"),
             data.get("is_pinned", False),  # 新增，兼容旧数据
+            data.get("is_encrypted", False),  # 新增，兼容旧数据
+            data.get("password", ""),  # 新增，兼容旧数据
+            data.get("original_content", ""),  # 新增，兼容旧数据
         )
     
     def get_preview(self, max_length=40):
@@ -5696,7 +5706,7 @@ def main(page: ft.Page):
             
             # ========================  笔记卡片设置为可滑动开始 ==============================
             def create_normal_card(note):
-                """创建可左滑的笔记卡片 - 参照示例代码风格"""
+                """创建可左滑的笔记卡片 - 添加加密按钮"""
                 display_date = note.updated_at if note.updated_at else note.created_at
                 preview_text = note.get_preview(40)
                 note_id = note.id
@@ -5704,8 +5714,10 @@ def main(page: ft.Page):
                 # 获取当前滑动偏移量
                 current_offset = card_swipe_states.get(note_id, 0)
 
-                # ========== 判断是否已置顶（直接从 note 对象读取） ==========
+                # ========== 判断状态 ==========
                 is_pinned = note.is_pinned  # 直接使用 note 的属性
+                is_encrypted = note.is_encrypted  # 获取加密状态
+                has_password = bool(note.password)  # 是否有密码
 
                 # 根据置顶状态决定样式
                 if is_pinned:
@@ -5725,6 +5737,56 @@ def main(page: ft.Page):
                     # 普通时使用竖线
                     divider = ft.Text("|", size=10, color=ft.Colors.GREY_300)
 
+                # ========== 构建标题（包含锁标识） ==========
+                # 标题文本
+                title_text = note.title
+
+                # ========== 锁标识：只在设置了密码的笔记上显示 ==========
+                lock_icon = None
+                if has_password:
+                    if is_encrypted:
+                        # 已加密：显示关锁 🔒
+                        lock_icon = ft.Icon(
+                            ft.Icons.LOCK,
+                            size=14,
+                            color=ft.Colors.PURPLE_700,
+                        )
+                    else:
+                        # 已解密（有密码但未加密）：显示开锁 🔓
+                        lock_icon = ft.Icon(
+                            ft.Icons.LOCK_OPEN,
+                            size=14,
+                            color=ft.Colors.GREEN_700,
+                        )
+                
+                # 构建标题行
+                if lock_icon:
+                    # 有锁标识：标题 + 锁图标
+                    title_row = ft.Row([
+                        ft.Text(
+                            title_text, 
+                            size=16, 
+                            weight=ft.FontWeight.BOLD, 
+                            expand=True,
+                            color=title_color,
+                            max_lines=1,
+                            overflow=ft.TextOverflow.ELLIPSIS,
+                        ),
+                        lock_icon,  # 锁标识
+                        ft.Container(width=4),  # 间距
+                    ], spacing=2, vertical_alignment=ft.CrossAxisAlignment.CENTER, expand=True)
+                else:
+                    # 无锁标识：只显示标题
+                    title_row = ft.Text(
+                        title_text, 
+                        size=16, 
+                        weight=ft.FontWeight.BOLD, 
+                        expand=True,
+                        color=title_color,
+                        max_lines=1,
+                        overflow=ft.TextOverflow.ELLIPSIS,
+                    )
+
                 # 分类标签
                 category_label = ft.Container(
                     content=ft.Text(note.category, size=10, color=ft.Colors.BLUE_700),
@@ -5738,17 +5800,9 @@ def main(page: ft.Page):
                     content=ft.Column([
                         # 第一行：标题 + 分类标签
                         ft.Row([
-                            ft.Text(
-                                note.title, 
-                                size=16, 
-                                weight=ft.FontWeight.BOLD, 
-                                expand=True,
-                                color=title_color,
-                                max_lines=1,
-                                overflow=ft.TextOverflow.ELLIPSIS,
-                            ),
+                            title_row,  # 使用带锁标识的标题
                             category_label,
-                        ]),
+                        ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER),
                         # 第二行：日期 + 分隔符 + 预览
                         ft.Row([
                             ft.Text(f"{display_date}", size=11, color=ft.Colors.GREY_500),
@@ -5800,6 +5854,37 @@ def main(page: ft.Page):
                         offset=ft.Offset(0, 2),
                     ),
                 )
+
+                # ========== 加密按钮（圆形）- 根据状态显示不同图标 ==========
+                if is_encrypted:
+                    encrypt_icon = ft.Icons.LOCK
+                    encrypt_color = "#7B1FA2"  # 紫色
+                    encrypt_tooltip = "已加密，点击解密"
+                elif has_password:
+                    encrypt_icon = ft.Icons.LOCK_OPEN
+                    encrypt_color = "#388E3C"  # 绿色
+                    encrypt_tooltip = "已解密，点击重新加密"
+                else:
+                    encrypt_icon = ft.Icons.LOCK_OUTLINE
+                    encrypt_color = "#9E9E9E"  # 灰色
+                    encrypt_tooltip = "未加密，点击设置密码"
+
+                encrypt_button = ft.Container(
+                    content=ft.Icon(encrypt_icon, size=24, color=ft.Colors.WHITE),
+                    bgcolor=encrypt_color,
+                    alignment=ft.Alignment(0, 0),
+                    on_click=lambda e: toggle_encrypt_note(note_id),
+                    width=40,
+                    height=40,
+                    border_radius=20,
+                    shadow=ft.BoxShadow(
+                        spread_radius=1,
+                        blur_radius=4,
+                        color=ft.Colors.BLACK26,
+                        offset=ft.Offset(0, 2),
+                    ),
+                    tooltip=encrypt_tooltip,
+                )
                 
                 # ========== 删除按钮（圆形） ==========
                 delete_button = ft.Container(
@@ -5826,6 +5911,7 @@ def main(page: ft.Page):
                 action_row = ft.Row(
                     controls=[
                         pin_button,
+                        encrypt_button,  # 新增加密按钮
                         delete_button,
                     ],
                     spacing=20,
@@ -5903,6 +5989,312 @@ def main(page: ft.Page):
                 )
 
             # ========================  笔记卡片设置为可滑动结束 ==============================
+            
+            # ========================  笔记卡片加密相关函数开始 ===========================
+            def toggle_encrypt_note(note_id):
+                """切换笔记加密状态"""
+                note = next((n for n in memo_notes if n.id == note_id), None)
+                if not note:
+                    return
+                
+                if note.is_encrypted:
+                    # ========== 已加密 -> 解密 ==========
+                    show_decrypt_dialog(note)
+                else:
+                    # ========== 未加密 -> 加密 ==========
+                    # 如果笔记已有密码（之前解密过），直接重新加密
+                    if note.password:
+                        # 使用已有密码重新加密
+                        note.is_encrypted = True
+                        note.content = "🔒 此笔记已加密，请输入密码查看内容"
+                        save_memo_notes()
+                        
+                        # 重置滑动状态
+                        if note.id in card_swipe_states:
+                            card_swipe_states[note.id] = 0
+                        
+                        render_notes()
+                        show_bottom_message("✅ 笔记已重新加密（使用原有密码）")
+                    else:
+                        # 首次加密，设置密码
+                        show_encrypt_dialog(note)
+
+            def show_encrypt_dialog(note):
+                """显示加密设置对话框（支持重新加密）"""
+                dialog_container = None
+                
+                def close_dialog():
+                    nonlocal dialog_container
+                    if dialog_container and dialog_container in page.overlay:
+                        page.overlay.remove(dialog_container)
+                        dialog_container = None
+                        page.update()
+                
+                def confirm_encrypt(e):
+                    password = password_field.value.strip()
+                    confirm_password = confirm_field.value.strip()
+                    
+                    if not password:
+                        show_bottom_message("请输入密码", is_error=True)
+                        return
+                    
+                    if len(password) < 4:
+                        show_bottom_message("密码至少4位", is_error=True)
+                        return
+                    
+                    if password != confirm_password:
+                        show_bottom_message("两次密码输入不一致", is_error=True)
+                        return
+                    
+                    # ========== 保存原始内容（如果还未保存） ==========
+                    if not note.original_content and note.content:
+                        note.original_content = note.content
+                    
+                    # 标记为加密并替换内容
+                    note.password = password
+                    note.is_encrypted = True
+                    note.content = "🔒 此笔记已加密，请输入密码查看内容"
+                    save_memo_notes()
+                    close_dialog()
+                    
+                    # 重置滑动状态
+                    if note.id in card_swipe_states:
+                        card_swipe_states[note.id] = 0
+                    
+                    render_notes()
+                    show_bottom_message("✅ 笔记已加密")
+                
+                def cancel_encrypt(e):
+                    close_dialog()
+                    show_bottom_message("已取消加密")
+                
+                # ========== 判断是首次加密还是重新加密 ==========
+                is_re_encrypt = note.password and not note.is_encrypted
+                
+                # 密码输入框
+                password_field = ft.TextField(
+                    label="设置密码",
+                    hint_text="请输入密码（至少4位）",
+                    password=True,
+                    can_reveal_password=True,
+                    expand=True,
+                    autofocus=True,
+                )
+                
+                confirm_field = ft.TextField(
+                    label="确认密码",
+                    hint_text="请再次输入密码",
+                    password=True,
+                    can_reveal_password=True,
+                    expand=True,
+                )
+                
+                # 如果是重新加密，显示提示
+                re_encrypt_hint = None
+                if is_re_encrypt:
+                    re_encrypt_hint = ft.Text(
+                        f"💡 此笔记之前已加密，将使用新密码重新加密",
+                        size=11,
+                        color=ft.Colors.ORANGE_700,
+                    )
+                
+                dialog_content = ft.Container(
+                    content=ft.Column([
+                        ft.Container(
+                            content=ft.Icon(ft.Icons.LOCK, size=55, color=ft.Colors.PURPLE_700),
+                            padding=10,
+                            bgcolor=ft.Colors.PURPLE_50,
+                            border_radius=50,
+                        ),
+                        ft.Text("🔒 加密笔记", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.PURPLE_700),
+                        ft.Divider(height=1, color=ft.Colors.GREY_300),
+                        ft.Text(f"为「{note.title}」设置密码", size=14, color=ft.Colors.GREY_700),
+                        ft.Text("加密后需要密码才能查看内容", size=12, color=ft.Colors.GREY_500),
+                        ft.Divider(height=1, color=ft.Colors.GREY_300),
+                        password_field,
+                        confirm_field,
+                        re_encrypt_hint if re_encrypt_hint else ft.Container(),
+                        ft.Divider(height=1, color=ft.Colors.GREY_300),
+                        ft.Row([
+                            ft.ElevatedButton(
+                                "取消",
+                                on_click=cancel_encrypt,
+                                expand=True,
+                                style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.GREY_700),
+                            ),
+                            ft.ElevatedButton(
+                                "加密",
+                                on_click=confirm_encrypt,
+                                expand=True,
+                                style=ft.ButtonStyle(bgcolor=ft.Colors.PURPLE_700, color=ft.Colors.WHITE),
+                            ),
+                        ], spacing=12, alignment=ft.MainAxisAlignment.CENTER),
+                    ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                    width=340,
+                    padding=20,
+                    bgcolor=ft.Colors.WHITE,
+                    border_radius=16,
+                    shadow=ft.BoxShadow(
+                        spread_radius=1,
+                        blur_radius=15,
+                        color=ft.Colors.BLACK12,
+                        offset=ft.Offset(0, 4),
+                    ),
+                )
+                
+                dialog_container = ft.Container(
+                    content=ft.Column([
+                        ft.Container(expand=True),
+                        ft.Row([
+                            ft.Container(expand=True),
+                            dialog_content,
+                            ft.Container(expand=True),
+                        ]),
+                        ft.Container(expand=True),
+                    ]),
+                    expand=True,
+                    bgcolor=ft.Colors.BLACK26,
+                    on_click=lambda e: close_dialog(),
+                )
+                
+                page.overlay.append(dialog_container)
+                page.update()
+
+            def show_decrypt_dialog(note):
+                """显示解密对话框"""
+                dialog_container = None
+                
+                def close_dialog():
+                    nonlocal dialog_container
+                    if dialog_container and dialog_container in page.overlay:
+                        page.overlay.remove(dialog_container)
+                        dialog_container = None
+                        page.update()
+                
+                def confirm_decrypt(e):
+                    password = password_field.value.strip()
+                    
+                    if not password:
+                        show_bottom_message("请输入密码", is_error=True)
+                        return
+                    
+                    if password == note.password:
+                        # ========== 密码正确，解密笔记 ==========
+                        # 恢复原始内容
+                        if note.original_content:
+                            note.content = note.original_content
+                        else:
+                            # 如果没有保存原始内容（兼容旧数据），提示用户
+                            note.content = "（请手动恢复内容）"
+                        
+                        note.is_encrypted = False
+                        # ========== 关键修改：保留密码，不置空 ==========
+                        # note.password = ""  # 删除这行，保留密码
+                        # note.original_content = ""  # 保留原始内容，方便重新加密
+                        save_memo_notes()
+                        close_dialog()
+                        
+                        # 重置滑动状态
+                        if note.id in card_swipe_states:
+                            card_swipe_states[note.id] = 0
+                        
+                        render_notes()
+                        show_bottom_message("✅ 笔记已解密（密码已保留，可重新加密）")
+                        
+                        # ========== 关键修复：延迟调用编辑对话框，确保界面已刷新 ==========
+                        def open_edit():
+                            open_memo_edit_dialog(note.id)
+                        
+                        threading.Timer(0.1, open_edit).start()
+                    else:
+                        show_bottom_message("❌ 密码错误，请重试", is_error=True)
+                        password_field.value = ""
+                        password_field.update()
+                
+                def cancel_decrypt(e):
+                    close_dialog()
+                    show_bottom_message("已取消解密")
+                
+                # 密码输入框
+                password_field = ft.TextField(
+                    label="输入密码",
+                    hint_text="请输入笔记密码",
+                    password=True,
+                    can_reveal_password=True,
+                    expand=True,
+                    autofocus=True,
+                )
+
+                # 显示密码提示
+                password_hint = ft.Text(
+                    "💡 解密后密码将保留，方便重新加密",
+                    size=11,
+                    color=ft.Colors.GREY_500,
+                )
+                
+                # 提示：尝试次数
+                dialog_content = ft.Container(
+                    content=ft.Column([
+                        ft.Container(
+                            content=ft.Icon(ft.Icons.LOCK_OUTLINE, size=55, color=ft.Colors.PURPLE_700),
+                            padding=10,
+                            bgcolor=ft.Colors.PURPLE_50,
+                            border_radius=50,
+                        ),
+                        ft.Text("🔐 加密笔记", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.PURPLE_700),
+                        ft.Divider(height=1, color=ft.Colors.GREY_300),
+                        ft.Text(f"「{note.title}」已加密", size=14, color=ft.Colors.GREY_700),
+                        ft.Text("请输入密码查看内容", size=12, color=ft.Colors.GREY_500),
+                        ft.Divider(height=1, color=ft.Colors.GREY_300),
+                        password_field,
+                        password_hint,  # 添加提示
+                        ft.Divider(height=1, color=ft.Colors.GREY_300),
+                        ft.Row([
+                            ft.ElevatedButton(
+                                "取消",
+                                on_click=cancel_decrypt,
+                                expand=True,
+                                style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.GREY_700),
+                            ),
+                            ft.ElevatedButton(
+                                "解密",
+                                on_click=confirm_decrypt,
+                                expand=True,
+                                style=ft.ButtonStyle(bgcolor=ft.Colors.PURPLE_700, color=ft.Colors.WHITE),
+                            ),
+                        ], spacing=12, alignment=ft.MainAxisAlignment.CENTER),
+                    ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                    width=340,
+                    padding=20,
+                    bgcolor=ft.Colors.WHITE,
+                    border_radius=16,
+                    shadow=ft.BoxShadow(
+                        spread_radius=1,
+                        blur_radius=15,
+                        color=ft.Colors.BLACK12,
+                        offset=ft.Offset(0, 4),
+                    ),
+                )
+                
+                dialog_container = ft.Container(
+                    content=ft.Column([
+                        ft.Container(expand=True),
+                        ft.Row([
+                            ft.Container(expand=True),
+                            dialog_content,
+                            ft.Container(expand=True),
+                        ]),
+                        ft.Container(expand=True),
+                    ]),
+                    expand=True,
+                    bgcolor=ft.Colors.BLACK26,
+                    on_click=lambda e: close_dialog(),
+                )
+                
+                page.overlay.append(dialog_container)
+                page.update()
+
+            # ========================  笔记卡片加密相关函数结束 ===========================
 
             def toggle_pin_note(note_id):
                 """切换笔记置顶状态"""
@@ -6005,10 +6397,25 @@ def main(page: ft.Page):
             # ========== 编辑笔记对话框 ==========
             def open_memo_edit_dialog(note_id=None):
                 """打开笔记编辑对话框"""
+
+                 # ========== 如果是编辑模式，检查是否是加密笔记 ==========
+                if note_id:
+                    note = next((n for n in memo_notes if n.id == note_id), None)
+                    if not note:
+                        show_bottom_message("笔记不存在")
+                        return
+                    # 如果是加密笔记，需要先解密
+                    if note.is_encrypted:
+                        show_decrypt_dialog(note)
+                        return
+                else:
+                    note = None
+        
                 # ========== 隐藏搜索框键盘 ==========
                 hide_search_keyboard()
 
                 edit_dialog_container = None
+                is_decrypted = False  # 是否已解密（有密码但未加密）
                 
                 # 如果是编辑模式，加载笔记数据
                 if note_id:
@@ -6016,11 +6423,15 @@ def main(page: ft.Page):
                     if not note:
                         show_bottom_message("笔记不存在")
                         return
+                    
+                    # ========== 检查是否是已解密状态（有密码但未加密） ==========
+                    is_decrypted = note.password and not note.is_encrypted
+                    
                     title_text = "编辑笔记"
                     initial_title = note.title
                     initial_content = note.content
                     initial_category = note.category
-                    created_at = note.updated_at if note.updated_at else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    created_at = note.updated_at if note.updated_at else note.created_at
                 else:
                     title_text = "添加笔记"
                     initial_title = ""
@@ -6036,33 +6447,33 @@ def main(page: ft.Page):
                         page.update()
                 
                 def save_note(e):
-                    """保存笔记"""
+                    """保存笔记（不改变加密状态）"""
                     title = title_field.value.strip()
                     content = content_field.value.strip()
-                    # ========== 从 PopupMenuButton 获取分类值 ==========
                     category = current_category_edit if current_category_edit else "未分类"
                     
                     if not title:
                         show_bottom_message("请输入标题", is_error=True)
-                        # ========== 标题为空时，让标题框获得焦点 ==========
                         title_field.focus()
                         return
                     
                     if not content:
                         show_bottom_message("请输入内容", is_error=True)
-                        # ========== 内容为空时，让内容框获得焦点 ==========
                         content_field.focus()
                         return
                     
                     current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     
                     if note_id:
-                        # 编辑模式：更新笔记
+                        # 编辑模式：更新笔记（不改变加密状态）
                         note.title = title
                         note.content = content
                         note.category = category
                         note.updated_at = current_datetime
-                        show_bottom_message(f"✅ 已更新「{title}」")
+                        # ========== 如果笔记已解密，但原本是加密的，保留原始内容 ==========
+                        if not note.is_encrypted and note.original_content:
+                            note.original_content = content  # 更新原始内容
+                        show_bottom_message(f"✅ 已保存「{title}」")
                     else:
                         # 新增模式：创建笔记
                         new_note = MemoNote(
@@ -6070,7 +6481,7 @@ def main(page: ft.Page):
                             title=title,
                             content=content,
                             category=category,
-                            is_pinned=False,  # 新增笔记默认未置顶
+                            is_pinned=False,
                         )
                         memo_notes.append(new_note)
                         show_bottom_message(f"✅ 已添加「{title}」")
@@ -6078,6 +6489,87 @@ def main(page: ft.Page):
                     save_memo_notes()
                     close_edit_dialog()
                     render_notes()
+
+                def toggle_lock(e):
+                    """切换锁状态：开锁 <-> 关锁"""
+                    nonlocal is_decrypted
+                    
+                    if not note_id:
+                        show_bottom_message("只有已保存的笔记才能加密")
+                        return
+                    
+                    note = next((n for n in memo_notes if n.id == note_id), None)
+                    if not note:
+                        return
+                    
+                    # 判断当前状态
+                    if note.is_encrypted:
+                        # ========== 已加密 -> 解密 ==========
+                        # 需要用户输入密码
+                        close_edit_dialog()
+                        show_decrypt_dialog(note)
+                        return
+                    
+                    elif note.password and not note.is_encrypted:
+                        # ========== 已解密 -> 重新加密（关锁） ==========
+                        # 保存当前内容
+                        current_content = content_field.value.strip()
+                        if not current_content:
+                            show_bottom_message("内容不能为空", is_error=True)
+                            return
+                        
+                        # 更新原始内容
+                        note.original_content = current_content
+                        note.content = "🔒 此笔记已加密，请输入密码查看内容"
+                        note.is_encrypted = True
+                        # 密码保留
+                        save_memo_notes()
+                        close_edit_dialog()
+                        render_notes()
+                        show_bottom_message("✅ 笔记已重新加密（关锁）")
+                        return
+                    
+                    else:
+                        # ========== 未加密且无密码 -> 首次加密 ==========
+                        # 保存当前内容
+                        current_content = content_field.value.strip()
+                        if not current_content:
+                            show_bottom_message("内容不能为空", is_error=True)
+                            return
+                        
+                        # 关闭编辑对话框，打开加密设置
+                        close_edit_dialog()
+                        # 先保存原始内容到笔记
+                        note.original_content = current_content
+                        note.content = current_content
+                        save_memo_notes()
+                        show_encrypt_dialog(note)
+                        return
+        
+                def re_encrypt_note(e):
+                    """重新加密笔记"""
+                    if not note_id:
+                        show_bottom_message("只有已保存的笔记才能加密")
+                        return
+                    
+                    note = next((n for n in memo_notes if n.id == note_id), None)
+                    if not note:
+                        return
+                    
+                    # 如果笔记已有密码，直接加密
+                    if note.password:
+                        # 保存当前内容到 original_content
+                        note.original_content = content_field.value.strip()
+                        note.is_encrypted = True
+                        note.content = "🔒 此笔记已加密，请输入密码查看内容"
+                        save_memo_notes()
+                        close_edit_dialog()
+                        render_notes()
+                        show_bottom_message("✅ 笔记已重新加密")
+                    else:
+                        # 首次加密，显示加密对话框
+                        close_edit_dialog()
+                        show_encrypt_dialog(note)
                 
                 def delete_note(e):
                     if not note_id:
@@ -6219,15 +6711,32 @@ def main(page: ft.Page):
                     text_style=ft.TextStyle(size=15),  # 内容字体大小
                     hint_style=ft.TextStyle(size=15, color=ft.Colors.GREY_400),
                 )
+
+                # ========== 确定锁图标和颜色 ==========
+                def get_lock_icon_and_color():
+                    """根据当前状态获取锁图标和颜色"""
+                    if note_id:
+                        note = next((n for n in memo_notes if n.id == note_id), None)
+                        if note:
+                            if note.is_encrypted:
+                                return ft.Icons.LOCK, ft.Colors.PURPLE_700, "已加密（点击解密）"
+                            elif note.password:
+                                return ft.Icons.LOCK_OPEN, ft.Colors.GREEN_700, "已解密（点击重新加密）"
+                            else:
+                                return ft.Icons.LOCK_OUTLINE, ft.Colors.GREY_400, "未加密（点击设置密码）"
+                    return ft.Icons.LOCK_OUTLINE, ft.Colors.GREY_400, "未加密"
                 
-                # ========== 顶部按钮栏 ==========
+                lock_icon, lock_color, lock_tooltip = get_lock_icon_and_color()
+                
+                # ========== 顶部按钮栏（修复：正确判断 is_decrypted） ==========
                 top_bar = ft.Row([
+                    # 左边：保存按钮
                     ft.IconButton(
                         icon=ft.Icons.ARROW_BACK,
                         icon_size=28,
                         #con_color=ft.Colors.RED_700,
-                        tooltip="取消",
-                        on_click=lambda e: close_edit_dialog(),
+                        tooltip="保存",
+                        on_click=save_note,
                     ),
                     ft.Text(
                         title_text, 
@@ -6236,12 +6745,13 @@ def main(page: ft.Page):
                         expand=True,  # 这个会让标题占据剩余空间
                         text_align=ft.TextAlign.CENTER,
                     ),
+                    # 右边：锁按钮（根据状态显示不同图标）
                     ft.IconButton(
-                        icon=ft.Icons.CHECK,
+                        icon=lock_icon,
                         icon_size=28,
-                        icon_color=ft.Colors.GREEN_700,
-                        tooltip="保存",
-                        on_click=save_note,
+                        icon_color=lock_color,
+                        tooltip=lock_tooltip,
+                        on_click=toggle_lock,
                     ),
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER)
                 
