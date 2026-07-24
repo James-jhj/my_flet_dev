@@ -82,8 +82,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.226"
-APP_VERSION_CODE = 226
+APP_VERSION = "1.0.227"
+APP_VERSION_CODE = 227
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -6576,31 +6576,6 @@ def main(page: ft.Page):
                         save_memo_notes()
                         show_encrypt_dialog(note)
                         return
-        
-                def re_encrypt_note(e):
-                    """重新加密笔记"""
-                    if not note_id:
-                        show_bottom_message("只有已保存的笔记才能加密")
-                        return
-                    
-                    note = next((n for n in memo_notes if n.id == note_id), None)
-                    if not note:
-                        return
-                    
-                    # 如果笔记已有密码，直接加密
-                    if note.password:
-                        # 保存当前内容到 original_content
-                        note.original_content = content_field.value.strip()
-                        note.is_encrypted = True
-                        note.content = "🔒 此笔记已加密，请输入密码查看内容"
-                        save_memo_notes()
-                        close_edit_dialog()
-                        render_notes()
-                        show_bottom_message("✅ 笔记已重新加密")
-                    else:
-                        # 首次加密，显示加密对话框
-                        close_edit_dialog()
-                        show_encrypt_dialog(note)
                 
                 def delete_note(e):
                     if not note_id:
@@ -6813,19 +6788,98 @@ def main(page: ft.Page):
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER)
                 
                 # ========== 底部删除按钮（仅编辑模式） ==========
-                bottom_delete = None
+                bottom_section = None
                 if note_id:
-                    bottom_delete = ft.Row([
-                        ft.OutlinedButton(
-                            "🗑️ 删除",
-                            on_click=delete_note,
-                            expand=True,
-                            style=ft.ButtonStyle(
-                                color=ft.Colors.RED_700,
-                                shape=ft.RoundedRectangleBorder(radius=8),
-                            ),
+                    # 获取当前状态
+                    note = next((n for n in memo_notes if n.id == note_id), None)
+                    # 只要有密码，就说明笔记有锁
+                    has_lock = note.password is not None and note.password != "" if note else False
+                    
+                    def toggle_lock_from_bottom(e):
+                        """底部锁按钮点击事件 - 删除锁或设置锁"""
+                        if not note_id:
+                            show_bottom_message("笔记不存在")
+                            return
+                        
+                        note = next((n for n in memo_notes if n.id == note_id), None)
+                        if not note:
+                            return
+                        
+                        if note.password:
+                            # ========== 有锁 -> 删除锁（直接移除密码，不需要输入密码） ==========
+                            # 先保存当前内容（如果有修改）
+                            current_content = content_field.value.strip()
+                            if current_content:
+                                note.content = current_content
+                            
+                            # 清除密码和加密状态
+                            note.password = ""
+                            note.is_encrypted = False
+                            note.original_content = ""
+                            save_memo_notes()
+                            close_edit_dialog()
+                            render_notes()
+                            show_bottom_message("✅ 锁已删除（密码已移除）")
+                        else:
+                            # ========== 无锁 -> 设置锁（加密） ==========
+                            current_content = content_field.value.strip()
+                            if not current_content:
+                                show_bottom_message("内容不能为空", is_error=True)
+                                return
+                            
+                            close_edit_dialog()
+                            note.original_content = current_content
+                            note.content = current_content
+                            save_memo_notes()
+                            show_encrypt_dialog(note)
+                    
+                    # 删除按钮（左边）
+                    delete_button = ft.OutlinedButton(
+                        "🗑️ 删除",
+                        on_click=delete_note,
+                        expand=True,
+                        style=ft.ButtonStyle(
+                            color=ft.Colors.RED_700,
+                            shape=ft.RoundedRectangleBorder(radius=8),
                         ),
-                    ], spacing=10)
+                    )
+                    
+                    # ========== 锁按钮（右边）- 根据是否有密码判断 ==========
+                    if has_lock:
+                        lock_button_text = "🔓 删除锁"
+                        lock_button_color = ft.Colors.PURPLE_700
+                    else:
+                        lock_button_text = "🔒 设置锁"
+                        lock_button_color = ft.Colors.BLUE_700
+                    
+                    lock_button = ft.OutlinedButton(
+                        lock_button_text,
+                        on_click=toggle_lock_from_bottom,
+                        expand=True,
+                        style=ft.ButtonStyle(
+                            color=lock_button_color,
+                            shape=ft.RoundedRectangleBorder(radius=8),
+                        ),
+                    )
+                    
+                    bottom_buttons = ft.Row([
+                        delete_button,
+                        ft.Container(width=10),
+                        lock_button,
+                    ], spacing=0, expand=True)
+                    
+                    bottom_section = ft.Container(
+                        content=bottom_buttons,
+                        bgcolor=ft.Colors.WHITE,
+                        padding=15,
+                    )
+                else:
+                    # 添加模式：无底部按钮
+                    bottom_section = ft.Container(
+                        content=ft.Container(),
+                        bgcolor=ft.Colors.WHITE,
+                        padding=15,
+                    )
                 
                 # ========== 可滚动内容 ==========
                 scrollable_content = ft.Column([
@@ -6852,13 +6906,6 @@ def main(page: ft.Page):
                 scroll_section = ft.Container(
                     content=scrollable_content,
                     expand=True,
-                    bgcolor=ft.Colors.WHITE,
-                    padding=15,
-                )
-
-                # 底部删除按钮（有自己的边距）
-                bottom_section = ft.Container(
-                    content=bottom_delete if bottom_delete else ft.Container(),
                     bgcolor=ft.Colors.WHITE,
                     padding=15,
                 )
