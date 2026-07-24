@@ -79,8 +79,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.224"
-APP_VERSION_CODE = 224
+APP_VERSION = "1.0.225"
+APP_VERSION_CODE = 225
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -16934,7 +16934,7 @@ def main(page: ft.Page):
         page.update()
 
     async def export_memo_async(e):
-        """导出备忘录数据到Excel（包含置顶标识）"""
+        """导出备忘录数据到Excel（包含加密相关字段）"""
         global memo_notes
         
         if not memo_notes:
@@ -16950,7 +16950,7 @@ def main(page: ft.Page):
             ws.title = "备忘录"
             
             # ========== 写入汇总信息 ==========
-            ws.merge_cells('A1:F1')
+            ws.merge_cells('A1:H1')
             ws['A1'] = "📝 备忘录"
             ws['A1'].font = openpyxl.styles.Font(size=16, bold=True)
             ws['A1'].alignment = openpyxl.styles.Alignment(horizontal='center')
@@ -16963,8 +16963,8 @@ def main(page: ft.Page):
             # 空行
             ws.append([])
             
-            # ========== 写入表头（添加"置顶"列） ==========
-            headers = ["标题", "内容", "分类", "创建时间", "更新时间", "置顶"]
+            # ========== 写入表头（新增3个加密字段） ==========
+            headers = ["标题", "内容", "分类", "创建时间", "更新时间", "置顶", "是否加密", "密码", "原始内容"]
             ws.append(headers)
             
             # 设置表头样式
@@ -16984,16 +16984,22 @@ def main(page: ft.Page):
                     note.category,
                     note.created_at,
                     note.updated_at,
-                    "是" if note.is_pinned else "否",  # 新增：置顶标识
+                    "是" if note.is_pinned else "否",
+                    "是" if note.is_encrypted else "否",  # 新增：是否加密
+                    note.password if note.password else "",  # 新增：密码（实际使用中应加密存储）
+                    note.original_content if note.original_content else "",  # 新增：原始内容
                 ])
             
             # 调整列宽
-            ws.column_dimensions['A'].width = 20
-            ws.column_dimensions['B'].width = 40
-            ws.column_dimensions['C'].width = 12
-            ws.column_dimensions['D'].width = 20
-            ws.column_dimensions['E'].width = 20
-            ws.column_dimensions['F'].width = 10  # 新增列宽
+            ws.column_dimensions['A'].width = 20  # 标题
+            ws.column_dimensions['B'].width = 40  # 内容
+            ws.column_dimensions['C'].width = 12  # 分类
+            ws.column_dimensions['D'].width = 20  # 创建时间
+            ws.column_dimensions['E'].width = 20  # 更新时间
+            ws.column_dimensions['F'].width = 10  # 置顶
+            ws.column_dimensions['G'].width = 12  # 是否加密
+            ws.column_dimensions['H'].width = 20  # 密码
+            ws.column_dimensions['I'].width = 40  # 原始内容
             
             # 保存临时文件
             wb.save(temp_file)
@@ -17009,7 +17015,7 @@ def main(page: ft.Page):
             
             # 选择保存位置
             result = await file_picker.save_file(
-                file_name=f"notes_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                file_name=f"memo_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                 src_bytes=file_bytes,
                 dialog_title="保存备忘录"
             )
@@ -17022,7 +17028,7 @@ def main(page: ft.Page):
             os.remove(temp_file)
             
             if result:
-                show_bottom_message(f"✅ 成功导出 {len(memo_notes)} 条备忘录（含置顶标识）")
+                show_bottom_message(f"✅ 成功导出 {len(memo_notes)} 条备忘录（含加密字段）")
             else:
                 show_bottom_message("已取消导出")
             
@@ -17035,7 +17041,7 @@ def main(page: ft.Page):
             traceback.print_exc()
     
     async def import_memo_async(e):
-        """导入备忘录数据（支持置顶标识）"""
+        """导入备忘录数据（支持加密字段）"""
         global memo_notes
         
         menu_container = None
@@ -17095,7 +17101,7 @@ def main(page: ft.Page):
                 page.update()
         
         async def do_import_memo(file_path):
-            """执行备忘录导入（支持置顶标识）"""
+            """执行备忘录导入（支持加密字段）"""
             show_bottom_message(f"正在导入: {os.path.basename(file_path)}")
             page.update()
             
@@ -17121,13 +17127,14 @@ def main(page: ft.Page):
                 if "标题" in row_text and "内容" in row_text:
                     header_row_idx = row_idx
                     header_row = row_data
-                    print(f"[导入] 找到表头行: 第 {row_idx} 行")
+                    print(f"[导入备忘录] 找到表头行: 第 {row_idx} 行")
                     break
             
             if header_row_idx is None:
                 # 如果没找到表头，默认从第6行开始（兼容旧格式）
                 header_row_idx = 6
-                header_row = ["标题", "内容", "分类", "创建时间", "更新时间"]
+                header_row = ["标题", "内容", "分类", "创建时间", "更新时间", "置顶", "是否加密", "密码", "原始内容"]
+                print(f"[导入备忘录] 未找到表头，使用默认表头")
             
             # ========== 确定各列索引 ==========
             col_index = {}
@@ -17144,8 +17151,14 @@ def main(page: ft.Page):
                     col_index['updated_at'] = idx
                 elif "置顶" in col_name:
                     col_index['is_pinned'] = idx
+                elif "是否加密" in col_name or "加密" in col_name:
+                    col_index['is_encrypted'] = idx
+                elif "密码" in col_name:
+                    col_index['password'] = idx
+                elif "原始内容" in col_name:
+                    col_index['original_content'] = idx
             
-            print(f"[导入] 列索引: {col_index}")
+            print(f"[导入备忘录] 列索引: {col_index}")
             
             # 从表头下一行开始读取
             start_row = header_row_idx + 1
@@ -17159,6 +17172,9 @@ def main(page: ft.Page):
                     created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     is_pinned = False
+                    is_encrypted = False
+                    password = ""
+                    original_content = ""
                     
                     for col_name, col_pos in col_index.items():
                         cell_value = ws.cell(row=row_idx, column=col_pos + 1).value
@@ -17169,16 +17185,34 @@ def main(page: ft.Page):
                             elif col_name == 'content':
                                 content = value_str
                             elif col_name == 'category':
-                                category = value_str if value_str in ["未分类", "个人", "工作", "开发", "其他"] else "未分类"
+                                if value_str in ["未分类", "个人", "工作", "开发", "其他"]:
+                                    category = value_str
+                                else:
+                                    category = "未分类"
                             elif col_name == 'created_at':
                                 created_at = value_str
                             elif col_name == 'updated_at':
                                 updated_at = value_str
                             elif col_name == 'is_pinned':
                                 is_pinned = value_str in ["是", "true", "True", "1"]
+                            elif col_name == 'is_encrypted':
+                                is_encrypted = value_str in ["是", "true", "True", "1"]
+                            elif col_name == 'password':
+                                password = value_str
+                            elif col_name == 'original_content':
+                                original_content = value_str
                     
                     if not title:
                         continue
+                    
+                    # ========== 如果导入的数据是加密状态，但密码为空，自动设置为未加密 ==========
+                    if is_encrypted and not password:
+                        print(f"[导入备忘录] 第 {row_idx} 行: 标记为加密但密码为空，自动改为未加密")
+                        is_encrypted = False
+                    
+                    # ========== 如果导入的数据是加密状态，但原始内容为空，使用当前内容作为原始内容 ==========
+                    if is_encrypted and not original_content:
+                        original_content = content
                     
                     new_note = MemoNote(
                         id=str(int(datetime.now().timestamp() * 1000) + imported_count),
@@ -17187,20 +17221,24 @@ def main(page: ft.Page):
                         category=category,
                         created_at=created_at,
                         updated_at=updated_at,
-                        is_pinned=is_pinned,  # 新增：置顶标识
+                        is_pinned=is_pinned,
+                        is_encrypted=is_encrypted,
+                        password=password,
+                        original_content=original_content,
                     )
                     new_notes.append(new_note)
                     imported_count += 1
+                    print(f"[导入备忘录] 成功导入第 {row_idx} 行: {title} (加密: {is_encrypted})")
                     
                 except Exception as row_error:
-                    print(f"[导入] 第 {row_idx} 行处理失败: {row_error}")
+                    print(f"[导入备忘录] 第 {row_idx} 行处理失败: {row_error}")
                     continue
             
             if imported_count == 0:
                 show_bottom_message("没有导入任何备忘录")
                 return
             
-            # 确认替换
+            # ========== 确认替换 ==========
             def show_confirm_dialog():
                 confirm_dialog_container = None
                 
@@ -17216,7 +17254,7 @@ def main(page: ft.Page):
                     global memo_notes
                     memo_notes = new_notes
                     save_memo_notes()
-                    show_bottom_message(f"成功导入 {imported_count} 条备忘录（含置顶标识）")
+                    show_bottom_message(f"成功导入 {imported_count} 条备忘录（含加密字段）")
                     page.update()
                 
                 def cancel_replace():
@@ -17238,12 +17276,24 @@ def main(page: ft.Page):
                         ft.Text(f"当前有 {len(memo_notes)} 条备忘录将被替换", size=12, color=ft.Colors.ORANGE_700),
                         ft.Divider(),
                         ft.Row([
-                            ft.Button("取消", on_click=lambda e: cancel_replace(), expand=True),
-                            ft.Button("确认导入", on_click=lambda e: confirm_replace(), expand=True,
-                                    style=ft.ButtonStyle(bgcolor=ft.Colors.PURPLE_700, color=ft.Colors.WHITE)),
-                        ], spacing=12),
+                            ft.ElevatedButton(
+                                "取消", 
+                                on_click=lambda e: cancel_replace(), 
+                                expand=True,
+                                style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.GREY_700),
+                            ),
+                            ft.ElevatedButton(
+                                "确认导入", 
+                                on_click=lambda e: confirm_replace(), 
+                                expand=True,
+                                style=ft.ButtonStyle(bgcolor=ft.Colors.PURPLE_700, color=ft.Colors.WHITE),
+                            ),
+                        ], spacing=12, alignment=ft.MainAxisAlignment.CENTER),
                     ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                    width=320, padding=20, bgcolor=ft.Colors.WHITE, border_radius=16,
+                    width=320,
+                    padding=20,
+                    bgcolor=ft.Colors.WHITE,
+                    border_radius=16,
                 )
                 
                 confirm_dialog_container = ft.Container(
@@ -17252,7 +17302,9 @@ def main(page: ft.Page):
                         ft.Row([ft.Container(expand=True), confirm_content, ft.Container(expand=True)]),
                         ft.Container(expand=True),
                     ]),
-                    expand=True, bgcolor=ft.Colors.BLACK26, on_click=lambda e: close_confirm_dialog(),
+                    expand=True,
+                    bgcolor=ft.Colors.BLACK26,
+                    on_click=lambda e: close_confirm_dialog(),
                 )
                 
                 page.overlay.append(confirm_dialog_container)
@@ -17260,7 +17312,7 @@ def main(page: ft.Page):
             
             show_confirm_dialog()
         
-        # 显示文件选择菜单
+        # ========== 显示文件选择菜单 ==========
         menu_content = ft.Container(
             content=ft.Column([
                 ft.Container(
@@ -17273,7 +17325,7 @@ def main(page: ft.Page):
                 ft.Divider(),
                 ft.Text("请选择备忘录Excel文件", size=14),
                 ft.Text("支持格式: .xlsx, .xls", size=12, color=ft.Colors.GREY_500),
-                ft.Text("支持置顶标识列（是/否）", size=11, color=ft.Colors.GREY_600),
+                ft.Text("支持加密字段: 是否加密、密码、原始内容", size=11, color=ft.Colors.GREY_600),
                 ft.Divider(),
                 ft.Row([
                     ft.ElevatedButton(
@@ -17310,7 +17362,9 @@ def main(page: ft.Page):
                 ft.Row([ft.Container(expand=True), menu_content, ft.Container(expand=True)]),
                 ft.Container(expand=True),
             ]),
-            expand=True, bgcolor=ft.Colors.BLACK26, on_click=lambda e: close_menu(),
+            expand=True,
+            bgcolor=ft.Colors.BLACK26,
+            on_click=lambda e: close_menu(),
         )
         
         page.overlay.append(menu_container)
