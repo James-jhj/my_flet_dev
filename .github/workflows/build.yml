@@ -71,10 +71,22 @@ jobs:
           assets_dir = "assets"
           android_adaptive_icon_background = "#ffffff"  # 白色背景，可按需修改
 
+          # 生物识别配置
+          android_permissions = [
+              "android.permission.USE_BIOMETRIC",
+              "android.permission.USE_FINGERPRINT",
+          ]
+          android_dependencies = [
+              "androidx.biometric:biometric:1.1.0",
+          ]
+
           [tool.flet.flutter]
           dependencies = ["flet_audio"]
 
           [tool.flet.android.permission]
+          # ========== 生物识别权限 ==========
+          "android.permission.USE_BIOMETRIC" = true
+          "android.permission.USE_FINGERPRINT" = true  # 兼容旧版本
           # ========== 其他权限 ==========
           "android.permission.READ_MEDIA_AUDIO" = true
           "android.permission.READ_EXTERNAL_STORAGE" = true

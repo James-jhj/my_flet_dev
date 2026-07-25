@@ -82,8 +82,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.228"
-APP_VERSION_CODE = 228
+APP_VERSION = "1.0.229"
+APP_VERSION_CODE = 229
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -443,6 +443,121 @@ def is_password_hashed(password_str: str) -> bool:
         return True
     except:
         return False
+
+
+# ========== 生物识别认证功能 ==========
+
+def is_biometric_available():
+    """检查设备是否支持生物识别"""
+    # Android 平台
+    if platform.system() == "Linux":
+        try:
+            # 尝试检查是否有生物识别权限
+            from android.permissions import check_permission, Permission
+            if check_permission(Permission.USE_BIOMETRIC) or check_permission(Permission.USE_FINGERPRINT):
+                return True
+            # 尝试检查硬件支持
+            try:
+                from android.biometric import BiometricManager
+                bm = BiometricManager()
+                result = bm.can_authenticate()
+                return result == 0  # BIOMETRIC_SUCCESS
+            except:
+                pass
+        except:
+            pass
+        # 降级：如果有指纹硬件，假设支持
+        try:
+            import android
+            from android import activity
+            # 检查是否有指纹传感器
+            return True
+        except:
+            pass
+    
+    # 检查 plyer
+    try:
+        from plyer import fingerprint
+        return fingerprint.supported()
+    except:
+        pass
+    
+    return False
+
+async def authenticate_with_biometric(reason="验证身份"):
+    """使用生物识别认证"""
+    # 方法1：Android 原生 API
+    if platform.system() == "Linux":
+        try:
+            return await authenticate_android_biometric(reason)
+        except Exception as e:
+            print(f"Android 生物识别失败: {e}")
+    
+    # 方法2：使用 plyer
+    try:
+        from plyer import fingerprint
+        result = fingerprint.authenticate(
+            reason=reason,
+            fallback_to_password=False,
+        )
+        return result
+    except Exception as e:
+        print(f"plyer 认证失败: {e}")
+    
+    return False
+
+async def authenticate_android_biometric(reason):
+    """Android 生物识别（使用 android 模块）"""
+    try:
+        from android.permissions import request_permissions, Permission
+        from android.biometric import BiometricPrompt
+        
+        # 请求权限
+        request_permissions([Permission.USE_BIOMETRIC, Permission.USE_FINGERPRINT])
+        
+        # 创建生物识别提示
+        biometric = BiometricPrompt(
+            title="身份验证",
+            subtitle=reason,
+            description="请使用指纹或面容解锁",
+            negative_button_text="取消",
+        )
+        
+        result = await biometric.authenticate()
+        return result
+    except ImportError:
+        # 如果 android 模块不可用，尝试使用 plyer
+        try:
+            from plyer import fingerprint
+            return fingerprint.authenticate(
+                reason=reason,
+                fallback_to_password=False,
+            )
+        except:
+            return False
+    except Exception as e:
+        print(f"Android 生物识别错误: {e}")
+        return False
+
+def get_biometric_type():
+    """获取生物识别类型"""
+    if platform.system() == "Linux":
+        try:
+            from android.biometric import BiometricManager
+            bm = BiometricManager()
+            if bm.can_authenticate() == 0:
+                # 检查是指纹还是面容
+                # 简化处理
+                return "指纹/面容"
+        except:
+            pass
+        return "指纹"
+    elif platform.system() == "Windows":
+        return "Windows Hello"
+    elif platform.system() == "Darwin":
+        return "Touch ID/Face ID"
+    else:
+        return "生物识别"
 
 # ========== 备忘录数据类 ==========
 class MemoNote:
@@ -3308,9 +3423,10 @@ def main(page: ft.Page):
     def request_permissions():
         if hasattr(page, 'request_permission'):
             try:
+                page.request_permission("android.permission.USE_BIOMETRIC")
+                page.request_permission("android.permission.USE_FINGERPRINT")
                 page.request_permission("android.permission.READ_EXTERNAL_STORAGE")
                 page.request_permission("android.permission.READ_MEDIA_AUDIO")
-                # 添加这行：请求通知权限（Android 13+ 必需）
                 page.request_permission("android.permission.POST_NOTIFICATIONS")
                 print("已请求存储权限")
             except Exception as e:
@@ -6197,8 +6313,9 @@ def main(page: ft.Page):
                 page.update()
 
             def show_decrypt_dialog(note):
-                """显示解密对话框"""
+                """显示解密对话框（支持生物识别）"""
                 dialog_container = None
+                is_authenticating = False
                 
                 def close_dialog():
                     nonlocal dialog_container
@@ -6245,7 +6362,65 @@ def main(page: ft.Page):
                 def cancel_decrypt(e):
                     close_dialog()
                     show_bottom_message("已取消解密")
+
+                # ========== 生物识别解锁 ==========
+                async def biometric_unlock():
+                    nonlocal is_authenticating
+                    if is_authenticating:
+                        return
+                    
+                    is_authenticating = True
+                    biometric_button.disabled = True
+                    biometric_button.text = "🔐 认证中..."
+                    biometric_button.update()
+                    
+                    try:
+                        if not is_biometric_available():
+                            show_bottom_message("⚠️ 设备不支持生物识别", is_error=True)
+                            return
+                        
+                        bio_type = get_biometric_type()
+                        success = await authenticate_with_biometric(
+                            f"验证身份以查看「{note.title}」"
+                        )
+                        
+                        if success:
+                            show_bottom_message(f"✅ {bio_type}认证成功")
+                            if note.original_content:
+                                note.content = note.original_content
+                            else:
+                                note.content = "（请手动恢复内容）"
+                            
+                            note.is_encrypted = False
+                            save_memo_notes()
+                            close_dialog()
+                            
+                            if note.id in card_swipe_states:
+                                card_swipe_states[note.id] = 0
+                            
+                            render_notes()
+                            show_bottom_message(f"✅ 笔记已解密（密码已保留，可重新加密）")
+                            
+                            def open_edit():
+                                open_memo_edit_dialog(note.id)
+                            
+                            threading.Timer(0.1, open_edit).start()
+                        else:
+                            show_bottom_message(f"❌ {bio_type}认证失败，请使用密码", is_error=True)
+                    except Exception as e:
+                        print(f"生物识别错误: {e}")
+                        show_bottom_message(f"❌ 生物识别失败: {str(e)}", is_error=True)
+                    finally:
+                        is_authenticating = False
+                        biometric_button.disabled = False
+                        biometric_text = f"🔐 {get_biometric_type()}解锁"
+                        biometric_button.text = biometric_text
+                        biometric_button.update()
                 
+                def on_biometric_click(e):
+                    asyncio.create_task(biometric_unlock())
+                
+                # ========== UI 组件 ==========
                 # 密码输入框
                 password_field = ft.TextField(
                     label="输入密码",
@@ -6262,6 +6437,23 @@ def main(page: ft.Page):
                     size=11,
                     color=ft.Colors.GREY_500,
                 )
+
+                # ========== 生物识别按钮 ==========
+                bio_available = is_biometric_available()
+                bio_type = get_biometric_type()
+                
+                biometric_button = ft.ElevatedButton(
+                    f"🔐 {bio_type}解锁",
+                    on_click=on_biometric_click,
+                    expand=True,
+                    style=ft.ButtonStyle(
+                        bgcolor=ft.Colors.GREEN_50,
+                        color=ft.Colors.GREEN_700,
+                        shape=ft.RoundedRectangleBorder(radius=8),
+                    ),
+                )
+                
+                show_biometric = bio_available
                 
                 # 提示：尝试次数
                 dialog_content = ft.Container(
@@ -6275,10 +6467,18 @@ def main(page: ft.Page):
                         ft.Text("🔐 加密笔记", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.PURPLE_700),
                         ft.Divider(height=1, color=ft.Colors.GREY_300),
                         ft.Text(f"「{note.title}」已加密", size=14, color=ft.Colors.GREY_700),
-                        ft.Text("请输入密码查看内容", size=12, color=ft.Colors.GREY_500),
+                        ft.Text("请验证身份查看内容", size=12, color=ft.Colors.GREY_500),
                         ft.Divider(height=1, color=ft.Colors.GREY_300),
+                        # ========== 生物识别按钮 ==========
+                        biometric_button if show_biometric else ft.Container(),
+                        ft.Divider(height=1, color=ft.Colors.GREY_300) if show_biometric else ft.Container(),
+                        ft.Row([
+                            ft.Text("或", size=12, color=ft.Colors.GREY_500),
+                        ], alignment=ft.MainAxisAlignment.CENTER) if show_biometric else ft.Container(),
+                        ft.Text("输入密码", size=12, color=ft.Colors.GREY_500) if show_biometric else ft.Container(),
+                        ft.Divider(height=1, color=ft.Colors.GREY_300) if show_biometric else ft.Container(),
                         password_field,
-                        password_hint,  # 添加提示
+                        password_hint,
                         ft.Divider(height=1, color=ft.Colors.GREY_300),
                         ft.Row([
                             ft.ElevatedButton(
