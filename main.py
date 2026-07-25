@@ -82,8 +82,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.227"
-APP_VERSION_CODE = 227
+APP_VERSION = "1.0.228"
+APP_VERSION_CODE = 228
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -12083,13 +12083,28 @@ def main(page: ft.Page):
             else:
                 current_view = "all"
             
-            # 更新下拉框的值
+            # ========== 更新下拉框的值和显示文本 ==========
             if hasattr(refresh_events_list, 'view_dropdown'):
-                refresh_events_list.view_dropdown.value = current_view
+                view_popup = refresh_events_list.view_dropdown
+                # 更新显示文本
+                view_display_map = {
+                    "today": "📌 今日事件",
+                    "three_days": "🔔 预警事件",
+                    "daily": "⏰ 每日事件",
+                    "weekly": "🔁 每周事件",
+                    "monthly": "🔄 每月事件",
+                    "birthday": "🎉 生日",
+                    "event": "💝 纪念日",
+                    "once": "🎯 一次性事件",
+                    "all": "📋 全部事件",
+                }
+                display_text = view_display_map.get(current_view, "📋 全部事件")
+                view_popup.content.controls[0].value = display_text
+                view_popup.update()
             
             # 根据恢复的视图刷新事件列表
             refresh_current_view_by_state()
-            show_bottom_message("已返回")
+            show_bottom_message(f"已退出搜索，切换到{get_view_title()}")
             return
         
         # 原有的恢复逻辑
@@ -12098,8 +12113,23 @@ def main(page: ft.Page):
         else:
             current_view = "all"
         
+        # ========== 更新下拉框 ==========
         if hasattr(refresh_events_list, 'view_dropdown'):
-            refresh_events_list.view_dropdown.value = current_view
+            view_popup = refresh_events_list.view_dropdown
+            view_display_map = {
+                "today": "📌 今日事件",
+                "three_days": "🔔 预警事件",
+                "daily": "⏰ 每日事件",
+                "weekly": "🔁 每周事件",
+                "monthly": "🔄 每月事件",
+                "birthday": "🎉 生日",
+                "event": "💝 纪念日",
+                "once": "🎯 一次性事件",
+                "all": "📋 全部事件",
+            }
+            display_text = view_display_map.get(current_view, "📋 全部事件")
+            view_popup.content.controls[0].value = display_text
+            view_popup.update()
         
         refresh_current_view_by_state()
         show_bottom_message("已返回")
@@ -12148,7 +12178,18 @@ def main(page: ft.Page):
 
     def refresh_events_list(filter_date=None):
         global current_playing_event_id, current_music_state, three_days_events, current_view, current_selected_lunar, card_duration_texts
-        
+
+        if current_view == "search":
+            # 如果是搜索视图但没有搜索结果缓存，恢复到之前的视图
+            if previous_view:
+                current_view = previous_view
+                previous_view = None
+            else:
+                current_view = "all"
+            # 刷新视图
+            refresh_current_view_by_state()
+            return
+
         # ========== 清空旧的卡片引用 ==========
         card_duration_texts.clear()
         
@@ -12366,6 +12407,7 @@ def main(page: ft.Page):
                         )
                 view_popup.items = new_items
                 
+                # ========== 调用视图切换 ==========
                 on_view_change(value)
                 page.update()
 
@@ -12469,45 +12511,31 @@ def main(page: ft.Page):
 
         # ========== 获取视图标题 ==========
         def get_view_title():
+            """获取当前视图的标题"""
             global current_view
             
-            if current_view == "all":
-                return f"📋 全部事件 ({len(events)}个)"
+            if current_view == "search":
+                return "搜索结果"
+            elif current_view == "all":
+                return "📋 全部事件"
             elif current_view == "today":
-                today = datetime.now().date()
-                count = 0
-                for event in events.values():
-                    if event.event_type == "daily" or event.event_type == "weekly":
-                        continue
-                    month, day, year, base_year, days_until = event.get_next_date_info()
-                    if month == today.month and day == today.day:
-                        if event.repeat_type == "once":
-                            if not event.completed and days_until >= 0:
-                                count += 1
-                        else:
-                            count += 1
-                return f"📌 今日事件 ({count}个)" if count > 0 else "📌 今日事件"
+                return "📌 今日事件"
             elif current_view == "three_days":
                 return "🔔 预警事件"
             elif current_view == "daily":
-                daily_count = len([e for e in events.values() if e.event_type == "daily"])
-                return f"⏰ 每日事件 ({daily_count}个)" if daily_count > 0 else "⏰ 每日事件"
+                return "⏰ 每日事件"
             elif current_view == "weekly":
-                weekly_count = len([e for e in events.values() if e.event_type == "weekly"])
-                return f"🔁 每周事件 ({weekly_count}个)" if weekly_count > 0 else "🔁 每周事件"
+                return "🔁 每周事件"
             elif current_view == "monthly":
-                monthly_count = len([e for e in events.values() if e.event_type == "monthly"])
-                return f"🔄 每月事件 ({monthly_count}个)" if monthly_count > 0 else "🔄 每月事件"
+                return "🔄 每月事件"
             elif current_view == "birthday":
-                birthday_count = len([e for e in events.values() if e.event_type == "birthday"])
-                return f"🎉 生日 ({birthday_count}个)" if birthday_count > 0 else "🎉 生日"
+                return "🎉 生日"
             elif current_view == "event":
-                event_count = len([e for e in events.values() if e.event_type == "event"])
-                return f"💝 纪念日 ({event_count}个)" if event_count > 0 else "💝 纪念日"
+                return "💝 纪念日"
             elif current_view == "once":
-                once_count = len([e for e in events.values() if e.repeat_type == "once"])
-                return f"🎯 一次性事件 ({once_count}个)" if once_count > 0 else "🎯 一次性事件"
-            return "事件列表"
+                return "🎯 一次性事件"
+            else:
+                return "事件列表"
 
         # ========== 添加标题行 ==========
         events_list.controls.append(ft.Row([
@@ -18411,7 +18439,7 @@ def main(page: ft.Page):
 
     def display_search_results(results, keyword):
         """显示搜索结果"""
-        global current_view, events_list, card_duration_texts, previous_view  # 添加 previous_view
+        global current_view, events_list, card_duration_texts, previous_view
         
         # 保存当前视图（如果不是搜索视图）
         if current_view != "search":
@@ -18424,11 +18452,12 @@ def main(page: ft.Page):
         
         events_list.controls.clear()
         
+        # ========== 隐藏下拉框（搜索模式下不显示） ==========
         # 显示搜索标题
         events_list.controls.append(ft.Row([
             ft.Text(f"🔍 搜索结果: 「{keyword}」 ({len(results)} 个)", size=14, weight=ft.FontWeight.BOLD, expand=True),
             ft.TextButton(
-                "✕ 关闭",
+                "✕ 关闭搜索",
                 on_click=lambda e: restore_previous_view(),
                 style=ft.ButtonStyle(color=ft.Colors.RED_700),
             ),
