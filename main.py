@@ -84,8 +84,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.244"
-APP_VERSION_CODE = 244
+APP_VERSION = "1.0.245"
+APP_VERSION_CODE = 245
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -7894,12 +7894,31 @@ def main(page: ft.Page):
         def clear_search_state():
             """清除搜索状态"""
             nonlocal search_query, is_search_mode
+            nonlocal filter_income_categories, filter_expense_categories, is_filter_active
+            
+            # ========== 清除搜索 ==========
             search_query = ""
             is_search_mode = False
+            
+            # ========== 清除筛选 ==========
+            filter_income_categories = []
+            filter_expense_categories = []
+            is_filter_active = False
+            
+            # ========== 关闭筛选对话框 ==========
+            for overlay in page.overlay[:]:
+                if hasattr(overlay, 'data') and overlay.data == 'filter_dialog':
+                    page.overlay.remove(overlay)
+                    break
+            
+            # ========== 隐藏清除按钮 ==========
             clear_btn.visible = False
             clear_btn.update()
+            
+            update_filter_button()
             refresh_records_list()
-            show_bottom_message("已清除搜索")
+            refresh_summary()
+            show_bottom_message("已清除搜索和筛选")
 
         # ========== 创建搜索按钮和清除按钮 ==========
         search_btn = ft.IconButton(
@@ -7944,13 +7963,18 @@ def main(page: ft.Page):
                 
                 if keyword:
                     show_bottom_message(f"🔍 正在搜索: {keyword}")
-                    clear_btn.visible = True
+                    # ========== 如果已经有筛选，清除按钮保持可见 ==========
+                    if is_filter_active:
+                        clear_btn.visible = True
+                    else:
+                        clear_btn.visible = True  # 搜索时也显示清除按钮
                     clear_btn.update()
                     refresh_records_list()
                 else:
                     show_bottom_message("请输入搜索关键词")
                     is_search_mode = False
-                    clear_btn.visible = False
+                    # ========== 如果没有搜索关键词，但可能有筛选 ==========
+                    clear_btn.visible = is_filter_active
                     clear_btn.update()
                     refresh_records_list()
             
@@ -9517,7 +9541,6 @@ def main(page: ft.Page):
                     expense_container.controls.append(ft.Divider(height=1, color=ft.Colors.GREY_200))
             
             
-            
             # 确认筛选
             def apply_filter(e):
                 nonlocal filter_income_categories, filter_expense_categories, is_filter_active
@@ -9530,27 +9553,51 @@ def main(page: ft.Page):
                 
                 # 关闭对话框
                 close_filter_dialog()
-                
+
                 # 刷新列表
                 refresh_records_list()
                 refresh_summary()
                 
                 # 更新筛选按钮文字
                 update_filter_button()
+
+                # ========== 显示清除按钮（筛选状态下可见） ==========
+                clear_btn.visible = True
+                clear_btn.update()
                 
                 total_selected = len(filter_income_categories) + len(filter_expense_categories)
                 show_bottom_message(f"已筛选 {total_selected} 个分类")
             
             # 清除筛选
-            def clear_filter(e):
+            def clear_filter(e=None):
+                """清除筛选"""
                 nonlocal filter_income_categories, filter_expense_categories, is_filter_active
+                nonlocal search_query, is_search_mode  # ← 添加这行
+                
                 filter_income_categories = []
                 filter_expense_categories = []
                 is_filter_active = False
+                
+                # ========== 同时清除搜索状态 ==========
+                search_query = ""
+                is_search_mode = False
+                
+                # ========== 关闭筛选对话框 ==========
+                for overlay in page.overlay[:]:
+                    if hasattr(overlay, 'data') and overlay.data == 'filter_dialog':
+                        page.overlay.remove(overlay)
+                        break
+
+                # ========== 隐藏清除按钮 ==========
+                clear_btn.visible = False
+                clear_btn.update()
+
+                # 关闭当前对话框
                 close_filter_dialog()
+                
+                update_filter_button()
                 refresh_records_list()
                 refresh_summary()
-                update_filter_button()
                 show_bottom_message("已清除筛选")
             
             # 关闭对话框
@@ -9558,6 +9605,11 @@ def main(page: ft.Page):
                 if dialog_container in page.overlay:
                     page.overlay.remove(dialog_container)
                     page.update()
+
+            # 如果已经有筛选条件，确保清除按钮可见
+            if is_filter_active:
+                clear_btn.visible = True
+                clear_btn.update()
             
             # 创建对话框内容
             filter_content = ft.Column([
@@ -9620,7 +9672,7 @@ def main(page: ft.Page):
             page.update()
 
         def refresh_records_list():
-            """刷新记录列表（支持搜索过滤）- 按日期分组显示"""
+            """刷新记录列表（支持搜索过滤）- 按日期分组显示，支持展开/收起"""
             records_list.controls.clear()
 
             # ========== 如果搜索结束但没有结果，隐藏清除按钮 ==========
@@ -9791,18 +9843,36 @@ def main(page: ft.Page):
                 except:
                     return ""
             
+            # ========== 存储展开状态 ==========
+            # 在 refresh_events_list 函数外部定义一个字典存储状态
+            # 但这里我们使用函数属性来存储
+            if not hasattr(refresh_records_list, 'expanded_dates'):
+                refresh_records_list.expanded_dates = {}  # {date_key: True/False}
+            
             # ========== 显示分组记录 ==========
             for date_key, records in grouped_records.items():
-                # ========== 日期标题行 ==========
+                # 获取当前日期的展开状态（默认展开）
+                is_expanded = refresh_records_list.expanded_dates.get(date_key, True)
+                
+                # 计算该日统计
                 weekday_str = get_weekday(date_key)
                 daily_income = sum(t.amount for t in records if t.type == "income")
                 daily_expense = sum(t.amount for t in records if t.type == "expense")
                 daily_count = len(records)
                 
+                # ========== 创建日期标题（可点击） ==========
+                # 展开/收起图标
+                expand_icon = ft.Icon(
+                    ft.Icons.EXPAND_LESS if is_expanded else ft.Icons.EXPAND_MORE,
+                    size=20,
+                    color=ft.Colors.BLUE_700,
+                )
+                
                 date_header = ft.Container(
                     content=ft.Row([
+                        expand_icon,
                         ft.Text(
-                            f"{date_key} {weekday_str}",
+                            f"📅 {date_key} {weekday_str}",
                             size=13,
                             weight=ft.FontWeight.BOLD,
                             color=ft.Colors.BLUE_700,
@@ -9818,10 +9888,18 @@ def main(page: ft.Page):
                     bgcolor=ft.Colors.BLUE_50,
                     border_radius=8,
                     margin=ft.Padding(left=0, right=0, top=5, bottom=5),
+                    ink=True,  # 点击涟漪效果
+                    on_click=lambda e, dk=date_key: toggle_date_expand(dk),  # 点击切换展开/收起
                 )
                 records_list.controls.append(date_header)
                 
-                # ========== 该日期的交易记录 ==========
+                # ========== 该日期的交易记录（根据展开状态控制显示） ==========
+                # 创建一个容器来包裹该日的所有交易记录
+                records_container = ft.Column(
+                    spacing=0,
+                    visible=is_expanded,  # 根据展开状态控制显示
+                )
+                
                 for index, t in enumerate(records):
                     is_income = t.type == "income"
                     amount_color = ft.Colors.GREEN_700 if is_income else ft.Colors.RED_700
@@ -9901,7 +9979,20 @@ def main(page: ft.Page):
                         ink=True,
                         on_click=lambda e, tr=t: edit_transaction(tr),
                     )
-                    records_list.controls.append(record_card)
+                    records_container.controls.append(record_card)
+                
+                # 将记录容器添加到列表
+                records_list.controls.append(records_container)
+            
+            # ========== 展开/收起切换函数 ==========
+            def toggle_date_expand(date_key):
+                """切换日期的展开/收起状态"""
+                # 切换状态
+                current_state = refresh_records_list.expanded_dates.get(date_key, True)
+                refresh_records_list.expanded_dates[date_key] = not current_state
+                
+                # 刷新整个列表（重新构建）
+                refresh_records_list()
             
             # ========== 底部统计汇总 ==========
             records_list.controls.append(
