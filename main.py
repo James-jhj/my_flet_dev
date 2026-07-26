@@ -84,8 +84,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.242"
-APP_VERSION_CODE = 242
+APP_VERSION = "1.0.243"
+APP_VERSION_CODE = 243
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5988,7 +5988,7 @@ def main(page: ft.Page):
                     if note.password:
                         # 使用已有密码重新加密（密码已经是加密状态）
                         note.is_encrypted = True
-                        note.content = "🔒 此笔记已加密，请输入密码查看内容"
+                        note.content = "已锁定"
                         save_memo_notes()
                         
                         if note.id in card_swipe_states:
@@ -6478,13 +6478,17 @@ def main(page: ft.Page):
                     # ========== 保存原始数据，用于检测是否修改 ==========
                     original_content = note.content
                     original_category = note.category
+                    original_title = note.title  # ← 添加这行
                     initial_title = note.title
                     initial_content = note.content
                     initial_category = note.category
                     created_at = note.updated_at if note.updated_at else note.created_at
                 else:
                     title_text = "添加笔记"
-                    initial_title = ""         # 添加模式下标题为空
+                    original_content = ""
+                    original_category = ""
+                    original_title = ""  # ← 添加这行
+                    initial_title = ""
                     initial_content = ""
                     initial_category = "未分类"
                     created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -6512,7 +6516,13 @@ def main(page: ft.Page):
                     current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     
                     if note_id:
-                        # 编辑模式：更新笔记（不改变加密状态）
+                        # ========== 编辑模式：如果标题变了，更新标题 ==========
+                        current_title = title_display.value.strip()
+                        # 如果标题为空或为"无标题"，使用原标题
+                        if not current_title or current_title == "无标题":
+                            title = original_title
+                        else:
+                            title = current_title
                         note.title = title
                         note.content = content
                         note.category = category
@@ -6522,6 +6532,9 @@ def main(page: ft.Page):
                             note.original_content = content  # 更新原始内容
                         show_bottom_message(f"✅ 已保存「{title}」")
                     else:
+                        # 新增模式：从内容第一行提取标题
+                        title = extract_title_from_content(content, max_chars=16)
+
                         # 新增模式：创建笔记
                         new_note = MemoNote(
                             id=str(int(datetime.now().timestamp() * 1000)),
@@ -6647,49 +6660,61 @@ def main(page: ft.Page):
                     if not note:
                         return
                     
-                    # 判断当前状态
                     if note.is_encrypted:
-                        # ========== 已加密 -> 解密 ==========
-                        # 需要用户输入密码
+                        # 已加密 -> 解密
                         close_edit_dialog()
                         show_decrypt_dialog(note)
                         return
                     
-                    elif note.password and not note.is_encrypted:
-                        # ========== 已解密 -> 重新加密（关锁） ==========
-                        # 保存当前内容
-                        current_content = content_field.value.strip()
-                        if not current_content:
-                            show_bottom_message("内容不能为空", is_error=True)
-                            return
-                        
-                        # 更新原始内容
-                        note.original_content = current_content
-                        note.content = "🔒 此笔记已加密，请输入密码查看内容"
+                    # 检查是否有修改（内容、分类、标题）
+                    current_content = content_field.value.strip()
+                    current_category = current_category_edit if current_category_edit else "未分类"
+                    current_title = title_display.value.strip()
+                    
+                    content_changed = current_content != note.content
+                    category_changed = current_category != note.category
+                    title_changed = current_title != note.title
+                    
+                    has_modifications = content_changed or category_changed or title_changed
+                    
+                    # 如果有修改，先保存
+                    if has_modifications and current_content:
+                        # 处理标题
+                        if title_changed:
+                            if not current_title or current_title == "无标题":
+                                title = note.title
+                            else:
+                                title = current_title
+                            note.title = title
+
+                        note.content = current_content
+                        note.category = current_category
+                        note.updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        if not note.is_encrypted and note.original_content:
+                            note.original_content = current_content
+                        save_memo_notes()
+                        show_bottom_message(f"✅ 已保存修改")
+                    
+                    # ========== 根据是否有密码决定后续操作 ==========
+                    if note.password:
+                        # 已有密码：直接锁定
+                        note.original_content = current_content if current_content else note.original_content
+                        note.content = "已锁定"
                         note.is_encrypted = True
-                        # 密码保留
                         save_memo_notes()
                         close_edit_dialog()
                         render_notes()
-                        show_bottom_message("✅ 笔记已重新加密（关锁）")
-                        return
-                    
+                        show_bottom_message("🔒 笔记已锁定")
                     else:
-                        # ========== 未加密且无密码 -> 首次加密 ==========
-                        # 保存当前内容
-                        current_content = content_field.value.strip()
+                        # 无密码：首次加密
                         if not current_content:
                             show_bottom_message("内容不能为空", is_error=True)
                             return
-                        
-                        # 关闭编辑对话框，打开加密设置
                         close_edit_dialog()
-                        # 先保存原始内容到笔记
                         note.original_content = current_content
                         note.content = current_content
                         save_memo_notes()
                         show_encrypt_dialog(note)
-                        return
                 
                 def delete_note(e):
                     if not note_id:
@@ -6830,7 +6855,7 @@ def main(page: ft.Page):
 
                 # ========== 内容变化时检测是否有修改 ==========
                 def has_changes():
-                    """检测内容或分类是否被修改"""
+                    """检测内容、分类或标题是否被修改"""
                     current_content = content_field.value.strip()
                     current_category = current_category_edit if current_category_edit else "未分类"
                     
@@ -6838,19 +6863,27 @@ def main(page: ft.Page):
                     if not note_id:
                         return bool(current_content)
                     
-                    # 编辑模式：比较内容或分类是否有变化
+                    # ========== 编辑模式：检测内容、分类或标题是否有变化 ==========
+                    # 获取当前标题（从标题显示框读取）
+                    current_title = title_display.value.strip()
+                    
                     content_changed = current_content != original_content
                     category_changed = current_category != original_category
+                    title_changed = current_title != original_title
                     
-                    return content_changed or category_changed
+                    return content_changed or category_changed or title_changed
     
                 # ========== 内容变化时自动更新标题 ==========
                 def on_content_change(e):
                     """内容变化时，自动从第一行提取标题，限制16个汉字"""
                     content = content_field.value or ""
-                    title = extract_title_from_content(content, max_chars=16)
-                    title_display.value = title
-                    title_display.update()
+
+                    if not note_id:
+                        # ========== 新增模式：实时更新标题显示 ==========
+                        title = extract_title_from_content(content, max_chars=16)
+                        title_display.value = title
+                        title_display.update()
+                    # ========== 编辑模式：什么都不做，标题保持不变 ==========
                 
                 # ========== 标题输入（无边框） ==========
                 title_display = ft.TextField(
@@ -6881,8 +6914,8 @@ def main(page: ft.Page):
                 )
 
                 
-                # 如果初始化时有内容，立即提取标题
-                if initial_content:
+                # ========== 如果初始化时有内容，立即提取标题（仅新增模式） ==========
+                if initial_content and not note_id:  # ← 添加 not note_id 条件
                     title = extract_title_from_content(initial_content, max_chars=16)
                     title_display.value = title
 
