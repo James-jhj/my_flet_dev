@@ -30,18 +30,31 @@ jobs:
           flutter-version: '3.22.0'
           channel: 'stable'
 
-      # ========== 重要：复制 Flutter 文件到正确位置 ==========
-      - name: Setup Flutter plugin
+      # ========== 验证 Flutter 插件文件存在 ==========
+      - name: Verify Flutter plugin files
         run: |
-          # 创建 Flutter 目录结构
-          mkdir -p flutter/lib
-          
-          # 复制 Dart 文件
-          cp -r ./flutter/lib/* ./flutter/lib/
-          
-          # 打印目录结构（调试）
-          ls -la ./flutter/
-          ls -la ./flutter/lib/
+          echo "=== 检查 Flutter 目录 ==="
+          ls -la ./flutter/ || echo "flutter 目录不存在"
+          echo ""
+          echo "=== 检查 Flutter/lib 目录 ==="
+          ls -la ./flutter/lib/ || echo "lib 目录不存在"
+          echo ""
+          echo "=== 检查关键文件 ==="
+          if [ -f "./flutter/lib/local_auth_bridge.dart" ]; then
+            echo "✅ local_auth_bridge.dart 存在"
+            cat ./flutter/lib/local_auth_bridge.dart | head -10
+          else
+            echo "❌ local_auth_bridge.dart 不存在"
+            exit 1
+          fi
+          echo ""
+          if [ -f "./flutter/pubspec.yaml" ]; then
+            echo "✅ pubspec.yaml 存在"
+            cat ./flutter/pubspec.yaml
+          else
+            echo "❌ pubspec.yaml 不存在"
+            exit 1
+          fi
 
       - name: Install Python dependencies
         run: |
@@ -84,14 +97,9 @@ jobs:
           assets_dir = "assets"
           android_adaptive_icon_background = "#ffffff"  # 白色背景，可按需修改
 
-          # ========== 关键：配置自定义 Flutter 插件 ==========
+          # ========== 合并 Flutter 配置 ==========
           [tool.flet.flutter]
-          # 指定 Flutter 目录
-          flutter_path = "flutter"
-          dependencies = ["local_auth"]
-
-          [tool.flet.flutter]
-          dependencies = ["flet_audio"]
+          dependencies = ["flet_audio", "local_auth"]
 
           [tool.flet.android.permission]
           # ========== 生物识别权限 ==========
