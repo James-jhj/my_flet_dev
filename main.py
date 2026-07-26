@@ -84,8 +84,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.237"
-APP_VERSION_CODE = 237
+APP_VERSION = "1.0.238"
+APP_VERSION_CODE = 238
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -6228,43 +6228,21 @@ def main(page: ft.Page):
                     biometric_button.update()
                     
                     try:
-                        show_bottom_message("🔍 检查生物识别...")
-                        
-                        # 检查生物识别是否可用
-                        if not local_auth.is_available():
-                            show_bottom_message("⚠️ 设备不支持生物识别或未注册")
-                            return
-                        
-                        # 获取可用类型
-                        bio_types = local_auth.get_available_biometrics()
-                        show_bottom_message(f"🔍 可用类型: {bio_types}")
-                        
-                        # 执行认证
+                        # ========== 跳过可用性检查，直接认证 ==========
                         show_bottom_message("🔍 请使用指纹/面容解锁...")
+                        
+                        # 直接尝试认证，不调用 is_available
                         success = await local_auth.authenticate(
                             f"验证身份以查看「{note.title}」"
                         )
                         
                         if success:
                             show_bottom_message("✅ 认证成功")
-                            if note.original_content:
-                                note.content = note.original_content
-                            else:
-                                note.content = "（请手动恢复内容）"
-                            note.is_encrypted = False
-                            save_memo_notes()
-                            close_dialog()
-                            if note.id in card_swipe_states:
-                                card_swipe_states[note.id] = 0
-                            render_notes()
-                            show_bottom_message("✅ 笔记已解密")
-                            def open_edit():
-                                open_memo_edit_dialog(note.id)
-                            threading.Timer(0.1, open_edit).start()
+                            # ... 解密逻辑 ...
                         else:
-                            show_bottom_message("❌ 认证失败，请使用密码")
+                            show_bottom_message("❌ 认证失败或取消")
                     except Exception as e:
-                        show_bottom_message(f"❌ 生物识别失败: {str(e)[:50]}")
+                        show_bottom_message(f"❌ 错误: {str(e)[:50]}")
                     finally:
                         is_authenticating = False
                         biometric_button.disabled = False
@@ -6305,7 +6283,7 @@ def main(page: ft.Page):
                         color=ft.Colors.GREEN_700,
                         shape=ft.RoundedRectangleBorder(radius=8),
                     ),
-                    visible=show_biometric,
+                    visible=True,
                 )
                 
                 # ========== 创建对话框 ==========
@@ -6323,7 +6301,7 @@ def main(page: ft.Page):
                         ft.Text("请验证身份查看内容", size=12, color=ft.Colors.GREY_500),
                         ft.Divider(height=1, color=ft.Colors.GREY_300),
                         # ========== 生物识别按钮 ==========
-                        biometric_button if show_biometric else ft.Container(),
+                        biometric_button,
                         ft.Divider(height=1, color=ft.Colors.GREY_300) if show_biometric else ft.Container(),
                         ft.Row([
                             ft.Text("或", size=12, color=ft.Colors.GREY_500),

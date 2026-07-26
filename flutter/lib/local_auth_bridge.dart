@@ -29,60 +29,71 @@ class LocalAuthBridge {
     }
   }
 
+  // ========== 简化：直接返回 true ==========
   static Future<bool> _isAvailable() async {
-  try {
-    // 先检查设备是否支持
-    final isDeviceSupported = await _localAuth.isDeviceSupported();
-    print('[LocalAuthBridge] isDeviceSupported: $isDeviceSupported');
-    
-    if (!isDeviceSupported) {
+    try {
+      // 简单检查设备是否支持
+      final isDeviceSupported = await _localAuth.isDeviceSupported();
+      print('[LocalAuthBridge] isDeviceSupported: $isDeviceSupported');
+      
+      // 如果设备支持，直接返回 true
+      if (isDeviceSupported) {
+        print('[LocalAuthBridge] ✅ 设备支持生物识别');
+        return true;
+      }
+      
+      // 即使 isDeviceSupported 返回 false，也尝试获取生物识别类型
+      // 有些设备这个 API 可能不准确
+      final available = await _localAuth.getAvailableBiometrics();
+      print('[LocalAuthBridge] 可用生物识别: $available');
+      
+      // 如果列表不为空，返回 true
+      if (available.isNotEmpty) {
+        print('[LocalAuthBridge] ✅ 检测到已注册生物识别');
+        return true;
+      }
+      
+      // 最后尝试 canCheckBiometrics
+      final canCheck = await _localAuth.canCheckBiometrics;
+      print('[LocalAuthBridge] canCheckBiometrics: $canCheck');
+      
+      // 如果 canCheck 为 true，返回 true
+      if (canCheck) {
+        print('[LocalAuthBridge] ✅ canCheckBiometrics 通过');
+        return true;
+      }
+      
+      // 如果以上都失败，尝试直接认证（有些设备需要实际尝试才能知道）
+      // 但这里返回 false，让用户看到提示
+      print('[LocalAuthBridge] ❌ 所有检查都失败');
+      return false;
+    } catch (e) {
+      print('[LocalAuthBridge] 检查可用性失败: $e');
       return false;
     }
-    
-    // 尝试获取可用生物识别
-    final availableBiometrics = await _getAvailableBiometrics();
-    print('[LocalAuthBridge] availableBiometrics: $availableBiometrics');
-    
-    // 如果有可用生物识别，返回 true
-    if (availableBiometrics.isNotEmpty) {
-      return true;
-    }
-    
-    // 某些设备 canCheckBiometrics 可能返回 false，但实际支持
-    // 所以如果设备支持，但 canCheckBiometrics 返回 false，仍然返回 true
-    final canCheck = await _localAuth.canCheckBiometrics;
-    print('[LocalAuthBridge] canCheckBiometrics: $canCheck');
-    
-    // 如果设备支持，即使 canCheckBiometrics 为 false，也返回 true
-    // 因为认证时 local_auth 会再次检查
-    return isDeviceSupported;
-  } catch (e) {
-    print('[LocalAuthBridge] 检查可用性失败: $e');
-    return false;
   }
-}
 
   static Future<bool> _authenticate(dynamic arguments) async {
     try {
       final reason = arguments['reason'] ?? '验证身份';
       print('[LocalAuthBridge] 开始认证, reason: $reason');
       
-      // 先检查是否可用
-      final isAvailable = await _isAvailable();
-      if (!isAvailable) {
-        print('[LocalAuthBridge] 生物识别不可用');
+      // 尝试直接认证，不管 isAvailable 的结果
+      // 因为有些设备 isAvailable 可能返回 false，但实际可以认证
+      try {
+        final bool authenticated = await _localAuth.authenticate(
+          localizedReason: reason,
+          options: const AuthenticationOptions(
+            biometricOnly: true,
+            stickyAuth: true,
+          ),
+        );
+        print('[LocalAuthBridge] 认证结果: $authenticated');
+        return authenticated;
+      } catch (authError) {
+        print('[LocalAuthBridge] 认证失败: $authError');
         return false;
       }
-      
-      final bool authenticated = await _localAuth.authenticate(
-        localizedReason: reason,
-        options: const AuthenticationOptions(
-          biometricOnly: true,
-          stickyAuth: true,
-        ),
-      );
-      print('[LocalAuthBridge] 认证结果: $authenticated');
-      return authenticated;
     } catch (e) {
       print('[LocalAuthBridge] 认证失败: $e');
       return false;
@@ -94,7 +105,6 @@ class LocalAuthBridge {
       final available = await _localAuth.getAvailableBiometrics();
       print('[LocalAuthBridge] 原始生物识别类型: $available');
       
-      // 转换为字符串列表
       final result = available.map((e) {
         switch (e) {
           case BiometricType.face:
@@ -103,10 +113,6 @@ class LocalAuthBridge {
             return 'fingerprint';
           case BiometricType.iris:
             return 'iris';
-          case BiometricType.strong:
-            return 'strong';
-          case BiometricType.weak:
-            return 'weak';
           default:
             return e.toString();
         }
