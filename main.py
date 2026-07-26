@@ -82,8 +82,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.232"
-APP_VERSION_CODE = 232
+APP_VERSION = "1.0.233"
+APP_VERSION_CODE = 233
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -6391,67 +6391,75 @@ def main(page: ft.Page):
                 """显示解密对话框（支持生物识别）"""
                 dialog_container = None
                 is_authenticating = False
-
-                # ========== 调试信息 - 使用底部消息 ==========
-                import platform
                 
-                debug_messages = []
-                debug_messages.append(f"平台: {platform.system()}")
+                # ========== 直接在函数内检测 ==========
+                show_bottom_message("🔍 正在检查生物识别...")
                 
-                # 检查 pyjnius
-                try:
-                    import jnius
-                    debug_messages.append("✅ pyjnius 可用")
-                except ImportError as e:
-                    debug_messages.append(f"❌ pyjnius 不可用: {str(e)[:30]}")
+                bio_available = False
+                bio_type = "生物识别"
+                debug_info = []
                 
-                # 检查 android 模块
-                try:
-                    import android
-                    debug_messages.append("✅ android 模块可用")
-                except ImportError as e:
-                    debug_messages.append(f"❌ android 模块不可用: {str(e)[:30]}")
-                
-                # 检查 BiometricManager
-                try:
-                    from jnius import autoclass
-                    from android import activity
+                if platform.system() == "Linux":
+                    show_bottom_message("🔍 检测到 Android 平台")
+                    debug_info.append("平台: Android")
                     
-                    BiometricManager = autoclass('androidx.biometric.BiometricManager')
-                    context = activity.getContext()
-                    biometric_manager = BiometricManager.from_(context)
-                    result = biometric_manager.canAuthenticate()
+                    # 检查权限
+                    try:
+                        from android.permissions import check_permission, Permission
+                        bio_perm = check_permission(Permission.USE_BIOMETRIC)
+                        finger_perm = check_permission(Permission.USE_FINGERPRINT)
+                        debug_info.append(f"USE_BIOMETRIC: {bio_perm}, USE_FINGERPRINT: {finger_perm}")
+                        if bio_perm or finger_perm:
+                            bio_available = True
+                            debug_info.append("✅ 有生物识别权限")
+                    except Exception as e:
+                        debug_info.append(f"❌ 权限检查失败: {str(e)[:30]}")
                     
-                    # 0 = 可用, 11 = 未注册, 12 = 无硬件, 13 = 硬件不可用
-                    if result == 0:
-                        debug_messages.append("✅ 生物识别可用(已注册)")
-                    elif result == 11:
-                        debug_messages.append("⚠️ 硬件可用(未注册指纹)")
-                    elif result == 12:
-                        debug_messages.append("❌ 无生物识别硬件")
-                    elif result == 13:
-                        debug_messages.append("❌ 硬件不可用")
-                    else:
-                        debug_messages.append(f"❌ 未知错误: {result}")
-                except Exception as e:
-                    debug_messages.append(f"❌ BiometricManager失败: {str(e)[:30]}")
+                    # 检查硬件
+                    if not bio_available:
+                        try:
+                            from android.biometric import BiometricManager
+                            bm = BiometricManager()
+                            result = bm.can_authenticate()
+                            debug_info.append(f"can_authenticate: {result}")
+                            if result == 0 or result == 11:
+                                bio_available = True
+                                debug_info.append("✅ 生物识别硬件可用")
+                            else:
+                                debug_info.append(f"❌ 硬件不可用: {result}")
+                        except Exception as e:
+                            debug_info.append(f"❌ 硬件检查失败: {str(e)[:30]}")
+                    
+                    # 降级检查
+                    if not bio_available:
+                        try:
+                            import android
+                            from android import activity
+                            bio_available = True
+                            debug_info.append("✅ 降级检查通过")
+                        except Exception as e:
+                            debug_info.append(f"❌ 降级失败: {str(e)[:30]}")
+                    
+                    # 获取生物识别类型
+                    try:
+                        from android.biometric import BiometricManager
+                        bm = BiometricManager()
+                        if bm.can_authenticate() == 0:
+                            bio_type = "指纹/面容"
+                        else:
+                            bio_type = "指纹"
+                    except:
+                        bio_type = "指纹"
                 
-                # 显示所有调试信息（逐条显示）
-                for msg in debug_messages:
-                    show_bottom_message(f"🔍 {msg}")
-
-                # ========== 检查生物识别可用性 ==========
-                bio_available = is_biometric_available()
-                bio_type = get_biometric_type()
+                # 显示所有调试信息
+                show_bottom_message(f"🔍 {' | '.join(debug_info)}")
+                show_bottom_message(f"🔍 结果: 可用={bio_available}, 类型={bio_type}")
                 
-                show_bottom_message(f"🔍 bio_available: {bio_available}, bio_type: {bio_type}")
-    
-                # ========== 在 Android 上强制显示 ==========
+                # 在 Android 上强制显示生物识别按钮
                 if platform.system() == "Linux":
                     bio_available = True
-                    if bio_type == "指纹":
+                    if bio_type == "生物识别":
                         bio_type = "指纹/面容"
-                    show_bottom_message("🔍 强制启用生物识别")
                 
                 def close_dialog():
                     nonlocal dialog_container
