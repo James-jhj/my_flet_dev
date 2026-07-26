@@ -30,6 +30,19 @@ jobs:
           flutter-version: '3.22.0'
           channel: 'stable'
 
+      # ========== 重要：复制 Flutter 文件到正确位置 ==========
+      - name: Setup Flutter plugin
+        run: |
+          # 创建 Flutter 目录结构
+          mkdir -p flutter/lib
+          
+          # 复制 Dart 文件
+          cp -r ./flutter/lib/* ./flutter/lib/
+          
+          # 打印目录结构（调试）
+          ls -la ./flutter/
+          ls -la ./flutter/lib/
+
       - name: Install Python dependencies
         run: |
           pip install --upgrade pip
@@ -71,14 +84,11 @@ jobs:
           assets_dir = "assets"
           android_adaptive_icon_background = "#ffffff"  # 白色背景，可按需修改
 
-          # 生物识别配置
-          android_permissions = [
-              "android.permission.USE_BIOMETRIC",
-              "android.permission.USE_FINGERPRINT",
-          ]
-          android_dependencies = [
-              "androidx.biometric:biometric:1.1.0",
-          ]
+          # ========== 关键：配置自定义 Flutter 插件 ==========
+          [tool.flet.flutter]
+          # 指定 Flutter 目录
+          flutter_path = "flutter"
+          dependencies = ["local_auth"]
 
           [tool.flet.flutter]
           dependencies = ["flet_audio"]

@@ -36,6 +36,8 @@ import sys
 import hashlib
 import base64
 
+from local_auth import LocalAuth
+
 # ========== 平台检测 ==========
 IS_WINDOWS = platform.system() == "Windows"
 
@@ -82,8 +84,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.234"
-APP_VERSION_CODE = 234
+APP_VERSION = "1.0.235"
+APP_VERSION_CODE = 235
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -323,43 +325,6 @@ class Transaction:
             data.get("time", "00:00"),  # 新增，兼容旧数据
         )
 
-""" 
-class KeyboardManager:
-    #键盘管理器
-    def __init__(self, page):
-        self._page = page
-        self._controls = []
-        self._setup_page_handler()
-    
-    def _setup_page_handler(self):
-        #设置页面点击处理
-        # 保存原始容器点击事件
-        original_click = None
-        
-        def on_page_click(e):
-            #点击页面空白区域
-            print("点击页面空白区域 - 隐藏所有键盘")
-            for control in self._controls:
-                if hasattr(control, 'hide_keyboard'):
-                    control.hide_keyboard()
-            # 调用原始点击事件
-            if original_click:
-                original_click(e)
-        
-        # 监听页面的容器点击
-        # 注意：需要在页面添加容器时设置
-        self._on_page_click = on_page_click
-    
-    def register(self, control):
-        #注册需要键盘控制的控件
-        if hasattr(control, 'hide_keyboard'):
-            self._controls.append(control)
-    
-    def get_page_click_handler(self):
-        #获取页面点击处理器
-        return self._on_page_click
-"""
-
 class KeyboardManager:
     """键盘管理器 - 点击空白区域隐藏键盘"""
     def __init__(self, page):
@@ -443,196 +408,6 @@ def is_password_hashed(password_str: str) -> bool:
         return True
     except:
         return False
-
-
-# ========== 生物识别认证功能 ==========
-
-def is_biometric_available():
-    """检查设备是否支持生物识别（Android 兼容版）"""
-    if platform.system() == "Linux":
-        try:
-            from jnius import autoclass
-            from android import activity
-            
-            # 获取 Context
-            context = activity.getContext()
-            
-            # 获取 BiometricManager 类
-            BiometricManager = autoclass('androidx.biometric.BiometricManager')
-            
-            # 正确的静态方法调用方式
-            biometric_manager = BiometricManager.from_(context)
-            
-            # 检查生物识别是否可用
-            result = biometric_manager.canAuthenticate()
-            
-            # BIOMETRIC_SUCCESS = 0
-            # BIOMETRIC_ERROR_NONE_ENROLLED = 11 (硬件可用但未注册指纹)
-            print(f"[生物识别] canAuthenticate 结果: {result}")
-            
-            if result == 0:
-                print("[生物识别] ✅ 生物识别可用且有已注册指纹")
-                return True
-            elif result == 11:
-                print("[生物识别] ⚠️ 硬件可用但未注册指纹/面容")
-                # 仍然返回 True，让用户知道可以设置
-                return True
-            else:
-                print(f"[生物识别] ❌ 生物识别不可用: {result}")
-                return False
-                
-        except ImportError as e:
-            print(f"[生物识别] pyjnius 导入失败: {e}")
-        except Exception as e:
-            print(f"[生物识别] 检查失败: {e}")
-            import traceback
-            traceback.print_exc()
-    
-    return False
-
-async def authenticate_with_biometric(reason="验证身份"):
-    """使用生物识别认证"""
-    # 方法1：Android 原生 API
-    if platform.system() == "Linux":
-        try:
-            return await authenticate_android_biometric(reason)
-        except Exception as e:
-            print(f"Android 生物识别失败: {e}")
-    
-    # 方法2：使用 plyer
-    try:
-        from plyer import fingerprint
-        result = fingerprint.authenticate(
-            reason=reason,
-            fallback_to_password=False,
-        )
-        return result
-    except Exception as e:
-        print(f"plyer 认证失败: {e}")
-    
-    return False
-
-async def authenticate_android_biometric(reason):
-    """Android 生物识别（使用 pyjnius）"""
-    try:
-        from jnius import autoclass, PythonJavaClass, java_method
-        from android import activity
-        import asyncio
-        
-        print(f"[生物识别] 开始认证: {reason}")
-        
-        # 获取所需类
-        BiometricPrompt = autoclass('androidx.biometric.BiometricPrompt')
-        BiometricManager = autoclass('androidx.biometric.BiometricManager')
-        Executors = autoclass('java.util.concurrent.Executors')
-        
-        context = activity.getContext()
-        
-        # 检查是否支持 - 使用 from_ 方法
-        biometric_manager = BiometricManager.from_(context)
-        can_auth = biometric_manager.canAuthenticate()
-        print(f"[生物识别] canAuthenticate 结果: {can_auth}")
-        
-        if can_auth != 0 and can_auth != 11:
-            # 11 表示没有注册指纹，但硬件支持
-            print("[生物识别] 生物识别不可用")
-            return False
-        
-        # 创建 Future
-        future = asyncio.Future()
-        
-        # 创建回调
-        class Callback(PythonJavaClass):
-            __javainterfaces__ = ['androidx.biometric.BiometricPrompt$AuthenticationCallback']
-            
-            def __init__(self, future):
-                super().__init__()
-                self.future = future
-                self._result = False
-            
-            @java_method('(Landroidx/biometric/BiometricPrompt$AuthenticationResult;)V')
-            def onAuthenticationSucceeded(self, result):
-                print("[生物识别] ✅ 认证成功")
-                if not self.future.done():
-                    self.future.set_result(True)
-            
-            @java_method('(I Ljava/lang/CharSequence;)V')
-            def onAuthenticationError(self, errorCode, errString):
-                print(f"[生物识别] 认证错误: {errorCode}, {errString}")
-                if not self.future.done():
-                    self.future.set_result(False)
-            
-            @java_method('(I Ljava/lang/CharSequence;)V')  
-            def onAuthenticationFailed(self, errorCode, errString):
-                print(f"[生物识别] ❌ 认证失败")
-                if not self.future.done():
-                    self.future.set_result(False)
-        
-        callback = Callback(future)
-        
-        # 创建 BiometricPrompt - 注意需要传入 Activity
-        executor = Executors.newSingleThreadExecutor()
-        biometric_prompt = BiometricPrompt(
-            activity.getCurrentActivity(),
-            executor,
-            callback
-        )
-        
-        # 构建 PromptInfo
-        PromptInfo = autoclass('androidx.biometric.BiometricPrompt$PromptInfo')
-        prompt_info = PromptInfo.Builder()\
-            .setTitle("身份验证")\
-            .setSubtitle(reason)\
-            .setDescription("请使用指纹或面容解锁")\
-            .setNegativeButtonText("取消")\
-            .build()
-        
-        # 显示认证
-        biometric_prompt.authenticate(prompt_info)
-        print("[生物识别] 认证对话框已显示")
-        
-        # 等待结果（超时30秒）
-        try:
-            result = await asyncio.wait_for(future, timeout=30.0)
-            print(f"[生物识别] 认证结果: {result}")
-            return result
-        except asyncio.TimeoutError:
-            print("[生物识别] 认证超时")
-            return False
-            
-    except Exception as e:
-        print(f"[生物识别] 认证失败: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
-
-def get_biometric_type():
-    """获取生物识别类型"""
-    if platform.system() == "Linux":
-        try:
-            from jnius import autoclass
-            from android import activity
-            
-            BiometricManager = autoclass('androidx.biometric.BiometricManager')
-            context = activity.getContext()
-            biometric_manager = BiometricManager.from_(context)
-            
-            result = biometric_manager.canAuthenticate()
-            
-            if result == 0:
-                # 检查设备支持的类型（简化处理）
-                return "指纹/面容"
-            elif result == 11:
-                return "指纹/面容（未注册）"
-        except Exception as e:
-            print(f"[生物识别] 获取类型失败: {e}")
-        return "指纹"
-    elif platform.system() == "Windows":
-        return "Windows Hello"
-    elif platform.system() == "Darwin":
-        return "Touch ID/Face ID"
-    else:
-        return "生物识别"
 
 # ========== 备忘录数据类 ==========
 class MemoNote:
@@ -3524,6 +3299,9 @@ def main(page: ft.Page):
     sent_notifications = set()  # 记录已发送的通知，格式: "事件ID_提醒时间_日期"
 
     reminder_flags = {}  # 存储提醒标记
+
+    # ========== 创建生物识别实例 ==========
+    local_auth = LocalAuth(page)
 
     # 创建键盘管理器
     keyboard_mgr = KeyboardManager(page)
@@ -6450,46 +6228,47 @@ def main(page: ft.Page):
                     biometric_button.update()
                     
                     try:
-                        if not is_biometric_available():
-                            show_bottom_message("⚠️ 设备不支持生物识别", is_error=True)
+                        show_bottom_message("🔍 检查生物识别...")
+                        
+                        # 检查生物识别是否可用
+                        if not local_auth.is_available():
+                            show_bottom_message("⚠️ 设备不支持生物识别或未注册")
                             return
                         
-                        bio_type = get_biometric_type()
-                        success = await authenticate_with_biometric(
+                        # 获取可用类型
+                        bio_types = local_auth.get_available_biometrics()
+                        show_bottom_message(f"🔍 可用类型: {bio_types}")
+                        
+                        # 执行认证
+                        show_bottom_message("🔍 请使用指纹/面容解锁...")
+                        success = await local_auth.authenticate(
                             f"验证身份以查看「{note.title}」"
                         )
                         
                         if success:
-                            show_bottom_message(f"✅ {bio_type}认证成功")
+                            show_bottom_message("✅ 认证成功")
                             if note.original_content:
                                 note.content = note.original_content
                             else:
                                 note.content = "（请手动恢复内容）"
-                            
                             note.is_encrypted = False
                             save_memo_notes()
                             close_dialog()
-                            
                             if note.id in card_swipe_states:
                                 card_swipe_states[note.id] = 0
-                            
                             render_notes()
-                            show_bottom_message(f"✅ 笔记已解密（密码已保留，可重新加密）")
-                            
+                            show_bottom_message("✅ 笔记已解密")
                             def open_edit():
                                 open_memo_edit_dialog(note.id)
-                            
                             threading.Timer(0.1, open_edit).start()
                         else:
-                            show_bottom_message(f"❌ {bio_type}认证失败，请使用密码", is_error=True)
+                            show_bottom_message("❌ 认证失败，请使用密码")
                     except Exception as e:
-                        print(f"生物识别错误: {e}")
-                        show_bottom_message(f"❌ 生物识别失败: {str(e)}", is_error=True)
+                        show_bottom_message(f"❌ 生物识别失败: {str(e)[:50]}")
                     finally:
                         is_authenticating = False
                         biometric_button.disabled = False
-                        biometric_text = f"🔐 {get_biometric_type()}解锁"
-                        biometric_button.text = biometric_text
+                        biometric_button.text = "🔐 指纹/面容解锁"
                         biometric_button.update()
                 
                 def on_biometric_click(e):
@@ -6526,6 +6305,7 @@ def main(page: ft.Page):
                         color=ft.Colors.GREEN_700,
                         shape=ft.RoundedRectangleBorder(radius=8),
                     ),
+                    visible=show_biometric,
                 )
                 
                 # ========== 创建对话框 ==========

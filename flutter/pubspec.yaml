@@ -1,0 +1,17 @@
+# flutter/pubspec.yaml
+name: event_reminder
+description: 事件提醒助手 - Flutter 层
+version: 1.0.0
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  local_auth: ^2.1.6
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
