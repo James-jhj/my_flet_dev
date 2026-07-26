@@ -1,76 +1,1390 @@
 {
   "transactions": [
     {
-      "id": "1781235860410",
-      "date": "2026-06-15",
-      "type": "income",
-      "category": "工资收入",
-      "amount": 16964.0,
-      "note": ""
-    },
-    {
-      "id": "1781235860411",
-      "date": "2026-06-16",
+      "id": "1785060482567",
+      "date": "2026-07-25",
       "type": "expense",
-      "category": "水电费",
-      "amount": 388.0,
-      "note": "水电费-泉州"
+      "category": "餐饮",
+      "amount": 14.85,
+      "note": "早餐",
+      "time": "10:30"
     },
     {
-      "id": "1781604899754",
-      "date": "2026-06-16",
+      "id": "1785060482568",
+      "date": "2026-07-25",
+      "type": "expense",
+      "category": "其他支出",
+      "amount": 13.8,
+      "note": "购买手机壳",
+      "time": "09:40"
+    },
+    {
+      "id": "1785060482570",
+      "date": "2026-07-25",
+      "type": "expense",
+      "category": "其他支出",
+      "amount": 6.8,
+      "note": "购买手机膜",
+      "time": "09:20"
+    },
+    {
+      "id": "1785060482571",
+      "date": "2026-07-24",
+      "type": "expense",
+      "category": "其他支出",
+      "amount": 519.0,
+      "note": "聚餐",
+      "time": "19:55"
+    },
+    {
+      "id": "1785060482572",
+      "date": "2026-07-24",
+      "type": "expense",
+      "category": "其他支出",
+      "amount": 159.0,
+      "note": "换手机电池",
+      "time": "17:43"
+    },
+    {
+      "id": "1785060482573",
+      "date": "2026-07-24",
+      "type": "expense",
+      "category": "零食",
+      "amount": 160.0,
+      "note": "买水果",
+      "time": "14:05"
+    },
+    {
+      "id": "1785060482574",
+      "date": "2026-07-24",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 17.0,
+      "note": "早餐",
+      "time": "08:35"
+    },
+    {
+      "id": "1785060482575",
+      "date": "2026-07-23",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 36.0,
+      "note": "晚餐",
+      "time": "18:50"
+    },
+    {
+      "id": "1785060482576",
+      "date": "2026-07-23",
+      "type": "expense",
+      "category": "购物",
+      "amount": 108.8,
+      "note": "购买手机充电器",
+      "time": "08:55"
+    },
+    {
+      "id": "1785060482577",
+      "date": "2026-07-23",
+      "type": "expense",
+      "category": "购物",
+      "amount": 19.9,
+      "note": "购买5号电池",
+      "time": "08:33"
+    },
+    {
+      "id": "1785060482578",
+      "date": "2026-07-23",
+      "type": "expense",
+      "category": "购物",
+      "amount": 5.97,
+      "note": "购买手机支架",
+      "time": "08:20"
+    },
+    {
+      "id": "1785060482579",
+      "date": "2026-07-22",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 22.0,
+      "note": "晚餐",
+      "time": "19:01"
+    },
+    {
+      "id": "1785060482580",
+      "date": "2026-07-22",
+      "type": "income",
+      "category": "退款",
+      "amount": 74.8,
+      "note": "京东",
+      "time": "18:22"
+    },
+    {
+      "id": "1785060482582",
+      "date": "2026-07-22",
+      "type": "expense",
+      "category": "其他支出",
+      "amount": 200.0,
+      "note": "蒋华文生日转账红包",
+      "time": "08:21"
+    },
+    {
+      "id": "1785060482583",
+      "date": "2026-07-21",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 8.2,
+      "note": "中餐",
+      "time": "12:10"
+    },
+    {
+      "id": "1785060482584",
+      "date": "2026-07-20",
       "type": "income",
       "category": "报销收入",
-      "amount": 692.0,
-      "note": ""
+      "amount": 650.4,
+      "note": "",
+      "time": "16:45"
     },
     {
-      "id": "1781604922929",
+      "id": "1785060482585",
+      "date": "2026-07-20",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 8.97,
+      "note": "中餐",
+      "time": "12:10"
+    },
+    {
+      "id": "1785060482586",
+      "date": "2026-07-19",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 21.0,
+      "note": "晚餐",
+      "time": "17:35"
+    },
+    {
+      "id": "1785060482587",
+      "date": "2026-07-19",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 23.1,
+      "note": "中餐",
+      "time": "12:20"
+    },
+    {
+      "id": "1785060482588",
+      "date": "2026-07-19",
+      "type": "income",
+      "category": "退款",
+      "amount": 51.11,
+      "note": "京东退款",
+      "time": "11:50"
+    },
+    {
+      "id": "1785060482589",
+      "date": "2026-07-19",
+      "type": "expense",
+      "category": "网贷",
+      "amount": 23.0,
+      "note": "美团月付",
+      "time": "10:00"
+    },
+    {
+      "id": "1785060482590",
+      "date": "2026-07-19",
+      "type": "expense",
+      "category": "母婴用品",
+      "amount": 1342.89,
+      "note": "买奶粉",
+      "time": "09:55"
+    },
+    {
+      "id": "1785060482591",
+      "date": "2026-07-19",
+      "type": "expense",
+      "category": "生活费",
+      "amount": 1000.0,
+      "note": "转给老妈",
+      "time": "09:50"
+    },
+    {
+      "id": "1785060482592",
+      "date": "2026-07-19",
+      "type": "expense",
+      "category": "还贷",
+      "amount": 2032.49,
+      "note": "招商银行闪电贷",
+      "time": "09:09"
+    },
+    {
+      "id": "1785060482594",
+      "date": "2026-07-18",
+      "type": "expense",
+      "category": "购物",
+      "amount": 74.8,
+      "note": "买手机壳",
+      "time": "19:30"
+    },
+    {
+      "id": "1785060482595",
+      "date": "2026-07-18",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 4.0,
+      "note": "晚餐",
+      "time": "18:50"
+    },
+    {
+      "id": "1785060482596",
+      "date": "2026-07-18",
+      "type": "expense",
+      "category": "零食",
+      "amount": 14.38,
+      "note": "",
+      "time": "09:50"
+    },
+    {
+      "id": "1785060482597",
+      "date": "2026-07-18",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 4.0,
+      "note": "早餐",
+      "time": "09:40"
+    },
+    {
+      "id": "1785060482598",
+      "date": "2026-07-17",
+      "type": "expense",
+      "category": "水电费",
+      "amount": 467.68,
+      "note": "泉州宿舍",
+      "time": "12:40"
+    },
+    {
+      "id": "1785060482599",
+      "date": "2026-07-17",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 7.87,
+      "note": "中餐",
+      "time": "12:05"
+    },
+    {
+      "id": "1785060482600",
+      "date": "2026-07-17",
+      "type": "expense",
+      "category": "交通",
+      "amount": 19.9,
+      "note": "打车回华信大厦",
+      "time": "12:00"
+    },
+    {
+      "id": "1785060482601",
+      "date": "2026-07-17",
+      "type": "expense",
+      "category": "交通",
+      "amount": 22.38,
+      "note": "打车去总行",
+      "time": "10:10"
+    },
+    {
+      "id": "1785060482602",
+      "date": "2026-07-16",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 29.79,
+      "note": "晚餐",
+      "time": "19:38"
+    },
+    {
+      "id": "1785060482603",
+      "date": "2026-07-16",
+      "type": "expense",
+      "category": "购物",
+      "amount": 56.81,
+      "note": "手机壳",
+      "time": "18:05"
+    },
+    {
+      "id": "1785060482604",
+      "date": "2026-07-16",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 9.84,
+      "note": "中餐",
+      "time": "12:10"
+    },
+    {
+      "id": "1785060482606",
+      "date": "2026-07-16",
+      "type": "expense",
+      "category": "生活费",
+      "amount": 1300.0,
+      "note": "书仪",
+      "time": "09:15"
+    },
+    {
+      "id": "1785060482607",
+      "date": "2026-07-16",
+      "type": "expense",
+      "category": "网贷",
+      "amount": 7215.0,
+      "note": "中国银行",
+      "time": "00:20"
+    },
+    {
+      "id": "1785060482608",
+      "date": "2026-07-15",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 9.83,
+      "note": "晚餐",
+      "time": "19:44"
+    },
+    {
+      "id": "1785060482609",
+      "date": "2026-07-15",
+      "type": "income",
+      "category": "工资收入",
+      "amount": 16047.62,
+      "note": "",
+      "time": "16:29"
+    },
+    {
+      "id": "1785060482610",
+      "date": "2026-07-15",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 22.0,
+      "note": "中餐",
+      "time": "12:29"
+    },
+    {
+      "id": "1785060482611",
+      "date": "2026-07-14",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 21.0,
+      "note": "晚餐",
+      "time": "18:05"
+    },
+    {
+      "id": "1785060482612",
+      "date": "2026-07-14",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 8.7,
+      "note": "中餐",
+      "time": "12:05"
+    },
+    {
+      "id": "1785060482613",
+      "date": "2026-07-14",
+      "type": "income",
+      "category": "其他收入",
+      "amount": 99.0,
+      "note": "广发卡转账",
+      "time": "11:35"
+    },
+    {
+      "id": "1785060482614",
+      "date": "2026-07-14",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 12.0,
+      "note": "早餐",
+      "time": "08:10"
+    },
+    {
+      "id": "1785060482615",
+      "date": "2026-07-13",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 22.0,
+      "note": "晚餐",
+      "time": "19:05"
+    },
+    {
+      "id": "1785060482616",
+      "date": "2026-07-13",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 9.89,
+      "note": "中餐",
+      "time": "12:10"
+    },
+    {
+      "id": "1785060482617",
+      "date": "2026-07-13",
+      "type": "expense",
+      "category": "其他支出",
+      "amount": 18.0,
+      "note": "快递费",
+      "time": "09:45"
+    },
+    {
+      "id": "1785060482618",
+      "date": "2026-07-12",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 46.0,
+      "note": "中餐",
+      "time": "13:29"
+    },
+    {
+      "id": "1785060482619",
+      "date": "2026-07-11",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 44.0,
+      "note": "晚餐",
+      "time": "19:40"
+    },
+    {
+      "id": "1785060482620",
+      "date": "2026-07-11",
+      "type": "expense",
+      "category": "零食",
+      "amount": 58.38,
+      "note": "",
+      "time": "19:24"
+    },
+    {
+      "id": "1785060482622",
+      "date": "2026-07-11",
+      "type": "expense",
+      "category": "零食",
+      "amount": 15.0,
+      "note": "",
+      "time": "15:23"
+    },
+    {
+      "id": "1785060482623",
+      "date": "2026-07-11",
+      "type": "expense",
+      "category": "交通",
+      "amount": 2.0,
+      "note": "",
+      "time": "14:23"
+    },
+    {
+      "id": "1785060482624",
+      "date": "2026-07-11",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 30.0,
+      "note": "中餐",
+      "time": "11:45"
+    },
+    {
+      "id": "1785060482625",
+      "date": "2026-07-10",
+      "type": "expense",
+      "category": "零食",
+      "amount": 14.17,
+      "note": "",
+      "time": "19:50"
+    },
+    {
+      "id": "1785060482626",
+      "date": "2026-07-10",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 22.0,
+      "note": "晚餐",
+      "time": "19:20"
+    },
+    {
+      "id": "1785060482627",
+      "date": "2026-07-10",
+      "type": "expense",
+      "category": "交通",
+      "amount": 3.0,
+      "note": "",
+      "time": "17:19"
+    },
+    {
+      "id": "1785060482628",
+      "date": "2026-07-10",
+      "type": "expense",
+      "category": "交通",
+      "amount": 5.0,
+      "note": "",
+      "time": "16:30"
+    },
+    {
+      "id": "1785060482629",
+      "date": "2026-07-10",
+      "type": "expense",
+      "category": "其他支出",
+      "amount": 100.0,
+      "note": "转账广发银行",
+      "time": "16:18"
+    },
+    {
+      "id": "1785060482630",
+      "date": "2026-07-10",
+      "type": "expense",
+      "category": "其他支出",
+      "amount": 10.0,
+      "note": "办卡",
+      "time": "16:13"
+    },
+    {
+      "id": "1785060482631",
+      "date": "2026-07-10",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 9.95,
+      "note": "中餐",
+      "time": "12:17"
+    },
+    {
+      "id": "1785060482632",
+      "date": "2026-07-09",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 28.7,
+      "note": "晚餐",
+      "time": "20:30"
+    },
+    {
+      "id": "1785060482633",
+      "date": "2026-07-09",
+      "type": "expense",
+      "category": "其他支出",
+      "amount": 6.0,
+      "note": "打印",
+      "time": "20:25"
+    },
+    {
+      "id": "1785060482635",
+      "date": "2026-07-09",
+      "type": "expense",
+      "category": "交通",
+      "amount": 30.56,
+      "note": "",
+      "time": "19:10"
+    },
+    {
+      "id": "1785060482636",
+      "date": "2026-07-08",
+      "type": "expense",
+      "category": "购物",
+      "amount": 2.0,
+      "note": "买水",
+      "time": "23:45"
+    },
+    {
+      "id": "1785060482637",
+      "date": "2026-07-08",
+      "type": "income",
+      "category": "工资收入",
+      "amount": 80.07,
+      "note": "纸尿裤冲账",
+      "time": "21:44"
+    },
+    {
+      "id": "1785060482638",
+      "date": "2026-07-08",
+      "type": "expense",
+      "category": "购物",
+      "amount": 100.4,
+      "note": "",
+      "time": "20:05"
+    },
+    {
+      "id": "1785060482639",
+      "date": "2026-07-08",
+      "type": "income",
+      "category": "其他收入",
+      "amount": 7.86,
+      "note": "跟招行工资卡平账",
+      "time": "11:00"
+    },
+    {
+      "id": "1785060482640",
+      "date": "2026-07-07",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 10.0,
+      "note": "晚餐",
+      "time": "18:30"
+    },
+    {
+      "id": "1785060482641",
+      "date": "2026-07-07",
+      "type": "expense",
+      "category": "其他支出",
+      "amount": 6.0,
+      "note": "买水",
+      "time": "17:02"
+    },
+    {
+      "id": "1785060482642",
+      "date": "2026-07-07",
+      "type": "expense",
+      "category": "交通",
+      "amount": 47.26,
+      "note": "",
+      "time": "16:11"
+    },
+    {
+      "id": "1785060482643",
+      "date": "2026-07-07",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 9.11,
+      "note": "中餐",
+      "time": "12:27"
+    },
+    {
+      "id": "1785060482644",
+      "date": "2026-07-07",
+      "type": "expense",
+      "category": "其他支出",
+      "amount": 200.0,
+      "note": "发红包给梓欣",
+      "time": "09:18"
+    },
+    {
+      "id": "1785060482646",
+      "date": "2026-07-07",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 4.0,
+      "note": "早餐",
+      "time": "08:30"
+    },
+    {
+      "id": "1785060482647",
+      "date": "2026-07-06",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 14.01,
+      "note": "晚餐",
+      "time": "19:30"
+    },
+    {
+      "id": "1785060482648",
+      "date": "2026-07-06",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 8.5,
+      "note": "中餐",
+      "time": "12:16"
+    },
+    {
+      "id": "1785060482649",
+      "date": "2026-07-06",
+      "type": "expense",
+      "category": "交通",
+      "amount": 338.5,
+      "note": "",
+      "time": "09:38"
+    },
+    {
+      "id": "1785060482650",
+      "date": "2026-07-06",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 20.3,
+      "note": "早餐",
+      "time": "09:00"
+    },
+    {
+      "id": "1785060482651",
+      "date": "2026-07-05",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 25.2,
+      "note": "晚餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482652",
+      "date": "2026-07-04",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 4.0,
+      "note": "早餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482653",
+      "date": "2026-07-04",
+      "type": "expense",
+      "category": "零食",
+      "amount": 14.11,
+      "note": "",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482655",
+      "date": "2026-07-04",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 26.79,
+      "note": "中餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482656",
+      "date": "2026-07-04",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 29.0,
+      "note": "晚餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482657",
+      "date": "2026-07-03",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 4.0,
+      "note": "早餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482658",
+      "date": "2026-07-03",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 10.36,
+      "note": "中餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482659",
+      "date": "2026-07-03",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 23.79,
+      "note": "晚餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482660",
+      "date": "2026-07-02",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 4.0,
+      "note": "早餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482661",
+      "date": "2026-07-02",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 6.21,
+      "note": "中餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482662",
+      "date": "2026-07-02",
+      "type": "expense",
+      "category": "其他支出",
+      "amount": 2.0,
+      "note": "买水",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482663",
+      "date": "2026-07-02",
+      "type": "expense",
+      "category": "交通",
+      "amount": 24.23,
+      "note": "打车",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482664",
+      "date": "2026-07-02",
+      "type": "expense",
+      "category": "交通",
+      "amount": 19.83,
+      "note": "打车",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482665",
+      "date": "2026-07-02",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 22.0,
+      "note": "晚餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482667",
+      "date": "2026-07-01",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 4.0,
+      "note": "早餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482668",
+      "date": "2026-07-01",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 16.74,
+      "note": "中餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482669",
+      "date": "2026-07-01",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 18.4,
+      "note": "晚餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482670",
+      "date": "2026-06-30",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 4.0,
+      "note": "早餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482671",
+      "date": "2026-06-30",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 10.45,
+      "note": "中餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482672",
+      "date": "2026-06-30",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 31.0,
+      "note": "晚餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482673",
+      "date": "2026-06-29",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 4.0,
+      "note": "早餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482674",
+      "date": "2026-06-29",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 12.68,
+      "note": "中餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482675",
+      "date": "2026-06-29",
+      "type": "expense",
+      "category": "零食",
+      "amount": 9.0,
+      "note": "",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482676",
+      "date": "2026-06-29",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 18.19,
+      "note": "晚餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482677",
+      "date": "2026-06-28",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 17.36,
+      "note": "中餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482678",
+      "date": "2026-06-28",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 26.79,
+      "note": "晚餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482679",
+      "date": "2026-06-28",
+      "type": "expense",
+      "category": "零食",
+      "amount": 15.28,
+      "note": "",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482680",
+      "date": "2026-06-27",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 5.5,
+      "note": "早餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482682",
+      "date": "2026-06-27",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 25.0,
+      "note": "晚餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482683",
+      "date": "2026-06-26",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 4.0,
+      "note": "早餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482684",
+      "date": "2026-06-26",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 13.0,
+      "note": "中餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482685",
+      "date": "2026-06-26",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 22.0,
+      "note": "晚餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482686",
+      "date": "2026-06-26",
+      "type": "expense",
+      "category": "零食",
+      "amount": 18.38,
+      "note": "",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482687",
+      "date": "2026-06-25",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 2.0,
+      "note": "早餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482688",
+      "date": "2026-06-25",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 8.97,
+      "note": "中餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482689",
+      "date": "2026-06-25",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 31.0,
+      "note": "晚餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482690",
+      "date": "2026-06-24",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 4.0,
+      "note": "早餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482691",
+      "date": "2026-06-24",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 8.3,
+      "note": "中餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482692",
+      "date": "2026-06-24",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 22.0,
+      "note": "晚餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482694",
+      "date": "2026-06-24",
+      "type": "expense",
+      "category": "购物",
+      "amount": 16.97,
+      "note": "洗脸巾",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482695",
+      "date": "2026-06-24",
+      "type": "expense",
+      "category": "购物",
+      "amount": 18.9,
+      "note": "洗衣液",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482696",
+      "date": "2026-06-23",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 25.0,
+      "note": "中餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482697",
+      "date": "2026-06-23",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 11.9,
+      "note": "晚餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482698",
+      "date": "2026-06-23",
+      "type": "expense",
+      "category": "交通",
+      "amount": 338.5,
+      "note": "高铁票",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482699",
+      "date": "2026-06-23",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 2.0,
+      "note": "早餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482700",
+      "date": "2026-06-22",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 4.0,
+      "note": "早餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482701",
+      "date": "2026-06-22",
+      "type": "expense",
+      "category": "快递费",
+      "amount": 18.0,
+      "note": "",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482703",
+      "date": "2026-06-22",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 8.09,
+      "note": "中餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482704",
+      "date": "2026-06-22",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 8.65,
+      "note": "晚餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482705",
+      "date": "2026-06-21",
+      "type": "income",
+      "category": "退款",
+      "amount": 480.0,
+      "note": "纸尿裤退款",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482706",
+      "date": "2026-06-21",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 22.0,
+      "note": "中餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482707",
+      "date": "2026-06-21",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 49.0,
+      "note": "早餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482708",
+      "date": "2026-06-20",
+      "type": "expense",
+      "category": "水电费",
+      "amount": 50.0,
+      "note": "老家电费",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482709",
+      "date": "2026-06-20",
+      "type": "expense",
+      "category": "交通",
+      "amount": 6.0,
+      "note": "",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482710",
+      "date": "2026-06-20",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 30.0,
+      "note": "中餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482711",
+      "date": "2026-06-20",
+      "type": "expense",
+      "category": "零食",
+      "amount": 15.0,
+      "note": "",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482712",
+      "date": "2026-06-20",
+      "type": "expense",
+      "category": "婴儿用品",
+      "amount": 160.0,
+      "note": "购买纸尿裤",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482713",
+      "date": "2026-06-20",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 48.0,
+      "note": "晚餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482715",
       "date": "2026-06-19",
       "type": "expense",
       "category": "网贷",
       "amount": 2038.0,
-      "note": "招商银行闪电贷还贷"
+      "note": "招商银行闪电贷还贷",
+      "time": "00:00"
     },
     {
-      "id": "1781604957003",
-      "date": "2026-06-16",
+      "id": "1785060482716",
+      "date": "2026-06-19",
       "type": "expense",
-      "category": "网贷",
-      "amount": 7215.0,
-      "note": "中国银行信用卡还贷"
+      "category": "餐饮",
+      "amount": 19.18,
+      "note": "中餐",
+      "time": "00:00"
     },
     {
-      "id": "1781605050424",
-      "date": "2026-06-16",
+      "id": "1785060482717",
+      "date": "2026-06-19",
+      "type": "expense",
+      "category": "零食",
+      "amount": 4.63,
+      "note": "",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482718",
+      "date": "2026-06-19",
+      "type": "expense",
+      "category": "婴儿用品",
+      "amount": 1305.0,
+      "note": "买奶粉",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482719",
+      "date": "2026-06-19",
       "type": "expense",
       "category": "生活费",
-      "amount": 1300.0,
-      "note": "书仪生活费"
+      "amount": 2500.0,
+      "note": "给老妈的生活费",
+      "time": "00:00"
     },
     {
-      "id": "1781679646980",
+      "id": "1785060482720",
+      "date": "2026-06-19",
+      "type": "expense",
+      "category": "零食",
+      "amount": 15.0,
+      "note": "",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482721",
+      "date": "2026-06-19",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 8.0,
+      "note": "晚餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482722",
+      "date": "2026-06-18",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 25.0,
+      "note": "晚餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482723",
       "date": "2026-06-17",
       "type": "expense",
       "category": "电话费",
       "amount": 100.0,
-      "note": "电话费-18575793589"
+      "note": "电话费-18575793589",
+      "time": "00:00"
     },
     {
-      "id": "1781682447567",
+      "id": "1785060482724",
       "date": "2026-06-17",
       "type": "expense",
       "category": "电话费",
       "amount": 200.0,
-      "note": "电话费-13003731229"
+      "note": "电话费-13003731229",
+      "time": "00:00"
     },
     {
-      "id": "1781682460036",
+      "id": "1785060482725",
       "date": "2026-06-17",
       "type": "expense",
       "category": "电话费",
       "amount": 200.0,
-      "note": "电话费-15767837692"
+      "note": "电话费-15767837692",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482726",
+      "date": "2026-06-16",
+      "type": "expense",
+      "category": "网贷",
+      "amount": 7215.0,
+      "note": "中国银行信用卡还贷",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482727",
+      "date": "2026-06-16",
+      "type": "expense",
+      "category": "生活费",
+      "amount": 1300.0,
+      "note": "给书仪的生活费",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482729",
+      "date": "2026-06-16",
+      "type": "expense",
+      "category": "水电费",
+      "amount": 388.0,
+      "note": "泉州",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482730",
+      "date": "2026-06-16",
+      "type": "income",
+      "category": "报销收入",
+      "amount": 692.0,
+      "note": "",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482731",
+      "date": "2026-06-16",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 10.95,
+      "note": "中餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482732",
+      "date": "2026-06-16",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 4.0,
+      "note": "早餐",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482733",
+      "date": "2026-06-15",
+      "type": "income",
+      "category": "工资收入",
+      "amount": 16964.0,
+      "note": "",
+      "time": "00:00"
+    },
+    {
+      "id": "1785060482734",
+      "date": "2026-06-15",
+      "type": "expense",
+      "category": "餐饮",
+      "amount": 26.5,
+      "note": "晚餐",
+      "time": "00:00"
     }
   ]
 }

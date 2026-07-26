@@ -84,8 +84,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.243"
-APP_VERSION_CODE = 243
+APP_VERSION = "1.0.244"
+APP_VERSION_CODE = 244
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -9620,13 +9620,12 @@ def main(page: ft.Page):
             page.update()
 
         def refresh_records_list():
-            """刷新记录列表（支持搜索过滤）"""
+            """刷新记录列表（支持搜索过滤）- 按日期分组显示"""
             records_list.controls.clear()
 
             # ========== 如果搜索结束但没有结果，隐藏清除按钮 ==========
             if not is_search_mode:
                 try:
-                    # 检查 clear_btn 是否已添加到页面
                     if hasattr(clear_btn, 'page') and clear_btn.page is not None:
                         clear_btn.visible = False
                         clear_btn.update()
@@ -9635,11 +9634,8 @@ def main(page: ft.Page):
             
             # ========== 根据查询模式筛选记录 ==========
             if is_search_mode and search_query:
-                # 搜索模式：获取所有交易记录
                 base_records = transactions.copy()
-                print(f"[搜索模式] 搜索全部 {len(base_records)} 条记录")
             else:
-                # 非搜索模式：按时间范围筛选
                 if query_mode == "month":
                     month_str = f"{current_year}-{current_month:02d}"
                     base_records = [t for t in transactions if t.date.startswith(month_str)]
@@ -9666,39 +9662,25 @@ def main(page: ft.Page):
                 search_results = []
                 for t in filtered_records:
                     matched = False
-                    
-                    # 搜索分类
                     if keyword in t.category.lower():
                         matched = True
-                    
-                    # 搜索备注
                     if not matched and t.note and keyword in t.note.lower():
                         matched = True
-                    
-                    # ========== 搜索金额（精确匹配） ==========
                     if not matched:
                         try:
-                            # 尝试将关键词转换为数字进行精确匹配
                             search_num = float(keyword)
-                            # 精确匹配金额（保留两位小数比较）
                             if abs(t.amount - search_num) < 0.001:
                                 matched = True
                         except ValueError:
-                            # 如果关键词不是数字，跳过金额匹配
                             pass
-                    
-                    # 搜索日期
                     if not matched:
                         if keyword in t.date:
                             matched = True
-                    
                     if matched:
                         search_results.append(t)
-                
                 filtered_records = search_results
-                print(f"[搜索模式] 找到 {len(filtered_records)} 条匹配记录")
             
-            # ========== 用于显示的列表（按日期+时间降序） ==========
+            # ========== 按日期+时间排序 ==========
             def sort_key_desc(record):
                 time_str = getattr(record, 'time', '00:00')
                 return f"{record.date} {time_str}"
@@ -9721,17 +9703,14 @@ def main(page: ft.Page):
                     running_balance -= t.amount
                 balance_map[t.id] = running_balance
             
-            # ========== 计算统计信息（基于筛选后的记录） ==========
+            # ========== 计算统计信息 ==========
             month_income = sum(t.amount for t in filtered_records if t.type == "income")
             month_expense = sum(t.amount for t in filtered_records if t.type == "expense")
             
-            # ========== 搜索模式：结余显示为 0 ==========
             if is_search_mode and search_query:
-                # 搜索模式：结余显示为 0
                 month_balance = 0
                 cumulative_balance = 0
             else:
-                # 非搜索模式：正常计算
                 cumulative_balance = running_balance
                 if query_mode == "month":
                     first_day_of_month = datetime(current_year, current_month, 1).date()
@@ -9749,9 +9728,8 @@ def main(page: ft.Page):
                 
                 month_balance = previous_month_balance + month_income - month_expense
             
-            # ========== 显示记录卡片 ==========
+            # ========== 空状态 ==========
             if not display_records:
-                # 显示空状态
                 empty_text = "暂无匹配的记录" if is_search_mode else "暂无记录，点击 + 添加"
                 records_list.controls.append(
                     ft.Container(
@@ -9759,7 +9737,7 @@ def main(page: ft.Page):
                         padding=20,
                     )
                 )
-                # 显示统计信息
+                # 显示统计信息...
                 records_list.controls.append(
                     ft.Container(
                         content=ft.Column([
@@ -9796,51 +9774,134 @@ def main(page: ft.Page):
                 page.update()
                 return
             
-            # ========== 显示记录卡片 ==========
-            for index, t in enumerate(display_records):
-                is_income = t.type == "income"
-                amount_color = ft.Colors.GREEN_700 if is_income else ft.Colors.RED_700
-                amount_prefix = "+" if is_income else "-"
-                current_balance = balance_map.get(t.id, 0)
+            # ========== 按日期分组显示 ==========
+            grouped_records = {}
+            for t in display_records:
+                date_key = t.date
+                if date_key not in grouped_records:
+                    grouped_records[date_key] = []
+                grouped_records[date_key].append(t)
+            
+            # ========== 获取日期对应的星期几 ==========
+            def get_weekday(date_str):
+                try:
+                    dt = datetime.strptime(date_str, "%Y-%m-%d")
+                    weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+                    return weekdays[dt.weekday()]
+                except:
+                    return ""
+            
+            # ========== 显示分组记录 ==========
+            for date_key, records in grouped_records.items():
+                # ========== 日期标题行 ==========
+                weekday_str = get_weekday(date_key)
+                daily_income = sum(t.amount for t in records if t.type == "income")
+                daily_expense = sum(t.amount for t in records if t.type == "expense")
+                daily_count = len(records)
                 
-                if hasattr(t, 'time') and t.time and t.time != "00:00":
-                    date_display = f"{t.date} {t.time}"
-                else:
-                    date_display = t.date
-                
-                record_card = ft.Container(
-                    content=ft.Column([
-                        ft.Row([
-                            ft.Row([
-                                ft.Icon(ft.Icons.ARROW_UPWARD if is_income else ft.Icons.ARROW_DOWNWARD, 
-                                    size=16, color=amount_color),
-                                ft.Text(t.category, size=14, weight=ft.FontWeight.BOLD),
-                            ], spacing=5),
-                            ft.Container(expand=True),
-                            ft.Text(
-                                f"{amount_prefix}¥ {abs(t.amount):,.2f}", 
-                                size=14, 
-                                weight=ft.FontWeight.BOLD, 
-                                color=amount_color,
-                            ),
-                        ]),
-                        ft.Row([
-                            ft.Text(date_display, size=11, color=ft.Colors.GREY_500),
-                            ft.Container(expand=True),
-                            ft.Text(
-                                f"余额: ¥ {current_balance:,.2f}",
-                                size=11,
-                                color=ft.Colors.GREY_700 if current_balance >= 0 else ft.Colors.RED_700,
-                            ),
-                        ], spacing=5),
-                        ft.Text(t.note, size=11, color=ft.Colors.GREY_500) if t.note else ft.Container(),
-                    ], spacing=2),
-                    padding=10,
-                    border=ft.border.Border(bottom=ft.border.BorderSide(1, ft.Colors.GREY_200)) if index < len(display_records) - 1 else None,
-                    ink=True,
-                    on_click=lambda e, tr=t: edit_transaction(tr),
+                date_header = ft.Container(
+                    content=ft.Row([
+                        ft.Text(
+                            f"{date_key} {weekday_str}",
+                            size=13,
+                            weight=ft.FontWeight.BOLD,
+                            color=ft.Colors.BLUE_700,
+                        ),
+                        ft.Container(expand=True),
+                        ft.Text(
+                            f"收入: ¥{daily_income:,.2f}  支出: ¥{daily_expense:,.2f}  ({daily_count}笔)",
+                            size=11,
+                            color=ft.Colors.GREY_600,
+                        ),
+                    ], spacing=5),
+                    padding=ft.Padding(left=10, right=10, top=8, bottom=8),
+                    bgcolor=ft.Colors.BLUE_50,
+                    border_radius=8,
+                    margin=ft.Padding(left=0, right=0, top=5, bottom=5),
                 )
-                records_list.controls.append(record_card)
+                records_list.controls.append(date_header)
+                
+                # ========== 该日期的交易记录 ==========
+                for index, t in enumerate(records):
+                    is_income = t.type == "income"
+                    amount_color = ft.Colors.GREEN_700 if is_income else ft.Colors.RED_700
+                    amount_prefix = "+" if is_income else "-"
+                    current_balance = balance_map.get(t.id, 0)
+                    
+                    # 获取时间
+                    time_str = getattr(t, 'time', '00:00')
+                    if time_str == "00:00":
+                        time_str = ""
+                    
+                    # 格式化金额显示
+                    amount_display = f"{amount_prefix}¥ {abs(t.amount):,.2f}"
+                    balance_display = f"余额: ¥ {current_balance:,.2f}"
+                    
+                    # ========== 交易卡片 ==========
+                    record_card = ft.Container(
+                        content=ft.Row([
+                            # ========== 左侧：时间（固定宽度） ==========
+                            ft.Container(
+                                content=ft.Text(
+                                    time_str,
+                                    size=12,
+                                    color=ft.Colors.GREY_500,
+                                    weight=ft.FontWeight.BOLD,
+                                ),
+                                width=45,
+                                alignment=ft.Alignment(0, 0),
+                            ),
+                            # ========== 中间：分类图标 + 名称 + 备注 ==========
+                            ft.Column([
+                                ft.Row([
+                                    ft.Icon(
+                                        ft.Icons.ARROW_UPWARD if is_income else ft.Icons.ARROW_DOWNWARD,
+                                        size=14,
+                                        color=amount_color,
+                                    ),
+                                    ft.Text(
+                                        t.category,
+                                        size=14,
+                                        weight=ft.FontWeight.BOLD,
+                                        color=ft.Colors.BLACK,
+                                    ),
+                                    ft.Container(expand=True),
+                                    # 金额在右侧（同一行）
+                                    ft.Text(
+                                        amount_display,
+                                        size=14,
+                                        weight=ft.FontWeight.BOLD,
+                                        color=amount_color,
+                                        text_align=ft.TextAlign.END,
+                                    ),
+                                ], spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                                # 备注和余额（第二行）
+                                ft.Row([
+                                    ft.Text(
+                                        t.note if t.note else "",
+                                        size=11,
+                                        color=ft.Colors.GREY_500,
+                                        max_lines=1,
+                                        overflow=ft.TextOverflow.ELLIPSIS,
+                                        expand=True,
+                                    ),
+                                    ft.Text(
+                                        balance_display,
+                                        size=11,
+                                        color=ft.Colors.GREY_500 if current_balance >= 0 else ft.Colors.RED_700,
+                                        text_align=ft.TextAlign.END,
+                                    ),
+                                ], spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                            ], spacing=2, expand=True),
+                        ], spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                        padding=ft.Padding(left=10, right=10, top=8, bottom=8),
+                        border=ft.border.Border(
+                            bottom=ft.border.BorderSide(1, ft.Colors.GREY_100)
+                        ) if index < len(records) - 1 else None,
+                        ink=True,
+                        on_click=lambda e, tr=t: edit_transaction(tr),
+                    )
+                    records_list.controls.append(record_card)
             
             # ========== 底部统计汇总 ==========
             records_list.controls.append(
