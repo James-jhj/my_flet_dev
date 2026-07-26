@@ -270,15 +270,10 @@
     "event_type": "weekly",
     "repeat_type": "weekly",
     "sound_file": "music\\电台情歌-莫文蔚.mp3",
-    "reminded_this_year": true,
-    "last_remind_year": 2026,
+    "reminded_this_year": false,
+    "last_remind_year": 0,
     "completed": false,
-    "reminders": [
-      {
-        "time": "18:30",
-        "enabled": true
-      }
-    ],
+    "reminders": [],
     "workday_only": true
   },
   {
@@ -364,7 +359,7 @@
   {
     "id": "1782290074",
     "name": "生理期",
-    "birth_date": "10",
+    "birth_date": "11",
     "calendar_type": "solar",
     "event_type": "monthly",
     "repeat_type": "monthly",

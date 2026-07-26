@@ -84,8 +84,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.241"
-APP_VERSION_CODE = 241
+APP_VERSION = "1.0.242"
+APP_VERSION_CODE = 242
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -3159,33 +3159,6 @@ def main(page: ft.Page):
 
 
     # 设备已授权，进入主程序逻辑
-    def show_snack_bar_new(page, message, is_error=False):
-        """显示 SnackBar（兼容不同 Flet 版本）"""
-        try:
-            if hasattr(page, 'show_snack_bar'):
-                page.show_snack_bar(
-                    ft.SnackBar(
-                        content=ft.Text(message),
-                        bgcolor=ft.Colors.RED_700 if is_error else ft.Colors.GREEN_700,
-                    )
-                )
-            else:
-                snack = ft.SnackBar(
-                    content=ft.Text(message),
-                    bgcolor=ft.Colors.RED_700 if is_error else ft.Colors.GREEN_700,
-                    open=True,
-                )
-                page.overlay.append(snack)
-                page.update()
-                def close_snack():
-                    time.sleep(3)
-                    if snack in page.overlay:
-                        page.overlay.remove(snack)
-                        page.update()
-                threading.Thread(target=close_snack, daemon=True).start()
-        except Exception as e:
-            print(f"显示 SnackBar 失败: {e}")
-            
     # 在函数最开始声明所有需要使用的全局变量
     global current_audio, is_playing, current_music_file,current_playing_event_id,current_music_state,music_state_update_callback
     global lyrics_fullscreen_container, auto_scroll_task, current_position_sec,current_lyrics , events  # 添加 events
@@ -3203,6 +3176,7 @@ def main(page: ft.Page):
     global memo_notes,search_focused
     global tray_manager
     global previous_view  # 添加这一行
+    global search_results_cache
     
     # ========== 仅 Windows 平台启动托盘 ==========
     if IS_WINDOWS:
@@ -3311,6 +3285,8 @@ def main(page: ft.Page):
 
     # 找到类似下面的位置（大约在第 590 行附近），添加初始化
     previous_view = "all"  # 添加这一行
+
+    search_results_cache = []  # 缓存搜索结果
 
     # ========== 手动跟踪焦点状态 ==========
     search_focused = False
@@ -6181,6 +6157,10 @@ def main(page: ft.Page):
                     password = password_field.value.strip()
                     if not password:
                         show_bottom_message("请输入密码", is_error=True)
+                        # ========== 让密码输入框获取焦点 ==========
+                        # 方式1：使用 asyncio.create_task（推荐，不阻塞）
+                        asyncio.create_task(password_field.focus())
+                        page.update()
                         return
                     if verify_password(password, note.password):
                         if note.original_content:
@@ -6494,15 +6474,17 @@ def main(page: ft.Page):
                     
                     # ========== 检查是否是已解密状态（有密码但未加密） ==========
                     is_decrypted = note.password and not note.is_encrypted
-                    
                     title_text = "编辑笔记"
+                    # ========== 保存原始数据，用于检测是否修改 ==========
+                    original_content = note.content
+                    original_category = note.category
                     initial_title = note.title
                     initial_content = note.content
                     initial_category = note.category
                     created_at = note.updated_at if note.updated_at else note.created_at
                 else:
                     title_text = "添加笔记"
-                    initial_title = ""
+                    initial_title = ""         # 添加模式下标题为空
                     initial_content = ""
                     initial_category = "未分类"
                     created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -6516,20 +6498,17 @@ def main(page: ft.Page):
                 
                 def save_note(e):
                     """保存笔记（不改变加密状态）"""
-                    title = title_field.value.strip()
                     content = content_field.value.strip()
-                    category = current_category_edit if current_category_edit else "未分类"
                     
-                    if not title:
-                        show_bottom_message("请输入标题", is_error=True)
-                        title_field.focus()
-                        return
                     
                     if not content:
                         show_bottom_message("请输入内容", is_error=True)
                         content_field.focus()
                         return
                     
+                    # ========== 使用公共函数提取标题 ==========
+                    title = extract_title_from_content(content, max_chars=16)
+                    category = current_category_edit if current_category_edit else "未分类"
                     current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     
                     if note_id:
@@ -6557,6 +6536,104 @@ def main(page: ft.Page):
                     save_memo_notes()
                     close_edit_dialog()
                     render_notes()
+
+                # ========== 返回按钮处理 ==========
+                def handle_back(e):
+                    """处理返回按钮点击"""
+                    if note_id:
+                        # 编辑模式：检查是否有修改
+                        if has_changes():
+                            # 有修改，提示是否保存
+                            show_unsaved_changes_dialog()
+                        else:
+                            # 没有修改，直接返回
+                            close_edit_dialog()
+                    else:
+                        # 新增模式：检查是否有内容
+                        if content_field.value and content_field.value.strip():
+                            show_unsaved_changes_dialog()
+                        else:
+                            close_edit_dialog()
+
+                # ========== 未保存更改提示对话框 ==========
+                def show_unsaved_changes_dialog():
+                    """显示未保存更改的提示对话框"""
+                    dialog_container = None
+                    
+                    def close_dialog():
+                        nonlocal dialog_container
+                        if dialog_container and dialog_container in page.overlay:
+                            page.overlay.remove(dialog_container)
+                            dialog_container = None
+                            page.update()
+                    
+                    def on_discard(e):
+                        """放弃修改"""
+                        close_dialog()
+                        close_edit_dialog()
+                        show_bottom_message("已放弃修改")
+                    
+                    def on_save_and_close(e):
+                        """保存并关闭"""
+                        close_dialog()
+                        save_note(e)
+                    
+                    dialog_content = ft.Container(
+                        content=ft.Column([
+                            ft.Container(
+                                content=ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, size=55, color=ft.Colors.ORANGE_700),
+                                padding=10,
+                                bgcolor=ft.Colors.ORANGE_50,
+                                border_radius=50,
+                            ),
+                            ft.Text("未保存的更改", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.ORANGE_700),
+                            ft.Divider(height=1, color=ft.Colors.GREY_300),
+                            ft.Text("您有未保存的更改，是否保存？", size=14, color=ft.Colors.GREY_700),
+                            ft.Divider(height=1, color=ft.Colors.GREY_300),
+                            ft.Row([
+                                ft.ElevatedButton(
+                                    "放弃", 
+                                    on_click=on_discard, 
+                                    expand=True,
+                                    style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.RED_700),
+                                ),
+                                ft.ElevatedButton(
+                                    "保存", 
+                                    on_click=on_save_and_close, 
+                                    expand=True,
+                                    style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE),
+                                ),
+                            ], spacing=8, alignment=ft.MainAxisAlignment.CENTER),
+                        ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                        width=340,
+                        padding=20,
+                        bgcolor=ft.Colors.WHITE,
+                        border_radius=16,
+                        shadow=ft.BoxShadow(
+                            spread_radius=1,
+                            blur_radius=15,
+                            color=ft.Colors.BLACK12,
+                            offset=ft.Offset(0, 4),
+                        ),
+                    )
+                    
+                    dialog_container = ft.Container(
+                        content=ft.Column([
+                            ft.Container(expand=True),
+                            ft.Row([
+                                ft.Container(expand=True),
+                                dialog_content,
+                                ft.Container(expand=True),
+                            ]),
+                            ft.Container(expand=True),
+                        ]),
+                        expand=True,
+                        bgcolor=ft.Colors.BLACK26,
+                        on_click=lambda e: None,  # 点击背景不关闭，强制用户选择
+                    )
+                    
+                    page.overlay.append(dialog_container)
+                    page.update()
 
                 def toggle_lock(e):
                     """切换锁状态：开锁 <-> 关锁"""
@@ -6627,18 +6704,6 @@ def main(page: ft.Page):
                         show_bottom_message("已删除笔记")
                     
                     show_delete_confirm_dialog("确定要删除这篇笔记吗？", confirm_delete)
-                
-                # ========== 标题输入（无边框） ==========
-                title_field = ft.TextField(
-                    hint_text="标题",
-                    value=initial_title,
-                    expand=True,
-                    border=ft.InputBorder.NONE,  # 取消边框
-                    focused_border_color=ft.Colors.TRANSPARENT,  # 聚焦时边框透明
-                    text_style=ft.TextStyle(size=18, weight=ft.FontWeight.BOLD),  # 标题字体加大加粗
-                    hint_style=ft.TextStyle(size=18, weight=ft.FontWeight.BOLD, color=ft.Colors.GREY_400),
-                    autofocus=True,  # 关键：自动获取焦点
-                )
                 
                 # ========== 创建时间显示字段 ==========
                 def format_datetime_display(dt_str):
@@ -6738,10 +6803,70 @@ def main(page: ft.Page):
                     datetime_display,
                     category_dropdown_edit,
                 ], spacing=8, alignment=ft.MainAxisAlignment.START, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+
+                def extract_title_from_content(content, max_chars=16):
+                    """从内容第一行提取标题，限制最大字符数（按汉字宽度计算）"""
+                    if not content:
+                        return "无标题"
+                    
+                    lines = content.split('\n')
+                    first_line = lines[0].strip() if lines else ""
+                    
+                    if not first_line:
+                        return "无标题"
+                    
+                    max_width = max_chars * 2  # 16个汉字 = 32个英文字符宽度
+                    current_width = 0
+                    result = ""
+                    
+                    for char in first_line:
+                        char_width = 2 if '\u4e00' <= char <= '\u9fff' else 1
+                        if current_width + char_width > max_width:
+                            break  # 直接跳出，不加 ...
+                        result += char
+                        current_width += char_width
+                    
+                    return result
+
+                # ========== 内容变化时检测是否有修改 ==========
+                def has_changes():
+                    """检测内容或分类是否被修改"""
+                    current_content = content_field.value.strip()
+                    current_category = current_category_edit if current_category_edit else "未分类"
+                    
+                    # 新增模式：只要有内容就算有修改
+                    if not note_id:
+                        return bool(current_content)
+                    
+                    # 编辑模式：比较内容或分类是否有变化
+                    content_changed = current_content != original_content
+                    category_changed = current_category != original_category
+                    
+                    return content_changed or category_changed
+    
+                # ========== 内容变化时自动更新标题 ==========
+                def on_content_change(e):
+                    """内容变化时，自动从第一行提取标题，限制16个汉字"""
+                    content = content_field.value or ""
+                    title = extract_title_from_content(content, max_chars=16)
+                    title_display.value = title
+                    title_display.update()
                 
+                # ========== 标题输入（无边框） ==========
+                title_display = ft.TextField(
+                    hint_text="标题（自动从第一行提取）",
+                    value=initial_title,
+                    expand=True,
+                    border=ft.InputBorder.NONE,  # 取消边框
+                    #read_only=True,  # 只读，不可编辑
+                    #focused_border_color=ft.Colors.TRANSPARENT,  # 聚焦时边框透明
+                    text_style=ft.TextStyle(size=18, weight=ft.FontWeight.BOLD),  # 标题字体加大加粗
+                    hint_style=ft.TextStyle(size=18, weight=ft.FontWeight.BOLD, color=ft.Colors.GREY_400),
+                    #autofocus=True,  # 关键：自动获取焦点
+                )
                 # ========== 内容输入（无边框） ==========
                 content_field = ft.TextField(
-                    hint_text="内容（无字数限制）",
+                    hint_text="内容（第一行将自动作为标题）",
                     value=initial_content,
                     expand=True,
                     multiline=True,
@@ -6751,23 +6876,15 @@ def main(page: ft.Page):
                     focused_border_color=ft.Colors.TRANSPARENT,  # 聚焦时边框透明
                     text_style=ft.TextStyle(size=15),  # 内容字体大小
                     hint_style=ft.TextStyle(size=15, color=ft.Colors.GREY_400),
+                    on_change=on_content_change,  # 内容变化时自动更新标题
+                    autofocus=True,  # 关键：自动获取焦点
                 )
 
-                # ========== 确定锁图标和颜色 ==========
-                def get_lock_icon_and_color():
-                    """根据当前状态获取锁图标和颜色"""
-                    if note_id:
-                        note = next((n for n in memo_notes if n.id == note_id), None)
-                        if note:
-                            if note.is_encrypted:
-                                return ft.Icons.LOCK, ft.Colors.PURPLE_700, "已加密（点击解密）"
-                            elif note.password:
-                                return ft.Icons.LOCK_OPEN, ft.Colors.GREEN_700, "已解密（点击重新加密）"
-                            else:
-                                return ft.Icons.LOCK_OUTLINE, ft.Colors.GREY_400, "未加密（点击设置密码）"
-                    return ft.Icons.LOCK_OUTLINE, ft.Colors.GREY_400, "未加密"
                 
-                lock_icon, lock_color, lock_tooltip = get_lock_icon_and_color()
+                # 如果初始化时有内容，立即提取标题
+                if initial_content:
+                    title = extract_title_from_content(initial_content, max_chars=16)
+                    title_display.value = title
 
                 # ========== 判断是添加模式还是编辑模式 ==========
                 is_add_mode = (note_id is None)  # 添加模式
@@ -6781,7 +6898,7 @@ def main(page: ft.Page):
                             icon_size=28,
                             icon_color=ft.Colors.RED_700,
                             tooltip="取消",
-                            on_click=lambda e: close_edit_dialog(),
+                            on_click=handle_back,  # 使用 handle_back
                         ),
                         ft.Text(
                             "添加笔记", 
@@ -6799,14 +6916,29 @@ def main(page: ft.Page):
                         ),
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER)
                 else:
+                    # ========== 确定锁图标和颜色 ==========
+                    def get_lock_icon_and_color():
+                        """根据当前状态获取锁图标和颜色"""
+                        if note_id:
+                            note = next((n for n in memo_notes if n.id == note_id), None)
+                            if note:
+                                if note.is_encrypted:
+                                    return ft.Icons.LOCK, ft.Colors.PURPLE_700, "已加密（点击解密）"
+                                elif note.password:
+                                    return ft.Icons.LOCK_OPEN, ft.Colors.GREEN_700, "已解密（点击重新加密）"
+                                else:
+                                    return ft.Icons.LOCK_OUTLINE, ft.Colors.GREY_400, "未加密（点击设置密码）"
+                        return ft.Icons.LOCK_OUTLINE, ft.Colors.GREY_400, "未加密"
+                    
+                    lock_icon, lock_color, lock_tooltip = get_lock_icon_and_color()
                     # ========== 编辑模式：左边保存，右边锁按钮 ==========
                     top_bar = ft.Row([
                         ft.IconButton(
                             icon=ft.Icons.ARROW_BACK,
                             icon_size=28,
                             icon_color=ft.Colors.GREEN_700,
-                            tooltip="保存",
-                            on_click=save_note,
+                            tooltip="返回",
+                            on_click=handle_back,  # 使用 handle_back
                         ),
                         ft.Text(
                             "编辑笔记", 
@@ -6920,7 +7052,7 @@ def main(page: ft.Page):
                 
                 # ========== 可滚动内容 ==========
                 scrollable_content = ft.Column([
-                    title_field,
+                    title_display,
                     datetime_category_row,
                     ft.Container(
                         content=content_field,
@@ -6980,7 +7112,7 @@ def main(page: ft.Page):
                 # 某些情况下 autofocus 可能不生效，使用定时器确保焦点
                 def focus_title():
                     try:
-                        title_field.focus()
+                        content_field.focus()
                         page.update()
                     except:
                         pass
@@ -12136,8 +12268,19 @@ def main(page: ft.Page):
                     "all": "📋 全部事件",
                 }
                 display_text = view_display_map.get(current_view, "📋 全部事件")
-                view_popup.content.controls[0].value = display_text
-                view_popup.update()
+                # ========== 修复：先检查控件是否已添加到页面 ==========
+                try:
+                    if hasattr(view_popup, 'page') and view_popup.page is not None:
+                        view_popup.content.controls[0].value = display_text
+                        view_popup.update()
+                except Exception as e:
+                    print(f"更新下拉框失败: {e}")
+                    # 如果更新失败，尝试直接修改值
+                    try:
+                        if view_popup.content and len(view_popup.content.controls) > 0:
+                            view_popup.content.controls[0].value = display_text
+                    except:
+                        pass
             
             # 根据恢复的视图刷新事件列表
             refresh_current_view_by_state()
@@ -12165,8 +12308,13 @@ def main(page: ft.Page):
                 "all": "📋 全部事件",
             }
             display_text = view_display_map.get(current_view, "📋 全部事件")
-            view_popup.content.controls[0].value = display_text
-            view_popup.update()
+            # ========== 修复：先检查控件是否已添加到页面 ==========
+            try:
+                if hasattr(view_popup, 'page') and view_popup.page is not None:
+                    view_popup.content.controls[0].value = display_text
+                    view_popup.update()
+            except Exception as e:
+                print(f"更新下拉框失败: {e}")
         
         refresh_current_view_by_state()
         show_bottom_message("已返回")
@@ -12213,19 +12361,47 @@ def main(page: ft.Page):
         
         return playing_events + other_events
 
+    
+
     def refresh_events_list(filter_date=None):
         global current_playing_event_id, current_music_state, three_days_events, current_view, current_selected_lunar, card_duration_texts, previous_view  # ← 添加 previous_view
+        global search_results_cache
 
+        # ========== 如果是搜索视图，保持搜索状态 ==========
         if current_view == "search":
-            # 如果是搜索视图但没有搜索结果缓存，恢复到之前的视图
-            if previous_view:
-                current_view = previous_view
-                previous_view = None
+            # 如果有缓存的搜索结果，重新显示
+            if search_results_cache:
+                # 重新创建卡片（使用缓存的搜索结果）
+                events_list.controls.clear()
+                card_duration_texts.clear()
+                
+                # 重新显示搜索标题
+                keyword = refresh_events_list.last_search_keyword if hasattr(refresh_events_list, 'last_search_keyword') else ""
+                events_list.controls.append(ft.Row([
+                    ft.Text(f"🔍 搜索结果: 「{keyword}」 ({len(search_results_cache)} 个)", size=14, weight=ft.FontWeight.BOLD, expand=True),
+                    ft.TextButton(
+                        "✕ 关闭搜索",
+                        on_click=lambda e: restore_previous_view(),
+                        style=ft.ButtonStyle(color=ft.Colors.RED_700),
+                    ),
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN))
+                events_list.controls.append(ft.Divider(height=10))
+                
+                # 重新显示卡片
+                results = get_sorted_events_for_display(search_results_cache)
+                for event in results:
+                    display_event_card(event, is_filter_mode=True)
+                
+                if events_list.controls and isinstance(events_list.controls[-1], ft.Divider):
+                    events_list.controls.pop()
+                
+                page.update()
+                return
             else:
+                # 没有缓存，恢复到全部事件
                 current_view = "all"
-            # 刷新视图
-            refresh_current_view_by_state()
-            return
+                refresh_current_view_by_state()
+                return
 
         # ========== 清空旧的卡片引用 ==========
         card_duration_texts.clear()
@@ -14441,7 +14617,7 @@ def main(page: ft.Page):
                     refresh_current_view_by_state()
 
                     # ========== 保存后重新检查视图 ==========
-                    determine_startup_view()
+                    #determine_startup_view()
 
                     close_dialog()
                     show_snack_bar(f"已更新「{name}」")
@@ -16056,6 +16232,7 @@ def main(page: ft.Page):
         bgcolor=None,
         padding=0,
         border_radius=10,
+        visible=False,  # ← 添加这行，默认隐藏
     )
 
     # 设置页面宽度自适应手机
@@ -18244,7 +18421,7 @@ def main(page: ft.Page):
     music_control_container.visible = True
 
     # 创建一个变量记录日历是否显示
-    calendar_visible = True
+    calendar_visible = False
 
     def toggle_calendar(e):
         """切换日历显示/隐藏"""
@@ -18476,7 +18653,11 @@ def main(page: ft.Page):
 
     def display_search_results(results, keyword):
         """显示搜索结果"""
-        global current_view, events_list, card_duration_texts, previous_view
+        global current_view, events_list, card_duration_texts, previous_view, search_results_cache
+        
+        # 保存搜索关键词到全局变量
+        search_results_cache = results
+        refresh_events_list.last_search_keyword = keyword  # 保存到函数属性
         
         # 保存当前视图（如果不是搜索视图）
         if current_view != "search":
@@ -18486,10 +18667,8 @@ def main(page: ft.Page):
         
         # 清空卡片引用
         card_duration_texts.clear()
-        
         events_list.controls.clear()
         
-        # ========== 隐藏下拉框（搜索模式下不显示） ==========
         # 显示搜索标题
         events_list.controls.append(ft.Row([
             ft.Text(f"🔍 搜索结果: 「{keyword}」 ({len(results)} 个)", size=14, weight=ft.FontWeight.BOLD, expand=True),
@@ -18513,7 +18692,7 @@ def main(page: ft.Page):
             page.update()
             return
         
-        # ========== 按播放状态排序 ==========
+        # 按播放状态排序
         results = get_sorted_events_for_display(results)
         
         for event in results:
