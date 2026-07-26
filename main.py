@@ -82,8 +82,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.233"
-APP_VERSION_CODE = 233
+APP_VERSION = "1.0.234"
+APP_VERSION_CODE = 234
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -6392,75 +6392,6 @@ def main(page: ft.Page):
                 dialog_container = None
                 is_authenticating = False
                 
-                # ========== 直接在函数内检测 ==========
-                show_bottom_message("🔍 正在检查生物识别...")
-                
-                bio_available = False
-                bio_type = "生物识别"
-                debug_info = []
-                
-                if platform.system() == "Linux":
-                    show_bottom_message("🔍 检测到 Android 平台")
-                    debug_info.append("平台: Android")
-                    
-                    # 检查权限
-                    try:
-                        from android.permissions import check_permission, Permission
-                        bio_perm = check_permission(Permission.USE_BIOMETRIC)
-                        finger_perm = check_permission(Permission.USE_FINGERPRINT)
-                        debug_info.append(f"USE_BIOMETRIC: {bio_perm}, USE_FINGERPRINT: {finger_perm}")
-                        if bio_perm or finger_perm:
-                            bio_available = True
-                            debug_info.append("✅ 有生物识别权限")
-                    except Exception as e:
-                        debug_info.append(f"❌ 权限检查失败: {str(e)[:30]}")
-                    
-                    # 检查硬件
-                    if not bio_available:
-                        try:
-                            from android.biometric import BiometricManager
-                            bm = BiometricManager()
-                            result = bm.can_authenticate()
-                            debug_info.append(f"can_authenticate: {result}")
-                            if result == 0 or result == 11:
-                                bio_available = True
-                                debug_info.append("✅ 生物识别硬件可用")
-                            else:
-                                debug_info.append(f"❌ 硬件不可用: {result}")
-                        except Exception as e:
-                            debug_info.append(f"❌ 硬件检查失败: {str(e)[:30]}")
-                    
-                    # 降级检查
-                    if not bio_available:
-                        try:
-                            import android
-                            from android import activity
-                            bio_available = True
-                            debug_info.append("✅ 降级检查通过")
-                        except Exception as e:
-                            debug_info.append(f"❌ 降级失败: {str(e)[:30]}")
-                    
-                    # 获取生物识别类型
-                    try:
-                        from android.biometric import BiometricManager
-                        bm = BiometricManager()
-                        if bm.can_authenticate() == 0:
-                            bio_type = "指纹/面容"
-                        else:
-                            bio_type = "指纹"
-                    except:
-                        bio_type = "指纹"
-                
-                # 显示所有调试信息
-                show_bottom_message(f"🔍 {' | '.join(debug_info)}")
-                show_bottom_message(f"🔍 结果: 可用={bio_available}, 类型={bio_type}")
-                
-                # 在 Android 上强制显示生物识别按钮
-                if platform.system() == "Linux":
-                    bio_available = True
-                    if bio_type == "生物识别":
-                        bio_type = "指纹/面容"
-                
                 def close_dialog():
                     nonlocal dialog_container
                     if dialog_container and dialog_container in page.overlay:
@@ -6580,7 +6511,11 @@ def main(page: ft.Page):
                     size=11,
                     color=ft.Colors.GREY_500,
                 )
-                
+
+                # 显示生物识别按钮（在 Android 上总是显示）
+                show_biometric = True
+                bio_type = "指纹/面容"
+
                 # ========== 生物识别按钮 ==========
                 biometric_button = ft.ElevatedButton(
                     f"🔐 {bio_type}解锁",
@@ -6592,9 +6527,6 @@ def main(page: ft.Page):
                         shape=ft.RoundedRectangleBorder(radius=8),
                     ),
                 )
-                
-                # 显示生物识别按钮（在 Android 上总是显示）
-                show_biometric = bio_available or platform.system() == "Linux"
                 
                 # ========== 创建对话框 ==========
                 dialog_content = ft.Container(
