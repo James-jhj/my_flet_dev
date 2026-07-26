@@ -84,8 +84,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.240"
-APP_VERSION_CODE = 240
+APP_VERSION = "1.0.241"
+APP_VERSION_CODE = 241
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -6243,13 +6243,27 @@ def main(page: ft.Page):
                             threading.Timer(0.1, open_edit).start()
                         else:
                             # 认证失败，提示用户使用密码
-                            show_bottom_message("❌ 认证失败或取消，请使用密码", is_error=True)
+                            show_bottom_message("认证失败或取消，请使用密码", is_error=True)
+                            # ========== 修复：使用正确的调用方式 ==========
+                            try:
+                                await password_field.focus()
+                                page.update()
+                            except Exception as focus_error:
+                                print(f"焦点设置失败: {focus_error}")
+                                # 如果 focus 失败，尝试直接更新
+                                page.update()
                     except Exception as e:
                         error_msg = str(e)
                         if "cancel" in error_msg.lower() or "cancelled" in error_msg.lower():
                             show_bottom_message("⏹️ 用户取消了认证")
                         else:
-                            show_bottom_message(f"❌ 认证错误: {error_msg[:30]}")
+                            show_bottom_message(f"❌ 认证错误: {error_msg[:50]}")
+                        # ========== 修复：不使用 update_async ==========
+                        try:
+                            await password_field.focus()
+                            page.update()
+                        except:
+                            page.update()
                     finally:
                         is_authenticating = False
                         biometric_button.disabled = False
@@ -6268,15 +6282,8 @@ def main(page: ft.Page):
                     expand=True,
                     autofocus=True,
                 )
-                
-                password_hint = ft.Text(
-                    "💡 解密后密码将保留，方便重新加密",
-                    size=11,
-                    color=ft.Colors.GREY_500,
-                )
 
                 # 显示生物识别按钮（在 Android 上总是显示）
-                show_biometric = True
                 bio_type = "指纹/面容"
 
                 # ========== 生物识别按钮 ==========
@@ -6308,14 +6315,7 @@ def main(page: ft.Page):
                         ft.Divider(height=1, color=ft.Colors.GREY_300),
                         # ========== 生物识别按钮 ==========
                         biometric_button,
-                        ft.Divider(height=1, color=ft.Colors.GREY_300) if show_biometric else ft.Container(),
-                        ft.Row([
-                            ft.Text("或", size=12, color=ft.Colors.GREY_500),
-                        ], alignment=ft.MainAxisAlignment.CENTER) if show_biometric else ft.Container(),
-                        ft.Text("输入密码", size=12, color=ft.Colors.GREY_500) if show_biometric else ft.Container(),
-                        ft.Divider(height=1, color=ft.Colors.GREY_300),
                         password_field,
-                        password_hint,
                         ft.Divider(height=1, color=ft.Colors.GREY_300),
                         ft.Row([
                             ft.ElevatedButton(
