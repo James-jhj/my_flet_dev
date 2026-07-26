@@ -84,8 +84,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.239"
-APP_VERSION_CODE = 239
+APP_VERSION = "1.0.240"
+APP_VERSION_CODE = 240
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -6179,33 +6179,23 @@ def main(page: ft.Page):
                 
                 def confirm_decrypt(e):
                     password = password_field.value.strip()
-                    
                     if not password:
                         show_bottom_message("请输入密码", is_error=True)
                         return
-                    
-                    # ========== 使用加密验证函数 ==========
                     if verify_password(password, note.password):
-                        # 密码正确，解密笔记
                         if note.original_content:
                             note.content = note.original_content
                         else:
                             note.content = "（请手动恢复内容）"
-                        
                         note.is_encrypted = False
-                        # 保留密码（已经是加密状态）
                         save_memo_notes()
                         close_dialog()
-                        
                         if note.id in card_swipe_states:
                             card_swipe_states[note.id] = 0
-                        
                         render_notes()
-                        show_bottom_message("✅ 笔记已解密（密码已保留，可重新加密）")
-                        
+                        show_bottom_message("✅ 笔记已解密")
                         def open_edit():
                             open_memo_edit_dialog(note.id)
-                        
                         threading.Timer(0.1, open_edit).start()
                     else:
                         show_bottom_message("❌ 密码错误，请重试", is_error=True)
@@ -6215,7 +6205,7 @@ def main(page: ft.Page):
                 def cancel_decrypt(e):
                     close_dialog()
                     show_bottom_message("已取消解密")
-
+                
                 # ========== 生物识别解锁 ==========
                 async def biometric_unlock():
                     nonlocal is_authenticating
@@ -6228,21 +6218,38 @@ def main(page: ft.Page):
                     biometric_button.update()
                     
                     try:
-                        # ========== 跳过可用性检查，直接认证 ==========
                         show_bottom_message("🔍 请使用指纹/面容解锁...")
                         
-                        # 直接尝试认证，不调用 is_available
+                        # 直接尝试认证
                         success = await local_auth.authenticate(
                             f"验证身份以查看「{note.title}」"
                         )
                         
                         if success:
                             show_bottom_message("✅ 认证成功")
-                            # ... 解密逻辑 ...
+                            if note.original_content:
+                                note.content = note.original_content
+                            else:
+                                note.content = "（请手动恢复内容）"
+                            note.is_encrypted = False
+                            save_memo_notes()
+                            close_dialog()
+                            if note.id in card_swipe_states:
+                                card_swipe_states[note.id] = 0
+                            render_notes()
+                            show_bottom_message("✅ 笔记已解密")
+                            def open_edit():
+                                open_memo_edit_dialog(note.id)
+                            threading.Timer(0.1, open_edit).start()
                         else:
-                            show_bottom_message("❌ 认证失败或取消")
+                            # 认证失败，提示用户使用密码
+                            show_bottom_message("❌ 认证失败或取消，请使用密码", is_error=True)
                     except Exception as e:
-                        show_bottom_message(f"❌ 错误: {str(e)[:50]}")
+                        error_msg = str(e)
+                        if "cancel" in error_msg.lower() or "cancelled" in error_msg.lower():
+                            show_bottom_message("⏹️ 用户取消了认证")
+                        else:
+                            show_bottom_message(f"❌ 认证错误: {error_msg[:30]}")
                     finally:
                         is_authenticating = False
                         biometric_button.disabled = False
@@ -6261,8 +6268,7 @@ def main(page: ft.Page):
                     expand=True,
                     autofocus=True,
                 )
-
-                # 显示密码提示
+                
                 password_hint = ft.Text(
                     "💡 解密后密码将保留，方便重新加密",
                     size=11,
