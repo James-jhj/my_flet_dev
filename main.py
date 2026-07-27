@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.252"
-APP_VERSION_CODE = 252
+APP_VERSION = "1.0.253"
+APP_VERSION_CODE = 253
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -7783,125 +7783,160 @@ def main(page: ft.Page):
 
                     page.update()
 
+                def get_download_dir():
+                    """获取 Android 下载目录"""
+                    if platform.system() == "Linux":
+                        # Android 下载目录
+                        download_paths = [
+                            "/storage/emulated/0/Download",  # 最常见的路径
+                            "/sdcard/Download",
+                            "/storage/self/primary/Download",
+                        ]
+                        for path in download_paths:
+                            if os.path.exists(path):
+                                print(f"[下载目录] 找到: {path}")
+                                return path
+                        
+                        # 尝试通过环境变量获取
+                        try:
+                            from android import activity
+                            from android.os import Environment
+                            download_dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                            if download_dir and os.path.exists(str(download_dir)):
+                                print(f"[下载目录] 通过 Environment 获取: {download_dir}")
+                                return str(download_dir)
+                        except:
+                            pass
+                        
+                        # 使用应用私有目录作为备选
+                        app_data_dir = get_data_file_path("")
+                        fallback_dir = os.path.join(app_data_dir, "exported_attachments")
+                        os.makedirs(fallback_dir, exist_ok=True)
+                        print(f"[下载目录] 使用备选目录: {fallback_dir}")
+                        return fallback_dir
+                    
+                    else:
+                        # Windows: 用户下载目录
+                        return os.path.join(os.path.expanduser("~"), "Downloads")
+
+
+                def copy_attachment_to_download(file_path):
+                    """
+                    复制附件到 Download 目录
+                    返回: (成功, 目标路径, 提示信息)
+                    """
+                    try:
+                        download_dir = get_download_dir()
+                        file_name = os.path.basename(file_path)
+                        
+                        # 如果文件已经在 Download 目录，直接返回
+                        if os.path.dirname(file_path) == download_dir:
+                            return True, file_path, "文件已在下载目录"
+                        
+                        # 构建目标路径
+                        dest_path = os.path.join(download_dir, file_name)
+                        
+                        # 如果目标文件已存在，添加时间戳
+                        if os.path.exists(dest_path):
+                            name, ext = os.path.splitext(file_name)
+                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                            dest_path = os.path.join(download_dir, f"{name}_{timestamp}{ext}")
+                        
+                        # 复制文件
+                        shutil.copy2(file_path, dest_path)
+                        print(f"[复制到下载] 成功: {dest_path}")
+                        return True, dest_path, f"已复制到下载目录: {file_name}"
+                        
+                    except Exception as e:
+                        print(f"[复制到下载] 失败: {e}")
+                        return False, None, f"复制失败: {str(e)}"
+
+                def copy_to_clipboard(text):
+                    """跨平台复制文本到剪贴板"""
+                    print(f"[剪贴板] 尝试复制: {text[:50]}...")
+                    
+                    # ========== 方法1：使用 Flet 的 Clipboard ==========
+                    try:
+                        clipboard = ft.Clipboard()
+                        clipboard.set(text)
+                        print("[剪贴板] ✅ Flet Clipboard 复制成功")
+                        return True
+                    except Exception as e:
+                        print(f"[剪贴板] ❌ Flet Clipboard 复制失败: {e}")
+                    
+                    # ========== 方法2：Android 原生剪贴板 ==========
+                    if platform.system() == "Linux":
+                        try:
+                            from android import activity
+                            from android.content import Context
+                            from android.text import ClipData
+                            
+                            clipboard_manager = activity.getSystemService(Context.CLIPBOARD_SERVICE)
+                            clip = ClipData.newPlainText("text", text)
+                            clipboard_manager.setPrimaryClip(clip)
+                            print("[剪贴板] ✅ Android 原生剪贴板复制成功")
+                            return True
+                        except Exception as e:
+                            print(f"[剪贴板] ❌ Android 原生剪贴板复制失败: {e}")
+                    
+                    # ========== 方法3：使用 pyperclip（如果已安装） ==========
+                    try:
+                        import pyperclip
+                        pyperclip.copy(text)
+                        print("[剪贴板] ✅ pyperclip 复制成功")
+                        return True
+                    except ImportError:
+                        print("[剪贴板] pyperclip 未安装")
+                    except Exception as e:
+                        print(f"[剪贴板] ❌ pyperclip 复制失败: {e}")
+                    
+                    # ========== 方法4：Windows / macOS 系统命令 ==========
+                    try:
+                        import subprocess
+                        import platform as plat
+                        
+                        system = plat.system()
+                        if system == "Windows":
+                            # Windows: 使用 PowerShell
+                            result = subprocess.run(
+                                ['powershell', '-Command', f'Set-Clipboard "{text}"'],
+                                capture_output=True,
+                                timeout=2
+                            )
+                            if result.returncode == 0:
+                                print("[剪贴板] ✅ PowerShell 复制成功")
+                                return True
+                        elif system == "Darwin":  # macOS
+                            subprocess.run(['pbcopy'], input=text.encode('utf-8'), timeout=2)
+                            print("[剪贴板] ✅ pbcopy 复制成功")
+                            return True
+                        elif system == "Linux":
+                            # Linux: 尝试 xclip 或 xsel
+                            for cmd in ['xclip -selection clipboard', 'xsel --clipboard --input']:
+                                try:
+                                    subprocess.run(cmd.split(), input=text.encode('utf-8'),
+                                                capture_output=True, timeout=2)
+                                    print(f"[剪贴板] ✅ {cmd} 复制成功")
+                                    return True
+                                except:
+                                    continue
+                    except Exception as e:
+                        print(f"[剪贴板] ❌ 系统命令复制失败: {e}")
+                    
+                    print("[剪贴板] ❌ 所有复制方法都失败")
+                    return False
+
                 def open_attachment_file(file_path):
-                    """打开附件 - 使用多种方式尝试"""
-                    if not os.path.exists(file_path):
+                    """打开附件预览对话框（支持保存到下载目录）"""
+                    import os as os_module
+                    
+                    if not os_module.path.exists(file_path):
                         show_bottom_message("文件不存在", is_error=True)
                         return
                     
-                    print(f"[打开] 平台: {platform.system()}, 文件: {file_path}")
-                    
-                    # ========== Windows ==========
-                    if platform.system() == "Windows":
-                        try:
-                            os.startfile(file_path)
-                            return
-                        except Exception as e:
-                            print(f"[打开] Windows 打开失败: {e}")
-                    
-                    # ========== Android / Linux ==========
-                    # 方法1：使用 am start（Android 最可靠）
-                    try:
-                        import subprocess
-                        import os as os_module
-                        
-                        # 获取 MIME 类型
-                        file_ext = os_module.path.splitext(file_path)[1].lower()
-                        mime_type = get_mime_type(file_ext)
-                        
-                        # 构建 file:// URI
-                        file_uri = f"file://{file_path}"
-                        
-                        # 方法1a：使用 am start
-                        cmd = ['am', 'start', '-a', 'android.intent.action.VIEW', '-d', file_uri, '-t', mime_type]
-                        print(f"[打开] 执行: {' '.join(cmd)}")
-                        
-                        result = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
-                        if result.returncode == 0:
-                            print("[打开] am start 成功")
-                            return
-                        else:
-                            print(f"[打开] am start 失败: {result.stderr}")
-                            
-                    except Exception as e:
-                        print(f"[打开] am start 异常: {e}")
-                    
-                    # 方法2：尝试 Python 的 webbrowser（有些 Android 支持）
-                    try:
-                        import webbrowser
-                        webbrowser.open(f"file://{file_path}")
-                        print("[打开] webbrowser 尝试成功")
-                        return
-                    except:
-                        pass
-                    
-                    # 方法3：尝试 xdg-open
-                    try:
-                        import subprocess
-                        subprocess.Popen(['xdg-open', file_path])
-                        print("[打开] xdg-open 成功")
-                        return
-                    except:
-                        pass
-                    
-                    # 方法4：尝试 open
-                    try:
-                        import subprocess
-                        subprocess.Popen(['open', file_path])
-                        print("[打开] open 成功")
-                        return
-                    except:
-                        pass
-                    
-                    # ========== 全部失败 ==========
-                    print("[打开] 所有方法都失败")
-                    show_file_info_dialog(file_path)
-
-                def get_mime_type(file_ext):
-                    """根据文件扩展名获取 MIME 类型"""
-                    mime_types = {
-                        # Office 文档
-                        '.doc': 'application/msword',
-                        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                        '.xls': 'application/vnd.ms-excel',
-                        '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                        '.ppt': 'application/vnd.ms-powerpoint',
-                        '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-                        # PDF
-                        '.pdf': 'application/pdf',
-                        # 图片
-                        '.jpg': 'image/jpeg',
-                        '.jpeg': 'image/jpeg',
-                        '.png': 'image/png',
-                        '.gif': 'image/gif',
-                        '.bmp': 'image/bmp',
-                        '.webp': 'image/webp',
-                        # 文本
-                        '.txt': 'text/plain',
-                        # 音频
-                        '.mp3': 'audio/mpeg',
-                        '.wav': 'audio/wav',
-                        '.flac': 'audio/flac',
-                        # 视频
-                        '.mp4': 'video/mp4',
-                        '.avi': 'video/x-msvideo',
-                        '.mkv': 'video/x-matroska',
-                        # 压缩包
-                        '.zip': 'application/zip',
-                        '.rar': 'application/vnd.rar',
-                        '.7z': 'application/x-7z-compressed',
-                        # 其他
-                        '.apk': 'application/vnd.android.package-archive',
-                    }
-                    return mime_types.get(file_ext, 'application/octet-stream')
-
-                def show_file_info_dialog(file_path):
-                    """显示文件信息对话框，并提供打开指引"""
-                    import os as os_module
-                    
                     file_name = os_module.path.basename(file_path)
                     file_size = os_module.path.getsize(file_path)
-                    file_dir = os_module.path.dirname(file_path)
+                    ext = os_module.path.splitext(file_name)[1].lower()
                     
                     # 格式化文件大小
                     if file_size < 1024:
@@ -7920,74 +7955,120 @@ def main(page: ft.Page):
                             dialog_container = None
                             page.update()
                     
+                    # ========== 构建预览内容（保持不变） ==========
+                    preview_content = build_preview_content(file_path, file_name, ext, size_str)
+                    
+                    # ========== 保存到下载目录 ==========
+                    def save_to_download(e):
+                        """保存附件到下载目录"""
+                        success, dest_path, message = copy_attachment_to_download(file_path)
+                        if success:
+                            show_bottom_message(f"✅ {message}")
+                            # 如果文件在 Download 目录，提供打开选项
+                            if platform.system() == "Linux":
+                                # Android: 提示用户去文件管理器查看
+                                show_bottom_message(f"📁 文件已保存到 Download 目录")
+                            else:
+                                # Windows: 打开文件夹
+                                try:
+                                    os.startfile(os.path.dirname(dest_path))
+                                except:
+                                    pass
+                        else:
+                            show_bottom_message(f"❌ {message}", is_error=True)
+                    
+                    # ========== 在系统中打开 ==========
+                    def open_in_system(e):
+                        try:
+                            if platform.system() == "Windows":
+                                os.startfile(file_path)
+                            elif platform.system() == "Linux":
+                                import subprocess
+                                subprocess.Popen(['xdg-open', file_path])
+                            else:
+                                import subprocess
+                                subprocess.Popen(['open', file_path])
+                            show_bottom_message("正在打开文件...")
+                        except Exception as e:
+                            show_bottom_message(f"打开失败: {str(e)}", is_error=True)
+                    
+                    # ========== 复制路径（保留作为备选） ==========
                     def copy_path(e):
-                        try:
-                            page.set_clipboard(file_path)
+                        success = copy_to_clipboard(file_path)
+                        if success:
                             show_bottom_message("✅ 路径已复制到剪贴板")
-                        except:
-                            show_bottom_message("复制失败", is_error=True)
+                        else:
+                            show_bottom_message(f"请手动复制路径:\n{file_path}", is_error=True)
                     
-                    def copy_dir(e):
-                        """复制文件所在目录路径"""
-                        try:
-                            page.set_clipboard(file_dir)
-                            show_bottom_message("✅ 目录路径已复制到剪贴板")
-                        except:
-                            show_bottom_message("复制失败", is_error=True)
-                    
+                    # ========== 构建对话框 ==========
                     dialog_content = ft.Container(
                         content=ft.Column([
-                            ft.Container(
-                                content=ft.Icon(ft.Icons.INSERT_DRIVE_FILE, size=55, color=ft.Colors.BLUE_700),
-                                padding=10,
-                                bgcolor=ft.Colors.BLUE_50,
-                                border_radius=50,
-                            ),
-                            ft.Text(f"📄 {file_name}", size=18, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
-                            ft.Divider(height=1, color=ft.Colors.GREY_300),
+                            # 顶部标题栏
                             ft.Row([
-                                ft.Text("📁 位置:", size=13, color=ft.Colors.GREY_600),
-                                ft.Text(file_dir, size=12, color=ft.Colors.GREY_700, expand=True, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
-                            ], spacing=5, vertical_alignment=ft.CrossAxisAlignment.START),
-                            ft.Row([
-                                ft.Text("📦 大小:", size=13, color=ft.Colors.GREY_600),
-                                ft.Text(size_str, size=13, color=ft.Colors.BLACK),
-                            ], spacing=10),
-                            ft.Text("💡 请使用文件管理器打开此文件", size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
+                                ft.Text(f"📄 {file_name}", size=16, weight=ft.FontWeight.BOLD, expand=True),
+                                ft.IconButton(
+                                    ft.Icons.CLOSE,
+                                    icon_size=24,
+                                    icon_color=ft.Colors.RED_700,
+                                    on_click=lambda e: close_dialog(),
+                                ),
+                            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Divider(height=1, color=ft.Colors.GREY_300),
+                            
+                            # 预览内容
+                            preview_content,
+                            
+                            # 文件信息
+                            ft.Row([
+                                ft.Text(f"📁 {os.path.dirname(file_path)}", size=11, color=ft.Colors.GREY_500, expand=True),
+                            ], spacing=5),
+                            
+                            ft.Divider(height=1, color=ft.Colors.GREY_300),
+                            
+                            # ========== 操作按钮（3个按钮） ==========
                             ft.Row([
                                 ft.ElevatedButton(
-                                    "📋 复制路径", 
-                                    on_click=copy_path, 
+                                    "📋 复制路径",
+                                    on_click=copy_path,
                                     expand=True,
                                     style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.BLUE_700),
                                 ),
                                 ft.ElevatedButton(
-                                    "📁 复制目录", 
-                                    on_click=copy_dir, 
+                                    "💾 保存到下载",
+                                    on_click=save_to_download,
                                     expand=True,
-                                    style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.GREEN_700),
+                                    style=ft.ButtonStyle(bgcolor=ft.Colors.GREEN_700, color=ft.Colors.WHITE),
                                 ),
-                            ], spacing=8),
+                            ], spacing=10),
                             ft.Row([
                                 ft.ElevatedButton(
-                                    "知道了", 
-                                    on_click=lambda e: close_dialog(), 
+                                    "📂 在系统中打开",
+                                    on_click=open_in_system,
                                     expand=True,
                                     style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE),
                                 ),
-                            ], spacing=8),
-                        ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                        width=360,
+                            ], spacing=10),
+                        ], spacing=10),
+                        width=380,
                         padding=20,
                         bgcolor=ft.Colors.WHITE,
                         border_radius=16,
+                        shadow=ft.BoxShadow(
+                            spread_radius=1,
+                            blur_radius=20,
+                            color=ft.Colors.BLACK12,
+                            offset=ft.Offset(0, 4),
+                        ),
                     )
                     
                     dialog_container = ft.Container(
                         content=ft.Column([
                             ft.Container(expand=True),
-                            ft.Row([ft.Container(expand=True), dialog_content, ft.Container(expand=True)]),
+                            ft.Row([
+                                ft.Container(expand=True),
+                                dialog_content,
+                                ft.Container(expand=True),
+                            ]),
                             ft.Container(expand=True),
                         ]),
                         expand=True,
@@ -7997,6 +8078,131 @@ def main(page: ft.Page):
                     
                     page.overlay.append(dialog_container)
                     page.update()
+                    print(f"[预览] 打开预览对话框: {file_name}")
+
+                def build_preview_content(file_path, file_name, ext, size_str):
+                    """构建预览内容"""
+                    # 图片预览
+                    if ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp']:
+                        try:
+                            return ft.Container(
+                                content=ft.Image(
+                                    src=file_path,
+                                    fit=ft.ImageFit.CONTAIN,
+                                    width=350,
+                                    height=300,
+                                ),
+                                padding=10,
+                                bgcolor=ft.Colors.GREY_100,
+                                border_radius=8,
+                            )
+                        except Exception as e:
+                            print(f"[预览] 图片加载失败: {e}")
+                            return ft.Container(
+                                content=ft.Column([
+                                    ft.Icon(ft.Icons.IMAGE_NOT_SUPPORTED, size=48, color=ft.Colors.GREY_400),
+                                    ft.Text("图片加载失败", size=14, color=ft.Colors.GREY_500),
+                                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10),
+                                padding=20,
+                                bgcolor=ft.Colors.GREY_100,
+                                border_radius=8,
+                                height=200,
+                            )
+                    
+                    # PDF 预览
+                    elif ext == '.pdf':
+                        return ft.Container(
+                            content=ft.Column([
+                                ft.Icon(ft.Icons.PICTURE_AS_PDF, size=64, color=ft.Colors.RED_700),
+                                ft.Text("PDF 文档", size=16, weight=ft.FontWeight.BOLD),
+                                ft.Text(file_name, size=13, color=ft.Colors.GREY_600, text_align=ft.TextAlign.CENTER),
+                                ft.Text(f"大小: {size_str}", size=12, color=ft.Colors.GREY_500),
+                            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
+                            padding=20,
+                            bgcolor=ft.Colors.GREY_50,
+                            border_radius=8,
+                            height=250,
+                        )
+                    
+                    # Office 文档
+                    elif ext in ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx']:
+                        icon_map = {
+                            '.doc': ft.Icons.DESCRIPTION, '.docx': ft.Icons.DESCRIPTION,
+                            '.xls': ft.Icons.TABLE_CHART, '.xlsx': ft.Icons.TABLE_CHART,
+                            '.ppt': ft.Icons.SLIDESHOW, '.pptx': ft.Icons.SLIDESHOW,
+                        }
+                        color_map = {
+                            '.doc': ft.Colors.BLUE_700, '.docx': ft.Colors.BLUE_700,
+                            '.xls': ft.Colors.GREEN_700, '.xlsx': ft.Colors.GREEN_700,
+                            '.ppt': ft.Colors.ORANGE_700, '.pptx': ft.Colors.ORANGE_700,
+                        }
+                        type_names = {
+                            '.doc': 'Word 文档', '.docx': 'Word 文档',
+                            '.xls': 'Excel 表格', '.xlsx': 'Excel 表格',
+                            '.ppt': 'PowerPoint', '.pptx': 'PowerPoint',
+                        }
+                        
+                        return ft.Container(
+                            content=ft.Column([
+                                ft.Icon(icon_map.get(ext, ft.Icons.DESCRIPTION), size=64, color=color_map.get(ext, ft.Colors.BLUE_700)),
+                                ft.Text(type_names.get(ext, '文档'), size=16, weight=ft.FontWeight.BOLD),
+                                ft.Text(file_name, size=13, color=ft.Colors.GREY_600, text_align=ft.TextAlign.CENTER),
+                                ft.Text(f"大小: {size_str}", size=12, color=ft.Colors.GREY_500),
+                            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
+                            padding=20,
+                            bgcolor=ft.Colors.GREY_50,
+                            border_radius=8,
+                            height=250,
+                        )
+                    
+                    # 文本文件
+                    elif ext == '.txt':
+                        try:
+                            with open(file_path, 'r', encoding='utf-8') as f:
+                                content_preview = f.read(500)
+                                if len(content_preview) >= 500:
+                                    content_preview += "\n... (内容已截断)"
+                            
+                            return ft.Container(
+                                content=ft.Column([
+                                    ft.Row([
+                                        ft.Icon(ft.Icons.TEXT_SNIPPET, size=24, color=ft.Colors.BLUE_700),
+                                        ft.Text("文本预览", size=16, weight=ft.FontWeight.BOLD),
+                                    ], spacing=8),
+                                    ft.Container(
+                                        content=ft.Text(content_preview, size=13, selectable=True),
+                                        padding=10,
+                                        bgcolor=ft.Colors.WHITE,
+                                        border_radius=4,
+                                        border=ft.border.all(1, ft.Colors.GREY_300),
+                                        height=200,
+                                    ),
+                                ], spacing=8),
+                                padding=10,
+                                bgcolor=ft.Colors.GREY_50,
+                                border_radius=8,
+                            )
+                        except:
+                            pass
+                    
+                    # 其他文件
+                    type_names = {
+                        '.mp3': '音频文件', '.wav': '音频文件', '.flac': '音频文件',
+                        '.mp4': '视频文件', '.avi': '视频文件', '.mkv': '视频文件',
+                        '.zip': '压缩文件', '.rar': '压缩文件', '.7z': '压缩文件',
+                    }
+                    return ft.Container(
+                        content=ft.Column([
+                            ft.Icon(ft.Icons.INSERT_DRIVE_FILE, size=64, color=ft.Colors.GREY_500),
+                            ft.Text(type_names.get(ext, '文件'), size=16, weight=ft.FontWeight.BOLD),
+                            ft.Text(file_name, size=13, color=ft.Colors.GREY_600, text_align=ft.TextAlign.CENTER),
+                            ft.Text(f"大小: {size_str}", size=12, color=ft.Colors.GREY_500),
+                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
+                        padding=20,
+                        bgcolor=ft.Colors.GREY_50,
+                        border_radius=8,
+                        height=250,
+                    )
 
                 def delete_attachment_from_note(rel_path, note):
                     """从笔记中删除附件"""
