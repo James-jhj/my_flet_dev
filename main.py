@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.250"
-APP_VERSION_CODE = 250
+APP_VERSION = "1.0.251"
+APP_VERSION_CODE = 251
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -7098,9 +7098,9 @@ def main(page: ft.Page):
             
             # ========== 编辑笔记对话框 ==========
             def open_memo_edit_dialog(note_id=None):
-                """打开笔记编辑对话框"""
+                """打开笔记编辑对话框（支持附件管理）"""
 
-                 # ========== 如果是编辑模式，检查是否是加密笔记 ==========
+                # 如果是编辑模式，检查是否是加密笔记
                 if note_id:
                     note = next((n for n in memo_notes if n.id == note_id), None)
                     if not note:
@@ -7125,6 +7125,9 @@ def main(page: ft.Page):
                     if not note:
                         show_bottom_message("笔记不存在")
                         return
+                    if note.is_encrypted:
+                        show_decrypt_dialog(note)
+                        return
                     
                     # ========== 检查是否是已解密状态（有密码但未加密） ==========
                     is_decrypted = note.password and not note.is_encrypted
@@ -7137,7 +7140,13 @@ def main(page: ft.Page):
                     initial_content = note.content
                     initial_category = note.category
                     created_at = note.updated_at if note.updated_at else note.created_at
+                    # ========== 新增：保存附件初始状态 ==========
+                    original_attachments = note.attachments.copy()  # 保存一份副本
+                    # ========== 新增：使用正式 ID ==========
+                    current_note_id = note_id
+                    current_note = note
                 else:
+                    # ========== 新增模式：生成临时 ID ==========
                     title_text = "添加笔记"
                     original_content = ""
                     original_category = ""
@@ -7146,6 +7155,22 @@ def main(page: ft.Page):
                     initial_content = ""
                     initial_category = "未分类"
                     created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    # ========== 生成临时 ID（使用时间戳） ==========
+                    temp_id = str(int(datetime.now().timestamp() * 1000))
+                    current_note_id = temp_id
+                    # ========== 创建一个临时笔记对象（仅用于附件管理） ==========
+                    current_note = MemoNote(
+                        id=temp_id,
+                        title="",
+                        content="",
+                        category="未分类",
+                        attachments=[],
+                    )
+                    # 将临时笔记添加到 memo_notes 中（但标记为临时）
+                    current_note._is_temp = True  # 标记为临时笔记
+                    memo_notes.append(current_note)
+                    # ========== 新增模式：初始附件为空 ==========
+                    original_attachments = []
                 
                 def close_edit_dialog():
                     nonlocal edit_dialog_container
@@ -7155,7 +7180,8 @@ def main(page: ft.Page):
                         page.update()
                 
                 def save_note(e):
-                    """保存笔记（不改变加密状态）"""
+                    """保存笔记（支持新增模式下的附件迁移）"""
+                    import shutil  # ← 在函数内部导入
                     content = content_field.value.strip()
                     
                     if not content:
@@ -7185,19 +7211,77 @@ def main(page: ft.Page):
                             note.original_content = content  # 更新原始内容
                         show_bottom_message(f"✅ 已保存「{title}」")
                     else:
-                        # 新增模式：从内容第一行提取标题
-                        title = extract_title_from_content(content, max_chars=16)
-
-                        # 新增模式：创建笔记
+                        # ========== 新增模式：处理临时笔记 ==========
+                        # 获取临时笔记对象（从 memo_notes 中查找）
+                        temp_note = next((n for n in memo_notes if n.id == current_note_id), None)
+                        if not temp_note:
+                            show_bottom_message("保存失败：找不到临时笔记", is_error=True)
+                            return
+                        
+                        # 生成正式 ID（使用当前时间戳）
+                        new_id = str(int(datetime.now().timestamp() * 1000))
+                        old_id = temp_note.id
+                        
+                        # 保存临时笔记的附件列表
+                        temp_attachments = temp_note.attachments.copy()
+                        
+                        # 从 memo_notes 中移除临时笔记
+                        memo_notes.remove(temp_note)
+                        
+                        # 创建正式笔记
                         new_note = MemoNote(
-                            id=str(int(datetime.now().timestamp() * 1000)),
+                            id=new_id,
                             title=title,
                             content=content,
                             category=category,
                             is_pinned=False,
-                            attachments=[],  # 新增笔记无附件
+                            attachments=[],  # 先置空，后面迁移附件
                         )
                         memo_notes.append(new_note)
+                        
+                        # ========== 迁移附件：从临时目录移动到正式目录 ==========
+                        if temp_attachments:
+                            app_data_dir = get_data_file_path("")
+                            temp_note_dir = os.path.join(get_attachments_dir(), old_id)
+                            new_note_dir = os.path.join(get_attachments_dir(), new_id)
+                            
+                            # 创建新目录
+                            os.makedirs(new_note_dir, exist_ok=True)
+                            
+                            migrated_count = 0
+                            for rel_path in temp_attachments:
+                                old_full_path = os.path.join(app_data_dir, rel_path)
+                                if os.path.exists(old_full_path):
+                                    # 获取文件名
+                                    filename = os.path.basename(old_full_path)
+                                    new_full_path = os.path.join(new_note_dir, filename)
+                                    
+                                    # 如果目标文件已存在，添加时间戳
+                                    if os.path.exists(new_full_path):
+                                        name, ext = os.path.splitext(filename)
+                                        timestamp = datetime.now().strftime("%H%M%S")
+                                        new_full_path = os.path.join(new_note_dir, f"{name}_{timestamp}{ext}")
+                                    
+                                    # 移动文件
+                                    shutil.move(old_full_path, new_full_path)
+                                    # 更新相对路径
+                                    new_rel_path = os.path.relpath(new_full_path, app_data_dir)
+                                    new_note.attachments.append(new_rel_path)
+                                    migrated_count += 1
+                            
+                            # 删除临时目录
+                            try:
+                                if os.path.exists(temp_note_dir):
+                                    import shutil
+                                    shutil.rmtree(temp_note_dir)
+                                    print(f"[迁移] 删除临时目录: {temp_note_dir}")
+                            except Exception as e:
+                                print(f"[迁移] 删除临时目录失败: {e}")
+                            
+                            if migrated_count > 0:
+                                print(f"[迁移] 成功迁移 {migrated_count} 个附件")
+                        
+                        save_memo_notes()
                         show_bottom_message(f"✅ 已添加「{title}」")
                     
                     save_memo_notes()
@@ -7208,23 +7292,34 @@ def main(page: ft.Page):
                 def handle_back(e):
                     """处理返回按钮点击"""
                     if note_id:
-                        # 编辑模式：检查是否有修改
                         if has_changes():
-                            # 有修改，提示是否保存
                             show_unsaved_changes_dialog()
                         else:
-                            # 没有修改，直接返回
                             close_edit_dialog()
                     else:
-                        # 新增模式：检查是否有内容
-                        if content_field.value and content_field.value.strip():
+                        # 新增模式：检查是否有内容或附件
+                        has_content = bool(content_field.value and content_field.value.strip())
+                        # 检查是否有附件
+                        temp_note = next((n for n in memo_notes if n.id == current_note_id), None)
+                        has_attachments = bool(temp_note and temp_note.attachments)
+                        
+                        if has_content or has_attachments:
                             show_unsaved_changes_dialog()
                         else:
+                            # 没有内容也没有附件，直接关闭并清理
+                            if temp_note:
+                                memo_notes.remove(temp_note)
+                                temp_dir = os.path.join(get_attachments_dir(), current_note_id)
+                                if os.path.exists(temp_dir):
+                                    try:
+                                        shutil.rmtree(temp_dir)
+                                    except:
+                                        pass
                             close_edit_dialog()
 
                 # ========== 未保存更改提示对话框 ==========
                 def show_unsaved_changes_dialog():
-                    """显示未保存更改的提示对话框"""
+                    """显示未保存更改的提示对话框（包含附件变化提示）"""
                     dialog_container = None
                     
                     def close_dialog():
@@ -7237,6 +7332,18 @@ def main(page: ft.Page):
                     def on_discard(e):
                         """放弃修改"""
                         close_dialog()
+                        # 如果是新增模式，清理临时笔记和附件
+                        if not note_id:
+                            temp_note = next((n for n in memo_notes if n.id == current_note_id), None)
+                            if temp_note:
+                                memo_notes.remove(temp_note)
+                                temp_dir = os.path.join(get_attachments_dir(), current_note_id)
+                                if os.path.exists(temp_dir):
+                                    try:
+                                        shutil.rmtree(temp_dir)
+                                        print(f"[放弃] 删除临时目录: {temp_dir}")
+                                    except:
+                                        pass
                         close_edit_dialog()
                         show_bottom_message("已放弃修改")
                     
@@ -7244,6 +7351,36 @@ def main(page: ft.Page):
                         """保存并关闭"""
                         close_dialog()
                         save_note(e)
+
+                    # ========== 生成变化提示信息 ==========
+                    change_messages = []
+                    if not note_id:
+                        change_messages.append("📝 新增笔记")
+                    else:
+                        current_content = content_field.value.strip()
+                        current_category = current_category_edit if current_category_edit else "未分类"
+                        current_title = title_display.value.strip()
+                        
+                        if current_content != original_content:
+                            change_messages.append("📝 内容已修改")
+                        if current_category != original_category:
+                            change_messages.append("🏷️ 分类已修改")
+                        if current_title != original_title:
+                            change_messages.append("📌 标题已修改")
+                        
+                        # ========== 检测附件变化 ==========
+                        current_note = next((n for n in memo_notes if n.id == note_id), None)
+                        if current_note:
+                            current_attachments = current_note.attachments
+                            if set(current_attachments) != set(original_attachments):
+                                if len(current_attachments) > len(original_attachments):
+                                    change_messages.append(f"📎 新增 {len(current_attachments) - len(original_attachments)} 个附件")
+                                elif len(current_attachments) < len(original_attachments):
+                                    change_messages.append(f"📎 删除 {len(original_attachments) - len(current_attachments)} 个附件")
+                                else:
+                                    change_messages.append("📎 附件已修改")
+                    
+                    change_detail = "\n".join([f"• {msg}" for msg in change_messages]) if change_messages else "有未保存的更改"
                     
                     dialog_content = ft.Container(
                         content=ft.Column([
@@ -7255,7 +7392,8 @@ def main(page: ft.Page):
                             ),
                             ft.Text("未保存的更改", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.ORANGE_700),
                             ft.Divider(height=1, color=ft.Colors.GREY_300),
-                            ft.Text("您有未保存的更改，是否保存？", size=14, color=ft.Colors.GREY_700),
+                            ft.Text("您有以下未保存的更改：", size=14, color=ft.Colors.GREY_700),
+                            ft.Text(change_detail, size=13, color=ft.Colors.GREY_600, selectable=True),
                             ft.Divider(height=1, color=ft.Colors.GREY_300),
                             ft.Row([
                                 ft.ElevatedButton(
@@ -7276,27 +7414,16 @@ def main(page: ft.Page):
                         padding=20,
                         bgcolor=ft.Colors.WHITE,
                         border_radius=16,
-                        shadow=ft.BoxShadow(
-                            spread_radius=1,
-                            blur_radius=15,
-                            color=ft.Colors.BLACK12,
-                            offset=ft.Offset(0, 4),
-                        ),
                     )
                     
                     dialog_container = ft.Container(
                         content=ft.Column([
                             ft.Container(expand=True),
-                            ft.Row([
-                                ft.Container(expand=True),
-                                dialog_content,
-                                ft.Container(expand=True),
-                            ]),
+                            ft.Row([ft.Container(expand=True), dialog_content, ft.Container(expand=True)]),
                             ft.Container(expand=True),
                         ]),
                         expand=True,
                         bgcolor=ft.Colors.BLACK26,
-                        on_click=lambda e: None,  # 点击背景不关闭，强制用户选择
                     )
                     
                     page.overlay.append(dialog_container)
@@ -7533,7 +7660,17 @@ def main(page: ft.Page):
                     category_changed = current_category != original_category
                     title_changed = current_title != original_title
                     
-                    return content_changed or category_changed or title_changed
+                    # ========== 新增：检测附件是否变化 ==========
+                    # 获取当前笔记的最新附件列表
+                    current_note = next((n for n in memo_notes if n.id == note_id), None)
+                    if current_note:
+                        current_attachments = current_note.attachments
+                        # 比较附件列表是否相同（顺序可能不同，所以用 set 比较）
+                        attachments_changed = set(current_attachments) != set(original_attachments)
+                    else:
+                        attachments_changed = False
+                    
+                    return content_changed or category_changed or title_changed or attachments_changed
     
                 # ========== 内容变化时自动更新标题 ==========
                 def on_content_change(e):
@@ -7587,17 +7724,25 @@ def main(page: ft.Page):
                 attachments_list = ft.Column(spacing=4)
 
                 def refresh_attachments_display():
-                    """刷新附件列表显示"""
+                    """刷新附件列表显示（支持临时笔记）"""
                     attachments_list.controls.clear()
-                    if not note_id:
+
+                    # 获取当前笔记
+                    if note_id:
+                        # 编辑模式：从 memo_notes 中查找
+                        note = next((n for n in memo_notes if n.id == note_id), None)
+                    else:
+                        # 新增模式：使用临时笔记
+                        note = next((n for n in memo_notes if n.id == current_note_id), None)
+
+                    if not note:
                         attachments_list.controls.append(
                             ft.Text("💡 保存笔记后即可添加附件", size=11, color=ft.Colors.GREY_500)
                         )
                         page.update()
                         return
                     
-                    note = next((n for n in memo_notes if n.id == note_id), None)
-                    if not note or not note.attachments:
+                    if not note.attachments:
                         attachments_list.controls.append(
                             ft.Text("📎 暂无附件", size=11, color=ft.Colors.GREY_500)
                         )
@@ -7639,7 +7784,7 @@ def main(page: ft.Page):
                     page.update()
 
                 def open_attachment_file(file_path):
-                    """打开附件"""
+                    """打开附件（Android 使用 Intent.ACTION_VIEW）"""
                     if not os.path.exists(file_path):
                         show_bottom_message("文件不存在", is_error=True)
                         return
@@ -7647,21 +7792,200 @@ def main(page: ft.Page):
                     try:
                         if platform.system() == "Windows":
                             os.startfile(file_path)
+                            return
                         elif platform.system() == "Linux":
+                            # ========== Android：使用 Intent.ACTION_VIEW ==========
                             try:
                                 from android import activity
                                 from android.net import Uri
                                 from android.content import Intent
-                                uri = Uri.fromFile(activity.getApplicationContext(), file_path)
+                                from android.webkit import MimeTypeMap
+                                import os as os_module
+                                
+                                # 获取文件 MIME 类型
+                                file_ext = os_module.path.splitext(file_path)[1].lower()
+                                mime_type = get_mime_type(file_ext)
+                                
+                                # 创建 File URI
+                                # 注意：Android 7.0+ 需要使用 FileProvider
+                                # 但这里简化处理，使用 file:// URI
+                                file = java.io.File(file_path)
+                                uri = Uri.fromFile(file)
+                                
+                                # 创建 Intent
                                 intent = Intent(Intent.ACTION_VIEW)
-                                intent.setData(uri)
-                                activity.startActivity(intent)
-                            except:
-                                show_bottom_message("📱 请使用文件管理器手动打开", is_error=True)
+                                intent.setDataAndType(uri, mime_type)
+                                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                
+                                # 如果有多个应用可以打开，显示选择器
+                                chooser = Intent.createChooser(intent, f"选择应用打开 {os_module.path.basename(file_path)}")
+                                activity.startActivity(chooser)
+                                
+                                print(f"[打开] Intent 启动成功: {file_path}")
+                                return
+                                
+                            except Exception as e:
+                                print(f"[打开] Intent 方式失败: {e}")
+                                # 降级：尝试系统命令
+                                try:
+                                    import subprocess
+                                    for cmd in ['open', 'xdg-open']:
+                                        try:
+                                            subprocess.Popen([cmd, file_path])
+                                            print(f"[打开] 成功: {cmd} {file_path}")
+                                            return
+                                        except:
+                                            continue
+                                except:
+                                    pass
+                                
+                                # 完全失败：显示对话框让用户手动打开
+                                show_file_info_dialog(file_path)
                         else:
                             show_bottom_message(f"文件路径: {file_path}")
+                            
                     except Exception as e:
+                        print(f"[打开] 失败: {e}")
                         show_bottom_message(f"打开失败: {str(e)}", is_error=True)
+
+                def get_mime_type(file_ext):
+                    """根据文件扩展名获取 MIME 类型"""
+                    mime_types = {
+                        # Office 文档
+                        '.doc': 'application/msword',
+                        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                        '.xls': 'application/vnd.ms-excel',
+                        '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        '.ppt': 'application/vnd.ms-powerpoint',
+                        '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                        # PDF
+                        '.pdf': 'application/pdf',
+                        # 图片
+                        '.jpg': 'image/jpeg',
+                        '.jpeg': 'image/jpeg',
+                        '.png': 'image/png',
+                        '.gif': 'image/gif',
+                        '.bmp': 'image/bmp',
+                        '.webp': 'image/webp',
+                        # 文本
+                        '.txt': 'text/plain',
+                        # 音频
+                        '.mp3': 'audio/mpeg',
+                        '.wav': 'audio/wav',
+                        '.flac': 'audio/flac',
+                        # 视频
+                        '.mp4': 'video/mp4',
+                        '.avi': 'video/x-msvideo',
+                        '.mkv': 'video/x-matroska',
+                        # 压缩包
+                        '.zip': 'application/zip',
+                        '.rar': 'application/vnd.rar',
+                        '.7z': 'application/x-7z-compressed',
+                        # 其他
+                        '.apk': 'application/vnd.android.package-archive',
+                    }
+                    return mime_types.get(file_ext, 'application/octet-stream')
+
+                def show_file_info_dialog(file_path):
+                    """显示文件信息对话框，提示用户手动打开"""
+                    import os as os_module
+                    
+                    file_name = os_module.path.basename(file_path)
+                    file_size = os_module.path.getsize(file_path)
+                    
+                    # 格式化文件大小
+                    if file_size < 1024:
+                        size_str = f"{file_size} B"
+                    elif file_size < 1024 * 1024:
+                        size_str = f"{file_size / 1024:.1f} KB"
+                    else:
+                        size_str = f"{file_size / 1024 / 1024:.1f} MB"
+                    
+                    # 获取文件类型
+                    ext = os_module.path.splitext(file_name)[1].lower()
+                    type_names = {
+                        '.doc': 'Word 文档', '.docx': 'Word 文档',
+                        '.xls': 'Excel 表格', '.xlsx': 'Excel 表格',
+                        '.ppt': 'PowerPoint', '.pptx': 'PowerPoint',
+                        '.pdf': 'PDF 文档',
+                        '.jpg': '图片', '.jpeg': '图片', '.png': '图片', '.gif': '图片',
+                        '.mp3': '音频', '.wav': '音频',
+                        '.mp4': '视频', '.avi': '视频',
+                        '.zip': '压缩包', '.rar': '压缩包',
+                        '.txt': '文本文件',
+                    }
+                    file_type = type_names.get(ext, '文件')
+                    
+                    dialog_container = None
+                    
+                    def close_dialog():
+                        nonlocal dialog_container
+                        if dialog_container and dialog_container in page.overlay:
+                            page.overlay.remove(dialog_container)
+                            dialog_container = None
+                            page.update()
+                    
+                    def copy_path(e):
+                        try:
+                            page.set_clipboard(file_path)
+                            show_bottom_message("✅ 路径已复制到剪贴板")
+                        except:
+                            show_bottom_message("复制失败", is_error=True)
+                    
+                    dialog_content = ft.Container(
+                        content=ft.Column([
+                            ft.Container(
+                                content=ft.Icon(ft.Icons.INSERT_DRIVE_FILE, size=55, color=ft.Colors.BLUE_700),
+                                padding=10,
+                                bgcolor=ft.Colors.BLUE_50,
+                                border_radius=50,
+                            ),
+                            ft.Text(f"📄 {file_name}", size=18, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
+                            ft.Divider(height=1, color=ft.Colors.GREY_300),
+                            ft.Row([
+                                ft.Text("类型:", size=13, color=ft.Colors.GREY_600),
+                                ft.Text(file_type, size=13, color=ft.Colors.BLACK),
+                            ], spacing=10),
+                            ft.Row([
+                                ft.Text("大小:", size=13, color=ft.Colors.GREY_600),
+                                ft.Text(size_str, size=13, color=ft.Colors.BLACK),
+                            ], spacing=10),
+                            ft.Text("💡 请使用文件管理器手动打开此文件", size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
+                            ft.Divider(height=1, color=ft.Colors.GREY_300),
+                            ft.Row([
+                                ft.ElevatedButton(
+                                    "📋 复制路径", 
+                                    on_click=copy_path, 
+                                    expand=True,
+                                    style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.BLUE_700),
+                                ),
+                                ft.ElevatedButton(
+                                    "知道了", 
+                                    on_click=lambda e: close_dialog(), 
+                                    expand=True,
+                                    style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE),
+                                ),
+                            ], spacing=8, alignment=ft.MainAxisAlignment.CENTER),
+                        ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                        width=340,
+                        padding=20,
+                        bgcolor=ft.Colors.WHITE,
+                        border_radius=16,
+                    )
+                    
+                    dialog_container = ft.Container(
+                        content=ft.Column([
+                            ft.Container(expand=True),
+                            ft.Row([ft.Container(expand=True), dialog_content, ft.Container(expand=True)]),
+                            ft.Container(expand=True),
+                        ]),
+                        expand=True,
+                        bgcolor=ft.Colors.BLACK26,
+                        on_click=lambda e: close_dialog(),
+                    )
+                    
+                    page.overlay.append(dialog_container)
+                    page.update()
 
                 def delete_attachment_from_note(rel_path, note):
                     """从笔记中删除附件"""
@@ -7678,7 +8002,7 @@ def main(page: ft.Page):
                     show_delete_confirm_dialog(f"确定要删除附件「{filename}」吗？", confirm_delete)
 
                 async def add_attachment_to_note_async(target_note):
-                    """为笔记添加附件"""
+                    """为笔记添加附件（支持新增和编辑模式）"""
                     if not target_note:
                         show_bottom_message("请先保存笔记", is_error=True)
                         return
@@ -7706,10 +8030,24 @@ def main(page: ft.Page):
                                         f.write(file.bytes)
                                 else:
                                     continue
+
+                                # ========== 关键：使用当前笔记的 ID ==========
+                                # 如果是临时笔记，使用临时 ID
+                                note_id_to_use = target_note.id
                                 
-                                rel_path = copy_attachment_to_note(original_path, target_note.id)
-                                target_note.attachments.append(rel_path)
-                                added_count += 1
+                                # 检查是否为临时笔记（新增模式）
+                                is_temp = getattr(target_note, '_is_temp', False)
+                                
+                                if is_temp:
+                                    # 临时笔记：附件直接保存到临时目录（使用临时 ID）
+                                    rel_path = copy_attachment_to_note(original_path, note_id_to_use)
+                                    target_note.attachments.append(rel_path)
+                                    added_count += 1
+                                else:
+                                    # 正式笔记：正常保存
+                                    rel_path = copy_attachment_to_note(original_path, note_id_to_use)
+                                    target_note.attachments.append(rel_path)
+                                    added_count += 1
                                 
                                 if 'temp_dir' in locals() and original_path.startswith(temp_dir):
                                     try:
@@ -7718,10 +8056,12 @@ def main(page: ft.Page):
                                         pass
                             
                             if added_count > 0:
-                                save_memo_notes()
+                                # 如果是临时笔记，不保存到文件（等正式保存时一起保存）
+                                if not getattr(target_note, '_is_temp', False):
+                                    save_memo_notes()
                                 refresh_attachments_display()
-                                render_notes()  # ========== 关键：重新渲染卡片列表 ==========
-                                show_bottom_message(f"已添加 {added_count} 个附件")
+                                render_notes()
+                                show_bottom_message(f"✅ 已添加 {added_count} 个附件")
                             else:
                                 show_bottom_message("未添加任何附件")
                         
@@ -7733,8 +8073,42 @@ def main(page: ft.Page):
                         page.update()
 
                 def add_attachment_wrapper(e):
-                    asyncio.create_task(add_attachment_to_note_async(note))
-                
+                    """添加附件的包装函数（支持新增和编辑模式）"""
+                    # 获取当前笔记
+                    if note_id:
+                        # 编辑模式
+                        target_note = next((n for n in memo_notes if n.id == note_id), None)
+                    else:
+                        # 新增模式：使用临时笔记
+                        target_note = next((n for n in memo_notes if n.id == current_note_id), None)
+                    
+                    if not target_note:
+                        show_bottom_message("笔记不存在", is_error=True)
+                        return
+                    
+                    asyncio.create_task(add_attachment_to_note_async(target_note))
+
+                def cancel_click(e):
+                    """取消编辑/新增"""
+                    # 如果是新增模式，清理临时笔记和附件
+                    if not note_id:
+                        temp_note = next((n for n in memo_notes if n.id == current_note_id), None)
+                        if temp_note:
+                            # 删除临时笔记
+                            memo_notes.remove(temp_note)
+                            # 删除临时附件目录
+                            temp_dir = os.path.join(get_attachments_dir(), current_note_id)
+                            if os.path.exists(temp_dir):
+                                try:
+                                    import shutil
+                                    shutil.rmtree(temp_dir)
+                                    print(f"[取消] 删除临时目录: {temp_dir}")
+                                except:
+                                    pass
+                    close_edit_dialog()
+                    render_notes()
+                    show_bottom_message("已取消")
+
                 # ========== 顶部按钮栏（添加模式 vs 编辑模式） ==========
                 if is_add_mode:
                     # ========== 添加模式：左边取消，右边保存 ==========
@@ -7744,7 +8118,7 @@ def main(page: ft.Page):
                             icon_size=28,
                             icon_color=ft.Colors.RED_700,
                             tooltip="取消",
-                            on_click=handle_back,  # 使用 handle_back
+                            on_click=lambda e: cancel_click(e),  # 使用 cancel_click
                         ),
                         ft.Text(
                             "添加笔记", 
@@ -7913,8 +8287,7 @@ def main(page: ft.Page):
                             icon_size=20,
                             icon_color=ft.Colors.BLUE_700,
                             tooltip="添加附件",
-                            on_click=add_attachment_wrapper if note_id else lambda e: show_bottom_message("请先保存笔记", is_error=True),
-                            disabled=not note_id,
+                            on_click=add_attachment_wrapper,  # 使用包装函数
                         ),
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                     ft.Container(
