@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.251"
-APP_VERSION_CODE = 251
+APP_VERSION = "1.0.252"
+APP_VERSION_CODE = 252
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -7784,69 +7784,78 @@ def main(page: ft.Page):
                     page.update()
 
                 def open_attachment_file(file_path):
-                    """打开附件（Android 使用 Intent.ACTION_VIEW）"""
+                    """打开附件 - 使用多种方式尝试"""
                     if not os.path.exists(file_path):
                         show_bottom_message("文件不存在", is_error=True)
                         return
                     
-                    try:
-                        if platform.system() == "Windows":
+                    print(f"[打开] 平台: {platform.system()}, 文件: {file_path}")
+                    
+                    # ========== Windows ==========
+                    if platform.system() == "Windows":
+                        try:
                             os.startfile(file_path)
                             return
-                        elif platform.system() == "Linux":
-                            # ========== Android：使用 Intent.ACTION_VIEW ==========
-                            try:
-                                from android import activity
-                                from android.net import Uri
-                                from android.content import Intent
-                                from android.webkit import MimeTypeMap
-                                import os as os_module
-                                
-                                # 获取文件 MIME 类型
-                                file_ext = os_module.path.splitext(file_path)[1].lower()
-                                mime_type = get_mime_type(file_ext)
-                                
-                                # 创建 File URI
-                                # 注意：Android 7.0+ 需要使用 FileProvider
-                                # 但这里简化处理，使用 file:// URI
-                                file = java.io.File(file_path)
-                                uri = Uri.fromFile(file)
-                                
-                                # 创建 Intent
-                                intent = Intent(Intent.ACTION_VIEW)
-                                intent.setDataAndType(uri, mime_type)
-                                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                
-                                # 如果有多个应用可以打开，显示选择器
-                                chooser = Intent.createChooser(intent, f"选择应用打开 {os_module.path.basename(file_path)}")
-                                activity.startActivity(chooser)
-                                
-                                print(f"[打开] Intent 启动成功: {file_path}")
-                                return
-                                
-                            except Exception as e:
-                                print(f"[打开] Intent 方式失败: {e}")
-                                # 降级：尝试系统命令
-                                try:
-                                    import subprocess
-                                    for cmd in ['open', 'xdg-open']:
-                                        try:
-                                            subprocess.Popen([cmd, file_path])
-                                            print(f"[打开] 成功: {cmd} {file_path}")
-                                            return
-                                        except:
-                                            continue
-                                except:
-                                    pass
-                                
-                                # 完全失败：显示对话框让用户手动打开
-                                show_file_info_dialog(file_path)
+                        except Exception as e:
+                            print(f"[打开] Windows 打开失败: {e}")
+                    
+                    # ========== Android / Linux ==========
+                    # 方法1：使用 am start（Android 最可靠）
+                    try:
+                        import subprocess
+                        import os as os_module
+                        
+                        # 获取 MIME 类型
+                        file_ext = os_module.path.splitext(file_path)[1].lower()
+                        mime_type = get_mime_type(file_ext)
+                        
+                        # 构建 file:// URI
+                        file_uri = f"file://{file_path}"
+                        
+                        # 方法1a：使用 am start
+                        cmd = ['am', 'start', '-a', 'android.intent.action.VIEW', '-d', file_uri, '-t', mime_type]
+                        print(f"[打开] 执行: {' '.join(cmd)}")
+                        
+                        result = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+                        if result.returncode == 0:
+                            print("[打开] am start 成功")
+                            return
                         else:
-                            show_bottom_message(f"文件路径: {file_path}")
+                            print(f"[打开] am start 失败: {result.stderr}")
                             
                     except Exception as e:
-                        print(f"[打开] 失败: {e}")
-                        show_bottom_message(f"打开失败: {str(e)}", is_error=True)
+                        print(f"[打开] am start 异常: {e}")
+                    
+                    # 方法2：尝试 Python 的 webbrowser（有些 Android 支持）
+                    try:
+                        import webbrowser
+                        webbrowser.open(f"file://{file_path}")
+                        print("[打开] webbrowser 尝试成功")
+                        return
+                    except:
+                        pass
+                    
+                    # 方法3：尝试 xdg-open
+                    try:
+                        import subprocess
+                        subprocess.Popen(['xdg-open', file_path])
+                        print("[打开] xdg-open 成功")
+                        return
+                    except:
+                        pass
+                    
+                    # 方法4：尝试 open
+                    try:
+                        import subprocess
+                        subprocess.Popen(['open', file_path])
+                        print("[打开] open 成功")
+                        return
+                    except:
+                        pass
+                    
+                    # ========== 全部失败 ==========
+                    print("[打开] 所有方法都失败")
+                    show_file_info_dialog(file_path)
 
                 def get_mime_type(file_ext):
                     """根据文件扩展名获取 MIME 类型"""
@@ -7887,11 +7896,12 @@ def main(page: ft.Page):
                     return mime_types.get(file_ext, 'application/octet-stream')
 
                 def show_file_info_dialog(file_path):
-                    """显示文件信息对话框，提示用户手动打开"""
+                    """显示文件信息对话框，并提供打开指引"""
                     import os as os_module
                     
                     file_name = os_module.path.basename(file_path)
                     file_size = os_module.path.getsize(file_path)
+                    file_dir = os_module.path.dirname(file_path)
                     
                     # 格式化文件大小
                     if file_size < 1024:
@@ -7900,21 +7910,6 @@ def main(page: ft.Page):
                         size_str = f"{file_size / 1024:.1f} KB"
                     else:
                         size_str = f"{file_size / 1024 / 1024:.1f} MB"
-                    
-                    # 获取文件类型
-                    ext = os_module.path.splitext(file_name)[1].lower()
-                    type_names = {
-                        '.doc': 'Word 文档', '.docx': 'Word 文档',
-                        '.xls': 'Excel 表格', '.xlsx': 'Excel 表格',
-                        '.ppt': 'PowerPoint', '.pptx': 'PowerPoint',
-                        '.pdf': 'PDF 文档',
-                        '.jpg': '图片', '.jpeg': '图片', '.png': '图片', '.gif': '图片',
-                        '.mp3': '音频', '.wav': '音频',
-                        '.mp4': '视频', '.avi': '视频',
-                        '.zip': '压缩包', '.rar': '压缩包',
-                        '.txt': '文本文件',
-                    }
-                    file_type = type_names.get(ext, '文件')
                     
                     dialog_container = None
                     
@@ -7932,6 +7927,14 @@ def main(page: ft.Page):
                         except:
                             show_bottom_message("复制失败", is_error=True)
                     
+                    def copy_dir(e):
+                        """复制文件所在目录路径"""
+                        try:
+                            page.set_clipboard(file_dir)
+                            show_bottom_message("✅ 目录路径已复制到剪贴板")
+                        except:
+                            show_bottom_message("复制失败", is_error=True)
+                    
                     dialog_content = ft.Container(
                         content=ft.Column([
                             ft.Container(
@@ -7943,14 +7946,14 @@ def main(page: ft.Page):
                             ft.Text(f"📄 {file_name}", size=18, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
                             ft.Divider(height=1, color=ft.Colors.GREY_300),
                             ft.Row([
-                                ft.Text("类型:", size=13, color=ft.Colors.GREY_600),
-                                ft.Text(file_type, size=13, color=ft.Colors.BLACK),
-                            ], spacing=10),
+                                ft.Text("📁 位置:", size=13, color=ft.Colors.GREY_600),
+                                ft.Text(file_dir, size=12, color=ft.Colors.GREY_700, expand=True, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
+                            ], spacing=5, vertical_alignment=ft.CrossAxisAlignment.START),
                             ft.Row([
-                                ft.Text("大小:", size=13, color=ft.Colors.GREY_600),
+                                ft.Text("📦 大小:", size=13, color=ft.Colors.GREY_600),
                                 ft.Text(size_str, size=13, color=ft.Colors.BLACK),
                             ], spacing=10),
-                            ft.Text("💡 请使用文件管理器手动打开此文件", size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
+                            ft.Text("💡 请使用文件管理器打开此文件", size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
                             ft.Divider(height=1, color=ft.Colors.GREY_300),
                             ft.Row([
                                 ft.ElevatedButton(
@@ -7960,14 +7963,22 @@ def main(page: ft.Page):
                                     style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.BLUE_700),
                                 ),
                                 ft.ElevatedButton(
+                                    "📁 复制目录", 
+                                    on_click=copy_dir, 
+                                    expand=True,
+                                    style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.GREEN_700),
+                                ),
+                            ], spacing=8),
+                            ft.Row([
+                                ft.ElevatedButton(
                                     "知道了", 
                                     on_click=lambda e: close_dialog(), 
                                     expand=True,
                                     style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE),
                                 ),
-                            ], spacing=8, alignment=ft.MainAxisAlignment.CENTER),
+                            ], spacing=8),
                         ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                        width=340,
+                        width=360,
                         padding=20,
                         bgcolor=ft.Colors.WHITE,
                         border_radius=16,
