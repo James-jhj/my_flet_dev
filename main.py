@@ -88,8 +88,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.247"
-APP_VERSION_CODE = 247
+APP_VERSION = "1.0.248"
+APP_VERSION_CODE = 248
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -9592,7 +9592,6 @@ def main(page: ft.Page):
             
             # 从数据库获取统计
             if is_filter_active:
-                # 有筛选：需要单独计算
                 records = db.get_by_date_range(start_date_str, end_date_str)
                 filtered = [
                     t for t in records
@@ -9608,34 +9607,66 @@ def main(page: ft.Page):
                 month_expense = summary['total_expense']
                 total_count = summary['total_count']
             
-            # 计算累计结余
+            # ========== 计算累计结余（所有时间的累计） ==========
             all_sorted = db.get_all()
             all_sorted.sort(key=lambda x: f"{x.date} {x.time}")
+            
+            # ========== 构建余额映射表 ==========
+            balance_map = {}
             running_balance = 0
+            last_record_of_prev_month = None
+            
+            # 获取上月末的日期
+            if query_mode == "month":
+                # 上月末 = 本月1日的前一天
+                first_day_of_month = datetime(current_year, current_month, 1).date()
+                prev_month_last_day = first_day_of_month - timedelta(days=1)
+                prev_month_last_day_str = prev_month_last_day.strftime("%Y-%m-%d")
+            else:
+                # 区间查询：上月末 = 开始日期的前一天
+                prev_month_last_day = start_date - timedelta(days=1)
+                prev_month_last_day_str = prev_month_last_day.strftime("%Y-%m-%d")
+            
+            # 遍历所有记录，计算累计结余，并记录上月末的结余
             for t in all_sorted:
                 if t.type == "income":
                     running_balance += t.amount
                 else:
                     running_balance -= t.amount
-            cumulative_balance = running_balance
+                balance_map[t.id] = running_balance
+                
+                # ========== 关键修复：记录上月末最后一条记录的结余 ==========
+                if t.date == prev_month_last_day_str:
+                    last_record_of_prev_month = t
             
-            # 计算上月末结余
-            first_day_str = start_date_str
-            prev_records = db.get_by_date_range("1900-01-01", start_date_str)  # 获取之前的记录
+            cumulative_balance = running_balance  # 当前累计结余
             
-            previous_month_balance = 0
-            if prev_records:
-                prev_records.sort(key=lambda x: f"{x.date} {x.time}")
-                # 重新计算到上月末
-                prev_balance = 0
-                for t in prev_records:
-                    if t.type == "income":
-                        prev_balance += t.amount
-                    else:
-                        prev_balance -= t.amount
-                previous_month_balance = prev_balance
+            # ========== 获取上月末结余 ==========
+            if last_record_of_prev_month:
+                previous_month_balance = balance_map.get(last_record_of_prev_month.id, 0)
+                print(f"[调试] 上月末结余: {previous_month_balance} (来自记录: {last_record_of_prev_month.date})")
+            else:
+                # 没有上月末的记录，检查是否有更早的记录
+                prev_records = db.get_by_date_range("1900-01-01", prev_month_last_day_str)
+                if prev_records:
+                    # 重新计算到上月末
+                    prev_running = 0
+                    for t in prev_records:
+                        if t.type == "income":
+                            prev_running += t.amount
+                        else:
+                            prev_running -= t.amount
+                    previous_month_balance = prev_running
+                    print(f"[调试] 上月末结余（重新计算）: {previous_month_balance}")
+                else:
+                    previous_month_balance = 0
+                    print(f"[调试] 上月末结余: 0（无之前记录）")
             
+            # ========== 本月末结余 = 上月末结余 + 本月收入 - 本月支出 ==========
             month_balance = previous_month_balance + month_income - month_expense
+            
+            print(f"[调试] 本月收入: {month_income}, 本月支出: {month_expense}")
+            print(f"[调试] 本月结余: {month_balance}, 累计结余: {cumulative_balance}")
             
             # 显示日期标题
             if query_mode == "month":
