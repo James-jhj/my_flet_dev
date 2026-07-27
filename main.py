@@ -42,6 +42,8 @@ from local_auth import LocalAuth
 import sqlite3
 from contextlib import contextmanager
 
+import shutil
+
 # ========== 平台检测 ==========
 IS_WINDOWS = platform.system() == "Windows"
 
@@ -88,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.248"
-APP_VERSION_CODE = 248
+APP_VERSION = "1.0.249"
+APP_VERSION_CODE = 249
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -880,7 +882,8 @@ class MemoNote:
     """备忘录笔记类"""
     def __init__(self, id: str, title: str, content: str, category: str = "未分类", 
                  created_at: str = None, updated_at: str = None, is_pinned: bool = False,
-                 is_encrypted: bool = False, password: str = "", original_content: str = ""):
+                 is_encrypted: bool = False, password: str = "", original_content: str = "",
+                 attachments: list = None):  # 新增 attachments 参数
         self.id = id
         self.title = title
         self.content = content
@@ -895,6 +898,7 @@ class MemoNote:
         else:
             self.password = password
         self.original_content = original_content  # 保存原始内容
+        self.attachments = attachments if attachments else []  # 新增：存储附件路径列表
     
     def to_dict(self):
         return {
@@ -908,6 +912,7 @@ class MemoNote:
             "is_encrypted": self.is_encrypted,  # 新增
             "password": self.password,  # 已经是加密后的值
             "original_content": self.original_content,  # 新增
+            "attachments": self.attachments,  # 新增
         }
     
     @classmethod
@@ -924,6 +929,7 @@ class MemoNote:
             data.get("is_encrypted", False),  # 新增，兼容旧数据
             data.get("password", ""),  # 密码已经是加密的哈希值
             data.get("original_content", ""),  # 新增，兼容旧数据
+            data.get("attachments", []),  # 新增，兼容旧数据
         )
     
     def get_preview(self, max_length=40):
@@ -5887,6 +5893,57 @@ def main(page: ft.Page):
         """获取备忘录数据文件路径"""
         return get_data_file_path("memo_notes.json")
 
+    # ========== 附件清理函数（放在 load_memo_notes 之前） ==========
+    def clean_orphan_attachments():
+        """清理孤立附件（未被任何笔记引用的文件）"""
+        app_data_dir = get_data_file_path("")
+        attachments_dir = os.path.join(app_data_dir, "attachments")
+        
+        if not os.path.exists(attachments_dir):
+            return
+        
+        # 收集所有笔记中引用的附件完整路径
+        used_attachments = set()
+        try:
+            json_path = get_memo_file_path()
+            if os.path.exists(json_path):
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    for item in data:
+                        attachments = item.get('attachments', [])
+                        for att in attachments:
+                            full_path = os.path.join(app_data_dir, att)
+                            used_attachments.add(full_path)
+        except Exception as e:
+            print(f"[清理] 读取备忘录数据失败: {e}")
+            return
+        
+        # 遍历附件目录，删除未使用的文件
+        deleted_count = 0
+        for root, dirs, files in os.walk(attachments_dir):
+            for file in files:
+                file_path = os.path.join(root, file)
+                if file_path not in used_attachments:
+                    try:
+                        os.remove(file_path)
+                        deleted_count += 1
+                        print(f"[清理] 删除孤立附件: {file_path}")
+                    except Exception as e:
+                        print(f"[清理] 删除失败 {file_path}: {e}")
+            
+            # 删除空目录
+            for dir_name in dirs:
+                dir_path = os.path.join(root, dir_name)
+                try:
+                    if os.path.exists(dir_path) and not os.listdir(dir_path):
+                        os.rmdir(dir_path)
+                        print(f"[清理] 删除空目录: {dir_path}")
+                except Exception as e:
+                    print(f"[清理] 删除空目录失败 {dir_path}: {e}")
+        
+        if deleted_count > 0:
+            print(f"[清理] 共删除 {deleted_count} 个孤立附件")
+
     def load_memo_notes():
         """加载备忘录数据"""
         global memo_notes
@@ -5904,6 +5961,12 @@ def main(page: ft.Page):
             print(f"加载备忘录失败: {e}")
             memo_notes = []
 
+        # ========== 新增：清理孤立附件 ==========
+        try:
+            clean_orphan_attachments()
+        except Exception as e:
+            print(f"清理孤立附件失败: {e}")
+
     def save_memo_notes():
         """保存备忘录数据"""
         try:
@@ -5918,11 +5981,130 @@ def main(page: ft.Page):
         """显示备忘录主界面"""
         global memo_notes, memo_selected_ids, memo_page_mode
         
-        
         load_memo_notes()
         memo_selected_ids = set()
         memo_page_mode = "normal"  # "normal" 或 "select"
-        
+
+        # ========== 新增：附件管理工具函数 ==========
+        def get_attachments_dir():
+            """获取附件存储目录"""
+            app_data_dir = get_data_file_path("")
+            attachments_dir = os.path.join(app_data_dir, "attachments")
+            os.makedirs(attachments_dir, exist_ok=True)
+            return attachments_dir
+
+        def get_note_attachments_dir(note_id):
+            """获取笔记的附件目录"""
+            base_dir = get_attachments_dir()
+            note_dir = os.path.join(base_dir, note_id)
+            os.makedirs(note_dir, exist_ok=True)
+            return note_dir
+
+        def copy_attachment_to_note(original_path, note_id):
+            """复制附件到笔记目录，返回相对路径"""
+            note_dir = get_note_attachments_dir(note_id)
+            original_filename = os.path.basename(original_path)
+            
+            # 如果文件已存在，添加时间戳避免覆盖
+            dest_path = os.path.join(note_dir, original_filename)
+            if os.path.exists(dest_path):
+                name, ext = os.path.splitext(original_filename)
+                timestamp = datetime.now().strftime("%H%M%S")
+                dest_path = os.path.join(note_dir, f"{name}_{timestamp}{ext}")
+            
+            shutil.copy2(original_path, dest_path)
+            
+            # 返回相对于 app_data_dir 的路径
+            app_data_dir = get_data_file_path("")
+            rel_path = os.path.relpath(dest_path, app_data_dir)
+            return rel_path
+
+        def delete_attachment_file(rel_path):
+            """删除附件文件"""
+            app_data_dir = get_data_file_path("")
+            full_path = os.path.join(app_data_dir, rel_path)
+            if os.path.exists(full_path):
+                try:
+                    os.remove(full_path)
+                    return True
+                except:
+                    return False
+            return False
+
+        def get_attachment_display_name(file_path):
+            """获取附件显示名称（截断长文件名）"""
+            filename = os.path.basename(file_path)
+            if len(filename) > 20:
+                name, ext = os.path.splitext(filename)
+                return name[:15] + "..." + ext
+            return filename
+
+        def get_attachment_icon(file_path):
+            """根据文件扩展名返回图标"""
+            ext = os.path.splitext(file_path)[1].lower()
+            icon_map = {
+                '.jpg': ft.Icons.IMAGE,
+                '.jpeg': ft.Icons.IMAGE,
+                '.png': ft.Icons.IMAGE,
+                '.gif': ft.Icons.IMAGE,
+                '.bmp': ft.Icons.IMAGE,
+                '.pdf': ft.Icons.PICTURE_AS_PDF,
+                '.doc': ft.Icons.DESCRIPTION,
+                '.docx': ft.Icons.DESCRIPTION,
+                '.xls': ft.Icons.TABLE_CHART,
+                '.xlsx': ft.Icons.TABLE_CHART,
+                '.ppt': ft.Icons.SLIDESHOW,
+                '.pptx': ft.Icons.SLIDESHOW,
+                '.txt': ft.Icons.TEXT_SNIPPET,
+                '.zip': ft.Icons.FOLDER_ZIP,
+                '.rar': ft.Icons.FOLDER_ZIP,
+                '.7z': ft.Icons.FOLDER_ZIP,
+                '.mp3': ft.Icons.MUSIC_NOTE,
+                '.wav': ft.Icons.MUSIC_NOTE,
+                '.mp4': ft.Icons.VIDEO_FILE,
+                '.avi': ft.Icons.VIDEO_FILE,
+                '.mkv': ft.Icons.VIDEO_FILE,
+            }
+            return icon_map.get(ext, ft.Icons.ATTACH_FILE)
+
+        def get_card_attachment_icon(file_path):
+            """卡片中使用的附件图标（简化版）"""
+            ext = os.path.splitext(file_path)[1].lower()
+            if ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']:
+                return ft.Icons.IMAGE
+            elif ext in ['.pdf']:
+                return ft.Icons.PICTURE_AS_PDF
+            elif ext in ['.doc', '.docx']:
+                return ft.Icons.DESCRIPTION
+            elif ext in ['.xls', '.xlsx']:
+                return ft.Icons.TABLE_CHART
+            elif ext in ['.mp3', '.wav', '.flac']:
+                return ft.Icons.MUSIC_NOTE
+            elif ext in ['.mp4', '.avi', '.mkv']:
+                return ft.Icons.VIDEO_FILE
+            elif ext in ['.zip', '.rar', '.7z']:
+                return ft.Icons.FOLDER_ZIP
+            else:
+                return ft.Icons.ATTACH_FILE
+
+        def build_attachment_icons_row(note):
+            """构建附件图标行（在卡片中显示）"""
+            if not note.attachments:
+                return ft.Container()
+            
+            icons = []
+            for att in note.attachments[:4]:
+                icon = get_card_attachment_icon(att)
+                icons.append(ft.Icon(icon, size=14, color=ft.Colors.GREY_600))
+            
+            if len(note.attachments) > 4:
+                icons.append(ft.Text(f"+{len(note.attachments)-4}", size=10, color=ft.Colors.GREY_500))
+            
+            return ft.Row(icons, spacing=3, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+    
+        # 清理孤立附件
+        clean_orphan_attachments()
+
         # ========== 构建普通模式界面 ==========
         def build_normal_mode():
             """构建普通模式界面"""
@@ -6242,7 +6424,11 @@ def main(page: ft.Page):
                     border_radius=4,
                     padding=ft.Padding(left=8, right=8, top=2, bottom=2),
                 )
-                
+
+                # ========== 构建卡片内容 ==========
+                # 注意：这里使用 build_attachment_icons_row 函数
+                attachment_row = build_attachment_icons_row(note) if note.attachments else ft.Container()
+
                 # ========== 卡片内容 ==========
                 card_content = ft.Container(
                     content=ft.Column([
@@ -6264,6 +6450,8 @@ def main(page: ft.Page):
                                 overflow=ft.TextOverflow.ELLIPSIS,
                             ),
                         ], spacing=5, expand=True, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                        # 第三行：附件图标（如果有）
+                        attachment_row,
                     ], spacing=4),
                     padding=ft.Padding(left=15, right=15, top=12, bottom=12),
                     bgcolor=bg_color,
@@ -6970,7 +7158,6 @@ def main(page: ft.Page):
                     """保存笔记（不改变加密状态）"""
                     content = content_field.value.strip()
                     
-                    
                     if not content:
                         show_bottom_message("请输入内容", is_error=True)
                         content_field.focus()
@@ -7008,6 +7195,7 @@ def main(page: ft.Page):
                             content=content,
                             category=category,
                             is_pinned=False,
+                            attachments=[],  # 新增笔记无附件
                         )
                         memo_notes.append(new_note)
                         show_bottom_message(f"✅ 已添加「{title}」")
@@ -7189,6 +7377,14 @@ def main(page: ft.Page):
                     def confirm_delete():
                         global memo_notes
                         memo_notes = [n for n in memo_notes if n.id != note_id]
+                        # 删除附件目录
+                        note_dir = os.path.join(get_attachments_dir(), note_id)
+                        if os.path.exists(note_dir):
+                            try:
+                                import shutil
+                                shutil.rmtree(note_dir)
+                            except:
+                                pass
                         save_memo_notes()
                         close_edit_dialog()
                         render_notes()
@@ -7379,7 +7575,6 @@ def main(page: ft.Page):
                     autofocus=True,  # 关键：自动获取焦点
                 )
 
-                
                 # ========== 如果初始化时有内容，立即提取标题（仅新增模式） ==========
                 if initial_content and not note_id:  # ← 添加 not note_id 条件
                     title = extract_title_from_content(initial_content, max_chars=16)
@@ -7387,6 +7582,158 @@ def main(page: ft.Page):
 
                 # ========== 判断是添加模式还是编辑模式 ==========
                 is_add_mode = (note_id is None)  # 添加模式
+
+                # ========== 附件管理相关 ==========
+                attachments_list = ft.Column(spacing=4)
+
+                def refresh_attachments_display():
+                    """刷新附件列表显示"""
+                    attachments_list.controls.clear()
+                    if not note_id:
+                        attachments_list.controls.append(
+                            ft.Text("💡 保存笔记后即可添加附件", size=11, color=ft.Colors.GREY_500)
+                        )
+                        page.update()
+                        return
+                    
+                    note = next((n for n in memo_notes if n.id == note_id), None)
+                    if not note or not note.attachments:
+                        attachments_list.controls.append(
+                            ft.Text("📎 暂无附件", size=11, color=ft.Colors.GREY_500)
+                        )
+                        page.update()
+                        return
+                    
+                    app_data_dir = get_data_file_path("")
+                    for rel_path in note.attachments:
+                        full_path = os.path.join(app_data_dir, rel_path)
+                        if not os.path.exists(full_path):
+                            continue
+                        
+                        filename = get_attachment_display_name(rel_path)
+                        icon = get_attachment_icon(rel_path)
+                        
+                        attachment_row = ft.Row([
+                            ft.Icon(icon, size=18, color=ft.Colors.BLUE_700),
+                            ft.Text(filename, size=12, expand=True, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
+                            ft.IconButton(
+                                ft.Icons.OPEN_IN_NEW,
+                                icon_size=16,
+                                icon_color=ft.Colors.BLUE_700,
+                                tooltip="打开",
+                                on_click=lambda e, p=full_path: open_attachment_file(p),
+                            ),
+                            ft.IconButton(
+                                ft.Icons.DELETE_OUTLINE,
+                                icon_size=16,
+                                icon_color=ft.Colors.RED_400,
+                                tooltip="删除附件",
+                                on_click=lambda e, p=rel_path, n=note: delete_attachment_from_note(p, n),
+                            ),
+                        ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+                        attachments_list.controls.append(attachment_row)
+
+                    # ========== 关键：添加/删除附件后重新渲染卡片列表 ==========
+                    render_notes()
+
+                    page.update()
+
+                def open_attachment_file(file_path):
+                    """打开附件"""
+                    if not os.path.exists(file_path):
+                        show_bottom_message("文件不存在", is_error=True)
+                        return
+                    
+                    try:
+                        if platform.system() == "Windows":
+                            os.startfile(file_path)
+                        elif platform.system() == "Linux":
+                            try:
+                                from android import activity
+                                from android.net import Uri
+                                from android.content import Intent
+                                uri = Uri.fromFile(activity.getApplicationContext(), file_path)
+                                intent = Intent(Intent.ACTION_VIEW)
+                                intent.setData(uri)
+                                activity.startActivity(intent)
+                            except:
+                                show_bottom_message("📱 请使用文件管理器手动打开", is_error=True)
+                        else:
+                            show_bottom_message(f"文件路径: {file_path}")
+                    except Exception as e:
+                        show_bottom_message(f"打开失败: {str(e)}", is_error=True)
+
+                def delete_attachment_from_note(rel_path, note):
+                    """从笔记中删除附件"""
+                    def confirm_delete():
+                        if rel_path in note.attachments:
+                            note.attachments.remove(rel_path)
+                            delete_attachment_file(rel_path)
+                            save_memo_notes()
+                            refresh_attachments_display()
+                            render_notes()  # 重新渲染卡片列表
+                            show_bottom_message("已删除附件")
+                    
+                    filename = os.path.basename(rel_path)
+                    show_delete_confirm_dialog(f"确定要删除附件「{filename}」吗？", confirm_delete)
+
+                async def add_attachment_to_note_async(target_note):
+                    """为笔记添加附件"""
+                    if not target_note:
+                        show_bottom_message("请先保存笔记", is_error=True)
+                        return
+                    
+                    file_picker = ft.FilePicker()
+                    page.services.append(file_picker)
+                    page.update()
+                    
+                    try:
+                        result = await file_picker.pick_files(
+                            allow_multiple=True,
+                            dialog_title="选择附件（支持多选）"
+                        )
+                        
+                        if result:
+                            added_count = 0
+                            for file in result:
+                                if hasattr(file, 'path'):
+                                    original_path = file.path
+                                elif hasattr(file, 'bytes'):
+                                    temp_dir = get_data_file_path("temp")
+                                    os.makedirs(temp_dir, exist_ok=True)
+                                    original_path = os.path.join(temp_dir, file.name)
+                                    with open(original_path, 'wb') as f:
+                                        f.write(file.bytes)
+                                else:
+                                    continue
+                                
+                                rel_path = copy_attachment_to_note(original_path, target_note.id)
+                                target_note.attachments.append(rel_path)
+                                added_count += 1
+                                
+                                if 'temp_dir' in locals() and original_path.startswith(temp_dir):
+                                    try:
+                                        os.remove(original_path)
+                                    except:
+                                        pass
+                            
+                            if added_count > 0:
+                                save_memo_notes()
+                                refresh_attachments_display()
+                                render_notes()  # ========== 关键：重新渲染卡片列表 ==========
+                                show_bottom_message(f"已添加 {added_count} 个附件")
+                            else:
+                                show_bottom_message("未添加任何附件")
+                        
+                    except Exception as e:
+                        show_bottom_message(f"添加附件失败: {str(e)}", is_error=True)
+                    finally:
+                        if file_picker in page.services:
+                            page.services.remove(file_picker)
+                        page.update()
+
+                def add_attachment_wrapper(e):
+                    asyncio.create_task(add_attachment_to_note_async(note))
                 
                 # ========== 顶部按钮栏（添加模式 vs 编辑模式） ==========
                 if is_add_mode:
@@ -7549,13 +7896,32 @@ def main(page: ft.Page):
                         padding=15,
                     )
                 
-                # ========== 可滚动内容 ==========
+                # ========== 可滚动内容（包含附件区域） ==========
                 scrollable_content = ft.Column([
                     title_display,
                     datetime_category_row,
                     ft.Container(
                         content=content_field,
-                        expand=True,  # 让内容区域占满剩余空间
+                        expand=True,
+                    ),
+                    ft.Divider(height=5),
+                    ft.Row([
+                        ft.Text("📎 附件", size=14, weight=ft.FontWeight.BOLD),
+                        ft.Container(expand=True),
+                        ft.IconButton(
+                            ft.Icons.ADD,
+                            icon_size=20,
+                            icon_color=ft.Colors.BLUE_700,
+                            tooltip="添加附件",
+                            on_click=add_attachment_wrapper if note_id else lambda e: show_bottom_message("请先保存笔记", is_error=True),
+                            disabled=not note_id,
+                        ),
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                    ft.Container(
+                        content=attachments_list,
+                        padding=5,
+                        bgcolor=ft.Colors.GREY_50,
+                        border_radius=8,
                     ),
                 ], spacing=0, scroll=ft.ScrollMode.HIDDEN, expand=True)
                 
@@ -7605,6 +7971,11 @@ def main(page: ft.Page):
                 )
                 
                 page.overlay.append(edit_dialog_container)
+
+                # ========== 刷新附件显示 ==========
+                if note_id:
+                    refresh_attachments_display()
+
                 page.update()
 
                 # ========== 对话框显示后，延迟一下让标题框获得焦点 ==========
@@ -9662,8 +10033,11 @@ def main(page: ft.Page):
                     previous_month_balance = 0
                     print(f"[调试] 上月末结余: 0（无之前记录）")
             
+            # ========== 本月末结余 = 本月收入 - 本月支出 ==========
+            month_balance = month_income - month_expense
+
             # ========== 本月末结余 = 上月末结余 + 本月收入 - 本月支出 ==========
-            month_balance = previous_month_balance + month_income - month_expense
+            # month_balance = previous_month_balance + month_income - month_expense
             
             print(f"[调试] 本月收入: {month_income}, 本月支出: {month_expense}")
             print(f"[调试] 本月结余: {month_balance}, 累计结余: {cumulative_balance}")
