@@ -38,6 +38,10 @@ import base64
 
 from local_auth import LocalAuth
 
+# ========== 首先在文件顶部添加 SQLite 导入 ==========
+import sqlite3
+from contextlib import contextmanager
+
 # ========== 平台检测 ==========
 IS_WINDOWS = platform.system() == "Windows"
 
@@ -84,8 +88,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.245"
-APP_VERSION_CODE = 245
+APP_VERSION = "1.0.246"
+APP_VERSION_CODE = 246
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -289,7 +293,465 @@ else:
         PYCNM_AVAILABLE = False
         print("警告: pyncm 模块不可用")
 
+# ========== 添加 SQLite 数据库管理类 ==========
+class AccountingDB:
+    """记账数据库管理类"""
+    
+    _instance = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._init_db()
+        return cls._instance
+    
+    def _init_db(self):
+        """初始化数据库连接和表"""
+        db_path = get_data_file_path("accounting.db")
+        self.db_path = db_path
+        self._create_table()
+    
+    @contextmanager
+    def get_connection(self):
+        """获取数据库连接（上下文管理器）"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+        finally:
+            conn.close()
+    
+    def _create_table(self):
+        """创建记账表"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS transactions (
+                    id TEXT PRIMARY KEY,
+                    date TEXT NOT NULL,
+                    time TEXT DEFAULT '00:00',
+                    type TEXT NOT NULL,
+                    category TEXT NOT NULL,
+                    amount REAL NOT NULL,
+                    note TEXT DEFAULT '',
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            # 创建索引优化查询
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_date ON transactions(date)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_type ON transactions(type)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_category ON transactions(category)')
+            conn.commit()
+    
+    def insert(self, transaction: 'Transaction') -> bool:
+        """插入一条记录"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO transactions (id, date, time, type, category, amount, note)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    transaction.id,
+                    transaction.date,
+                    transaction.time,
+                    transaction.type,
+                    transaction.category,
+                    transaction.amount,
+                    transaction.note
+                ))
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"插入记录失败: {e}")
+            return False
+    
+    def insert_many(self, transactions: list) -> int:
+        """批量插入记录"""
+        count = 0
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                for t in transactions:
+                    cursor.execute('''
+                        INSERT OR REPLACE INTO transactions (id, date, time, type, category, amount, note)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        t.id,
+                        t.date,
+                        t.time,
+                        t.type,
+                        t.category,
+                        t.amount,
+                        t.note
+                    ))
+                    count += 1
+                conn.commit()
+                return count
+        except Exception as e:
+            print(f"批量插入失败: {e}")
+            return count
+    
+    def get_all(self) -> list:
+        """获取所有记录"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT * FROM transactions ORDER BY date DESC, time DESC')
+                rows = cursor.fetchall()
+                return [self._row_to_transaction(row) for row in rows]
+        except Exception as e:
+            print(f"获取所有记录失败: {e}")
+            return []
+    
+    def get_by_date_range(self, start_date: str, end_date: str) -> list:
+        """按日期范围查询"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT * FROM transactions 
+                    WHERE date >= ? AND date <= ? 
+                    ORDER BY date DESC, time DESC
+                ''', (start_date, end_date))
+                rows = cursor.fetchall()
+                return [self._row_to_transaction(row) for row in rows]
+        except Exception as e:
+            print(f"按日期范围查询失败: {e}")
+            return []
+    
+    def get_by_month(self, year: int, month: int) -> list:
+        """按年月查询"""
+        month_str = f"{year}-{month:02d}"
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT * FROM transactions 
+                    WHERE date LIKE ? 
+                    ORDER BY date DESC, time DESC
+                ''', (f"{month_str}%",))
+                rows = cursor.fetchall()
+                return [self._row_to_transaction(row) for row in rows]
+        except Exception as e:
+            print(f"按年月查询失败: {e}")
+            return []
 
+    def migrate_from_json(self):
+        """从 accounting.json 迁移数据到 SQLite"""
+        json_path = get_data_file_path("accounting.json")
+        
+        if not os.path.exists(json_path):
+            print("[迁移] accounting.json 不存在，跳过迁移")
+            return 0
+        
+        try:
+            # 检查数据库中是否已有数据
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT COUNT(*) FROM transactions')
+                count = cursor.fetchone()[0]
+                
+                if count > 0:
+                    print(f"[迁移] 数据库中已有 {count} 条记录，跳过迁移")
+                    return 0
+            
+            # 读取 JSON 数据
+            with open(json_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            transactions_data = data.get("transactions", [])
+            
+            if not transactions_data:
+                print("[迁移] accounting.json 中没有数据")
+                return 0
+            
+            print(f"[迁移] 从 accounting.json 读取到 {len(transactions_data)} 条记录")
+            
+            # 转换并插入数据
+            imported_count = 0
+            for item in transactions_data:
+                try:
+                    transaction = Transaction.from_dict(item)
+                    if self.insert(transaction):
+                        imported_count += 1
+                except Exception as e:
+                    print(f"[迁移] 导入记录失败: {e}")
+            
+            print(f"[迁移] 成功导入 {imported_count} 条记录到 SQLite")
+            
+            # 迁移完成后，重命名 JSON 文件作为备份
+            if imported_count > 0:
+                backup_path = json_path + ".bak"
+                try:
+                    import shutil
+                    shutil.copy2(json_path, backup_path)
+                    print(f"[迁移] 已备份 JSON 文件到: {backup_path}")
+                except Exception as e:
+                    print(f"[迁移] 备份失败: {e}")
+            
+            return imported_count
+            
+        except Exception as e:
+            print(f"[迁移] 迁移失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return 0
+    
+    def search_with_pagination(self, keyword: str, page: int, page_size: int, 
+                           start_date: str = None, end_date: str = None) -> tuple:
+        """分页搜索记录"""
+        offset = (page - 1) * page_size
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 构建查询条件
+                conditions = []
+                params = []
+                
+                # 关键词搜索
+                try:
+                    amount = float(keyword)
+                    conditions.append("amount = ?")
+                    params.append(amount)
+                except ValueError:
+                    conditions.append("(category LIKE ? OR note LIKE ? OR date LIKE ? OR id LIKE ?)")
+                    like_pattern = f"%{keyword}%"
+                    params.extend([like_pattern, like_pattern, like_pattern, like_pattern])
+                
+                # 日期范围
+                if start_date and end_date:
+                    conditions.append("date >= ? AND date <= ?")
+                    params.extend([start_date, end_date])
+                
+                where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
+                
+                # 获取总数
+                count_query = f"SELECT COUNT(*) FROM transactions {where_clause}"
+                cursor.execute(count_query, params)
+                total = cursor.fetchone()[0]
+                
+                # 获取分页数据
+                query = f'''
+                    SELECT * FROM transactions {where_clause}
+                    ORDER BY date DESC, time DESC
+                    LIMIT ? OFFSET ?
+                '''
+                cursor.execute(query, params + [page_size, offset])
+                rows = cursor.fetchall()
+                records = [self._row_to_transaction(row) for row in rows]
+                
+                return records, total
+        except Exception as e:
+            print(f"分页搜索失败: {e}")
+            return [], 0
+    
+    def search(self, keyword: str, start_date: str = None, end_date: str = None) -> list:
+        """搜索记录（支持关键词和日期范围）"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                query = '''
+                    SELECT * FROM transactions 
+                    WHERE (category LIKE ? OR note LIKE ? OR date LIKE ? OR id LIKE ?)
+                '''
+                params = [f"%{keyword}%", f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"]
+                
+                # 尝试金额搜索
+                try:
+                    amount = float(keyword)
+                    query = 'SELECT * FROM transactions WHERE amount = ? OR category LIKE ? OR note LIKE ?'
+                    params = [amount, f"%{keyword}%", f"%{keyword}%"]
+                except ValueError:
+                    pass
+                
+                if start_date and end_date:
+                    query += ' AND date >= ? AND date <= ?'
+                    params.extend([start_date, end_date])
+                
+                query += ' ORDER BY date DESC, time DESC'
+                cursor.execute(query, params)
+                rows = cursor.fetchall()
+                return [self._row_to_transaction(row) for row in rows]
+        except Exception as e:
+            print(f"搜索失败: {e}")
+            return []
+    
+    def update(self, transaction: 'Transaction') -> bool:
+        """更新记录"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    UPDATE transactions 
+                    SET date = ?, time = ?, type = ?, category = ?, amount = ?, note = ?
+                    WHERE id = ?
+                ''', (
+                    transaction.date,
+                    transaction.time,
+                    transaction.type,
+                    transaction.category,
+                    transaction.amount,
+                    transaction.note,
+                    transaction.id
+                ))
+                conn.commit()
+                return cursor.rowcount > 0
+        except Exception as e:
+            print(f"更新记录失败: {e}")
+            return False
+    
+    def delete(self, transaction_id: str) -> bool:
+        """删除记录"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('DELETE FROM transactions WHERE id = ?', (transaction_id,))
+                conn.commit()
+                return cursor.rowcount > 0
+        except Exception as e:
+            print(f"删除记录失败: {e}")
+            return False
+    
+    def clear_all(self) -> bool:
+        """清空所有记录"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('DELETE FROM transactions')
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"清空记录失败: {e}")
+            return False
+    
+    def get_count(self, start_date: str = None, end_date: str = None) -> int:
+        """获取记录总数"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                if start_date and end_date:
+                    cursor.execute('SELECT COUNT(*) FROM transactions WHERE date >= ? AND date <= ?', (start_date, end_date))
+                else:
+                    cursor.execute('SELECT COUNT(*) FROM transactions')
+                return cursor.fetchone()[0]
+        except Exception as e:
+            print(f"获取记录数失败: {e}")
+            return 0
+    
+    def get_paginated(self, page: int, page_size: int, start_date: str = None, end_date: str = None) -> tuple:
+        """分页获取记录"""
+        offset = (page - 1) * page_size
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 构建查询条件
+                where_clause = ""
+                params = []
+                if start_date and end_date:
+                    where_clause = "WHERE date >= ? AND date <= ?"
+                    params = [start_date, end_date]
+                
+                # 获取总数
+                count_query = f"SELECT COUNT(*) FROM transactions {where_clause}"
+                cursor.execute(count_query, params)
+                total = cursor.fetchone()[0]
+                
+                # 获取分页数据
+                query = f'''
+                    SELECT * FROM transactions {where_clause}
+                    ORDER BY date DESC, time DESC
+                    LIMIT ? OFFSET ?
+                '''
+                cursor.execute(query, params + [page_size, offset])
+                rows = cursor.fetchall()
+                records = [self._row_to_transaction(row) for row in rows]
+                
+                return records, total
+        except Exception as e:
+            print(f"分页查询失败: {e}")
+            return [], 0
+    
+    def get_summary(self, start_date: str = None, end_date: str = None) -> dict:
+        """获取统计摘要"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                where_clause = ""
+                params = []
+                if start_date and end_date:
+                    where_clause = "WHERE date >= ? AND date <= ?"
+                    params = [start_date, end_date]
+                
+                cursor.execute(f'''
+                    SELECT 
+                        SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as total_income,
+                        SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as total_expense,
+                        COUNT(*) as total_count,
+                        COUNT(CASE WHEN type = 'income' THEN 1 END) as income_count,
+                        COUNT(CASE WHEN type = 'expense' THEN 1 END) as expense_count
+                    FROM transactions {where_clause}
+                ''', params)
+                row = cursor.fetchone()
+                
+                return {
+                    'total_income': row[0] or 0,
+                    'total_expense': row[1] or 0,
+                    'total_count': row[2] or 0,
+                    'income_count': row[3] or 0,
+                    'expense_count': row[4] or 0
+                }
+        except Exception as e:
+            print(f"获取统计摘要失败: {e}")
+            return {'total_income': 0, 'total_expense': 0, 'total_count': 0, 'income_count': 0, 'expense_count': 0}
+    
+    def get_categories_summary(self, start_date: str = None, end_date: str = None) -> dict:
+        """按分类获取统计"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                where_clause = ""
+                params = []
+                if start_date and end_date:
+                    where_clause = "WHERE date >= ? AND date <= ?"
+                    params = [start_date, end_date]
+                
+                cursor.execute(f'''
+                    SELECT type, category, COUNT(*) as count, SUM(amount) as total
+                    FROM transactions {where_clause}
+                    GROUP BY type, category
+                    ORDER BY type, total DESC
+                ''', params)
+                rows = cursor.fetchall()
+                
+                result = {'income': [], 'expense': []}
+                for row in rows:
+                    result[row[0]].append({
+                        'category': row[1],
+                        'count': row[2],
+                        'total': row[3]
+                    })
+                return result
+        except Exception as e:
+            print(f"按分类统计失败: {e}")
+            return {'income': [], 'expense': []}
+    
+    def _row_to_transaction(self, row) -> 'Transaction':
+        """将数据库行转换为Transaction对象"""
+        return Transaction(
+            id=row['id'],
+            date=row['date'],
+            type=row['type'],
+            category=row['category'],
+            amount=row['amount'],
+            note=row['note'] or '',
+            time=row['time'] or '00:00'
+        )
+    
 class Transaction:
     """记账记录"""
     def __init__(self, id: str, date: str, type: str, category: str, amount: float, note: str = "", time: str = None):
@@ -6034,7 +6496,7 @@ def main(page: ft.Page):
                     # ========== 加密密码并保存 ==========
                     note.password = encrypt_password(password)  # 加密后存储
                     note.is_encrypted = True
-                    note.content = "🔒 此笔记已加密，请输入密码查看内容"
+                    note.content = "已锁定"
                     save_memo_notes()
                     close_dialog()
                     
@@ -6173,7 +6635,7 @@ def main(page: ft.Page):
                         if note.id in card_swipe_states:
                             card_swipe_states[note.id] = 0
                         render_notes()
-                        show_bottom_message("✅ 笔记已解密")
+                        #show_bottom_message("✅ 笔记已解密")
                         def open_edit():
                             open_memo_edit_dialog(note.id)
                         threading.Timer(0.1, open_edit).start()
@@ -6184,7 +6646,7 @@ def main(page: ft.Page):
                 
                 def cancel_decrypt(e):
                     close_dialog()
-                    show_bottom_message("已取消解密")
+                    #show_bottom_message("已取消解密")
                 
                 # ========== 生物识别解锁 ==========
                 async def biometric_unlock():
@@ -6704,7 +7166,7 @@ def main(page: ft.Page):
                         save_memo_notes()
                         close_edit_dialog()
                         render_notes()
-                        show_bottom_message("🔒 笔记已锁定")
+                        #show_bottom_message("🔒 笔记已锁定")
                     else:
                         # 无密码：首次加密
                         if not current_content:
@@ -7021,7 +7483,7 @@ def main(page: ft.Page):
                             save_memo_notes()
                             close_edit_dialog()
                             render_notes()
-                            show_bottom_message("✅ 锁已删除（密码已移除）")
+                            #show_bottom_message("✅ 锁已删除（密码已移除）")
                         else:
                             # ========== 无锁 -> 设置锁（加密） ==========
                             current_content = content_field.value.strip()
@@ -7746,44 +8208,30 @@ def main(page: ft.Page):
 
     
     # ===========================  3.记账功能添加 ===================================
-    # 加载记账数据
-    def load_accounting_data():
-        global transactions
-        try:
-            json_path = get_data_file_path("accounting.json")
-            if os.path.exists(json_path):
-                with open(json_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    transactions = [Transaction.from_dict(t) for t in data.get("transactions", [])]
-            else:
-                # 首次使用，创建空记录
-                transactions = []
-                save_accounting_data()
-        except Exception as e:
-            print(f"加载记账数据失败: {e}")
-            transactions = []
-    
-    # 保存记账数据
-    def save_accounting_data():
-        global transactions
-        try:
-            json_path = get_data_file_path("accounting.json")
-            data = {
-                "transactions": [t.to_dict() for t in transactions],
-            }
-            with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            print(f"记账数据已保存，共 {len(transactions)} 条记录")
-        except Exception as e:
-            print(f"保存记账数据失败: {e}")
 
     def show_accounting_page(page: ft.Page):
-        """显示记账页面（升级版：支持按月查询、编辑、删除）"""
-        global transactions
+        """显示记账页面（使用SQLite存储 + 分页）"""
+        global transactions, current_page, page_size
         global current_page, floating_add_button, original_floating_add_click
 
         # 切换到记账页面
         current_page = "accounting"
+
+        # 创建数据库实例
+        db = AccountingDB()
+
+        # ========== 首次启动时迁移数据 ==========
+        # 使用静态变量标记是否已迁移
+        if not hasattr(show_accounting_page, '_migrated'):
+            imported = db.migrate_from_json()
+            if imported > 0:
+                print(f"[记账] 已迁移 {imported} 条记录")
+            show_accounting_page._migrated = True
+
+        # 分页相关变量
+        current_page = 1
+        page_size = 50  # 默认每页50条
+        PAGE_SIZE_OPTIONS = [20, 50, 100, 200]
 
         # ========== 筛选相关变量 ==========
         filter_income_categories = []  # 选中的收入分类
@@ -7798,10 +8246,7 @@ def main(page: ft.Page):
         original_floating_add_click = floating_add_button.on_click
         floating_add_button.on_click = lambda e: show_accounting_add_menu()
 
-        # 隐藏主界面的返回今日按钮（如果需要）
-        #today_circle_button.visible = False
-
-        # 当前选中的年月
+        # 当前选中的年月 
         current_year = datetime.now().year
         current_month = datetime.now().month
         selected_date = datetime.now()
@@ -7815,7 +8260,7 @@ def main(page: ft.Page):
         records_list = ft.Column(spacing=5, expand=True)  # 移除 scroll，由外层控制
 
         # 加载数据
-        load_accounting_data()
+        #load_accounting_data()
 
         # ========== 在函数顶部定义滚动状态变量 ==========
         show_scroll_top_btn = False  # 定义在函数顶部，所有内部函数都可以访问
@@ -8086,12 +8531,18 @@ def main(page: ft.Page):
             page.overlay.append(dialog_container)
             page.update()
 
+        def save_transaction_to_db(transaction):
+            """保存单条记录到数据库"""
+            db.insert(transaction)
+
+        # ========== 修改删除函数 ==========
         def delete_transaction(transaction_id, transaction_name):
-            """删除记录（带确认对话框）"""
-            
+            """删除记录（使用数据库）"""
             # 找到要删除的记录
             transaction_to_delete = None
-            for t in transactions:
+            # 从数据库获取所有记录查找
+            all_records = db.get_all()
+            for t in all_records:
                 if t.id == transaction_id:
                     transaction_to_delete = t
                     break
@@ -8111,9 +8562,7 @@ def main(page: ft.Page):
             
             def confirm_delete(e):
                 close_dialog()
-                global transactions
-                transactions = [t for t in transactions if t.id != transaction_id]
-                save_accounting_data()
+                db.delete(transaction_id)
                 refresh_records_list()
                 refresh_summary()
                 show_bottom_message(f"已删除{transaction_to_delete.category}记录")
@@ -8123,15 +8572,12 @@ def main(page: ft.Page):
                 show_bottom_message(f"已取消删除")
                 page.update()
             
-            # 确定显示内容
             is_income = transaction_to_delete.type == "income"
             type_text = "收入" if is_income else "支出"
             amount_text = f"{transaction_to_delete.category} - ¥{abs(transaction_to_delete.amount):,.2f}"
             
-            # 对话框内容
             dialog_content = ft.Container(
                 content=ft.Column([
-                    # 顶部图标（带背景圆）
                     ft.Container(
                         content=ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, size=55, color=ft.Colors.RED_700),
                         padding=10,
@@ -8145,7 +8591,6 @@ def main(page: ft.Page):
                     ft.Text(transaction_to_delete.date, size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
                     ft.Text("此操作不可撤销！", size=12, color=ft.Colors.RED_500, text_align=ft.TextAlign.CENTER),
                     ft.Divider(height=1, color=ft.Colors.GREY_300),
-                    # 按钮区域
                     ft.Row([
                         ft.ElevatedButton(
                             "取消", 
@@ -8169,13 +8614,13 @@ def main(page: ft.Page):
             
             dialog_container = ft.Container(
                 content=ft.Column([
-                    ft.Container(expand=True),  # 上方弹性空间
+                    ft.Container(expand=True),
                     ft.Row([
-                        ft.Container(expand=True),  # 左侧弹性空间
+                        ft.Container(expand=True),
                         dialog_content,
-                        ft.Container(expand=True),  # 右侧弹性空间
+                        ft.Container(expand=True),
                     ]),
-                    ft.Container(expand=True),  # 下方弹性空间
+                    ft.Container(expand=True),
                 ]),
                 expand=True,
                 bgcolor=ft.Colors.BLACK26,
@@ -8184,6 +8629,10 @@ def main(page: ft.Page):
             
             page.overlay.append(dialog_container)
             page.update()
+
+        def update_transaction_in_db(transaction):
+            """更新数据库中的记录"""
+            db.update(transaction)
         
         def edit_transaction(transaction):
             """编辑记录（与添加事件界面风格一致）"""
@@ -8287,7 +8736,6 @@ def main(page: ft.Page):
                 value=transaction.category if transaction else None,
                 on_change=lambda e: print(f"选择: {e}"),
             )
-            #keyboard_mgr.register(category_field)  # 注册
             keyboard_controls.append(category_field)
             
             def on_amount_blur(e):
@@ -8354,8 +8802,8 @@ def main(page: ft.Page):
                     transaction.category = category_field.value
                     transaction.amount = amount
                     transaction.note = note_field.value
-                    transaction.time = time_field.value  # 新增时间
-                    save_accounting_data()
+                    transaction.time = time_field.value
+                    db.update(transaction)
                     refresh_records_list()
                     refresh_summary()
                     show_bottom_message("已更新记录")
@@ -8366,17 +8814,17 @@ def main(page: ft.Page):
             def delete_transaction_from_edit(e):
                 """从编辑界面删除记录"""
                 def confirm_delete():
-                    global transactions
-                    transactions = [t for t in transactions if t.id != transaction.id]
-                    save_accounting_data()
+                    db.delete(transaction.id)
                     close_edit_dialog()
                     refresh_records_list()
                     refresh_summary()
                     show_bottom_message(f"已删除{transaction.category}记录")
                 
-                # 显示确认对话框
-                show_delete_confirm_dialog(f"确定要删除这条{transaction.type}记录吗？\n{transaction.category} - ¥{abs(transaction.amount):,.2f}", confirm_delete)
-            
+                show_delete_confirm_dialog(
+                    f"确定要删除这条{transaction.type}记录吗？\n{transaction.category} - ¥{abs(transaction.amount):,.2f}", 
+                    confirm_delete
+                )
+
             # ========== 删除确认对话框 ==========
             def show_delete_confirm_dialog(message, on_confirm):
                 dialog_container = None
@@ -8534,18 +8982,23 @@ def main(page: ft.Page):
             page.overlay.append(edit_dialog_container)
             page.update()
 
+        # ========== 修改导出函数使用数据库 ==========
         async def export_filtered_accounting(e):
-            """导出当前筛选后的记账数据到Excel（包含时间，修正结余计算）+ 数据透视表"""
-            global transactions
+            """导出当前筛选后的记账数据到Excel"""
+            global current_page
             
-            # ========== 获取当前列表的数据 ==========
+            # 获取数据
             if query_mode == "month":
                 month_str = f"{current_year}-{current_month:02d}"
-                base_records = [t for t in transactions if t.date.startswith(month_str)]
+                start_date_str = f"{month_str}-01"
+                import calendar
+                last_day = calendar.monthrange(current_year, current_month)[1]
+                end_date_str = f"{month_str}-{last_day:02d}"
+                base_records = db.get_by_date_range(start_date_str, end_date_str)
             else:
-                start_str = start_date.strftime("%Y-%m-%d")
-                end_str = end_date.strftime("%Y-%m-%d")
-                base_records = [t for t in transactions if start_str <= t.date <= end_str]
+                start_date_str = start_date.strftime("%Y-%m-%d")
+                end_date_str = end_date.strftime("%Y-%m-%d")
+                base_records = db.get_by_date_range(start_date_str, end_date_str)
             
             # 应用分类筛选
             if is_filter_active:
@@ -8563,74 +9016,28 @@ def main(page: ft.Page):
                 show_bottom_message("当前没有可导出的记录", is_error=True)
                 return
             
-            # ========== 按日期+时间排序（由近到远） ==========
-            def get_sort_key(record):
-                time_str = getattr(record, 'time', '00:00')
-                return f"{record.date} {time_str}"
+            # 按日期+时间排序
+            base_records.sort(key=lambda x: f"{x.date} {x.time}", reverse=True)
             
-            base_records.sort(key=get_sort_key, reverse=True)
-            
-            # ========== 计算统计信息 ==========
+            # 计算统计
             month_income = sum(t.amount for t in base_records if t.type == "income")
             month_expense = sum(t.amount for t in base_records if t.type == "expense")
-            
-            # 计算累计结余
-            all_transactions_sorted = sorted(transactions, key=lambda x: x.date)
-            running_balance = 0
-            balance_map = {}
-            for t in all_transactions_sorted:
-                if t.type == "income":
-                    running_balance += t.amount
-                else:
-                    running_balance -= t.amount
-                balance_map[t.id] = running_balance
-            cumulative_balance = running_balance
-            
-            # 计算上月末结余
-            if query_mode == "month":
-                first_day_of_month = datetime(current_year, current_month, 1).date()
-                first_day_str = first_day_of_month.strftime("%Y-%m-%d")
-            else:
-                first_day_str = start_date.strftime("%Y-%m-%d")
-            
-            prev_records = [t for t in transactions if t.date < first_day_str]
-            if prev_records:
-                prev_records_sorted = sorted(prev_records, key=lambda x: x.date)
-                last_prev_record = prev_records_sorted[-1]
-                previous_month_balance = balance_map.get(last_prev_record.id, 0)
-            else:
-                previous_month_balance = 0
-            
-            month_balance = previous_month_balance + month_income - month_expense
-            
-            income_count = len([t for t in base_records if t.type == "income"])
-            expense_count = len([t for t in base_records if t.type == "expense"])
             total_count = len(base_records)
             
-            # ========== 获取查询时间范围 ==========
+            # 获取时间范围
             if query_mode == "month":
-                start_date_str = f"{current_year}-{current_month:02d}-01"
-                import calendar
-                last_day = calendar.monthrange(current_year, current_month)[1]
-                end_date_str = f"{current_year}-{current_month:02d}-{last_day:02d}"
                 time_range = f"{start_date_str} ~ {end_date_str}"
             else:
-                start_date_str = start_date.strftime("%Y-%m-%d")
-                end_date_str = end_date.strftime("%Y-%m-%d")
                 time_range = f"{start_date_str} ~ {end_date_str}"
             
             export_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
-            # ========== 创建Excel文件 ==========
+            # 创建Excel文件（代码与之前相同，但使用 base_records 数据）
             try:
                 temp_dir = get_data_file_path("")
                 temp_file = os.path.join(temp_dir, f"accounting_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
                 
                 wb = Workbook()
-                
-                # ============================================================
-                # 工作表1：记账明细
-                # ============================================================
                 ws_detail = wb.active
                 ws_detail.title = "记账明细"
                 
@@ -8644,17 +9051,7 @@ def main(page: ft.Page):
                 ws_detail['B2'] = time_range
                 ws_detail['A3'] = "导出时间："
                 ws_detail['B3'] = export_time
-                
                 ws_detail['A5'] = f"共计：{total_count}笔记录"
-                ws_detail['A5'].font = openpyxl.styles.Font(bold=True)
-                ws_detail['A6'] = f"收入：{income_count}笔  {month_income:,.2f}元"
-                ws_detail['A6'].font = openpyxl.styles.Font(color="008000")
-                ws_detail['A7'] = f"支出：{expense_count}笔  {month_expense:,.2f}元"
-                ws_detail['A7'].font = openpyxl.styles.Font(color="FF0000")
-                ws_detail['A8'] = f"本月结余：{month_balance:,.2f}元"
-                ws_detail['A8'].font = openpyxl.styles.Font(bold=True, color="0000FF" if month_balance >= 0 else "FF0000")
-                ws_detail['A9'] = f"累计结余（截至{end_date_str}）：{cumulative_balance:,.2f}元"
-                ws_detail['A9'].font = openpyxl.styles.Font(bold=True, color="800080")
                 
                 ws_detail.append([])
                 
@@ -8688,7 +9085,6 @@ def main(page: ft.Page):
                     cell = ws_detail.cell(row=row, column=5)
                     cell.number_format = '#,##0.00'
                 
-                # 调整列宽
                 ws_detail.column_dimensions['A'].width = 14
                 ws_detail.column_dimensions['B'].width = 10
                 ws_detail.column_dimensions['C'].width = 10
@@ -8696,12 +9092,8 @@ def main(page: ft.Page):
                 ws_detail.column_dimensions['E'].width = 14
                 ws_detail.column_dimensions['F'].width = 30
                 
-                # ============================================================
-                # 工作表2：数据透视表（按类型和分类汇总）
-                # ============================================================
+                # 数据透视表
                 ws_pivot = wb.create_sheet("数据透视表")
-                
-                # 标题
                 ws_pivot.merge_cells('A1:D1')
                 ws_pivot['A1'] = "📊 数据透视表 - 按分类汇总"
                 ws_pivot['A1'].font = openpyxl.styles.Font(size=16, bold=True)
@@ -8711,33 +9103,26 @@ def main(page: ft.Page):
                 ws_pivot['B2'] = time_range
                 ws_pivot['A3'] = "导出时间："
                 ws_pivot['B3'] = export_time
-                
                 ws_pivot.append([])
                 
-                # ========== 按类型和分类汇总 ==========
-                # 收集所有分类
+                # 分类汇总
                 income_categories = {}
                 expense_categories = {}
-                
                 for t in base_records:
                     if t.type == "income":
                         income_categories[t.category] = income_categories.get(t.category, 0) + t.amount
                     else:
                         expense_categories[t.category] = expense_categories.get(t.category, 0) + t.amount
                 
-                # 写入表头
                 pivot_headers = ["类型", "分类", "笔数", "金额"]
                 ws_pivot.append(pivot_headers)
                 
-                header_font_pivot = openpyxl.styles.Font(bold=True, color="FFFFFF")
-                
                 for col in range(1, len(pivot_headers) + 1):
                     cell = ws_pivot.cell(row=ws_pivot.max_row, column=col)
-                    cell.font = header_font_pivot
+                    cell.font = openpyxl.styles.Font(bold=True, color="FFFFFF")
                     cell.fill = openpyxl.styles.PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
                     cell.alignment = openpyxl.styles.Alignment(horizontal='center')
                 
-                # 写入收入分类
                 start_row = ws_pivot.max_row + 1
                 total_income = 0
                 total_income_count = 0
@@ -8748,7 +9133,6 @@ def main(page: ft.Page):
                     total_income += amount
                     total_income_count += count
                 
-                # 收入合计行
                 if income_categories:
                     ws_pivot.append(["收入合计", "", total_income_count, total_income])
                     row = ws_pivot.max_row
@@ -8759,10 +9143,8 @@ def main(page: ft.Page):
                         if col == 4:
                             cell.number_format = '#,##0.00'
                 
-                # 空行
                 ws_pivot.append([])
                 
-                # 写入支出分类
                 total_expense = 0
                 total_expense_count = 0
                 
@@ -8772,7 +9154,6 @@ def main(page: ft.Page):
                     total_expense += amount
                     total_expense_count += count
                 
-                # 支出合计行
                 if expense_categories:
                     ws_pivot.append(["支出合计", "", total_expense_count, total_expense])
                     row = ws_pivot.max_row
@@ -8783,10 +9164,8 @@ def main(page: ft.Page):
                         if col == 4:
                             cell.number_format = '#,##0.00'
                 
-                # 空行
                 ws_pivot.append([])
                 
-                # 总计行
                 total_all = total_income + total_expense
                 total_all_count = total_income_count + total_expense_count
                 ws_pivot.append(["总计", "", total_all_count, total_all])
@@ -8799,44 +9178,33 @@ def main(page: ft.Page):
                         cell.number_format = '#,##0.00'
                         cell.font = openpyxl.styles.Font(bold=True, size=12, color="0000FF")
                 
-                # 调整列宽
                 ws_pivot.column_dimensions['A'].width = 12
                 ws_pivot.column_dimensions['B'].width = 20
                 ws_pivot.column_dimensions['C'].width = 10
                 ws_pivot.column_dimensions['D'].width = 16
                 
-                # 设置金额列为数字格式
                 for row in range(start_row, ws_pivot.max_row + 1):
                     cell = ws_pivot.cell(row=row, column=4)
                     if cell.value is not None and isinstance(cell.value, (int, float)):
                         cell.number_format = '#,##0.00'
                 
-                # ============================================================
-                # 保存文件
-                # ============================================================
                 wb.save(temp_file)
                 
-                # 读取文件内容
                 with open(temp_file, 'rb') as f:
                     file_bytes = f.read()
                 
-                # 创建 FilePicker
                 file_picker = ft.FilePicker()
                 page.services.append(file_picker)
                 page.update()
                 
-                # 选择保存位置
                 result = await file_picker.save_file(
                     file_name=f"记账明细_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                     src_bytes=file_bytes,
                     dialog_title="保存记账明细"
                 )
                 
-                # 移除 FilePicker
                 page.services.remove(file_picker)
                 page.update()
-                
-                # 删除临时文件
                 os.remove(temp_file)
                 
                 if result:
@@ -9306,72 +9674,72 @@ def main(page: ft.Page):
             
             page.overlay.append(overlay_container)
             page.update()
-
+        
+        # ========== 修改 refresh_summary 使用数据库统计 ==========
         def refresh_summary():
-            """刷新统计卡片"""
+            """刷新统计卡片（使用数据库）"""
             summary_container.controls.clear()
-
-            # ========== 根据查询模式获取基础记录 ==========
+            
+            # 获取日期范围
             if query_mode == "month":
                 month_str = f"{current_year}-{current_month:02d}"
-                base_records = [t for t in transactions if t.date.startswith(month_str)]
+                start_date_str = f"{month_str}-01"
+                import calendar
+                last_day = calendar.monthrange(current_year, current_month)[1]
+                end_date_str = f"{month_str}-{last_day:02d}"
             else:
-                start_str = start_date.strftime("%Y-%m-%d")
-                end_str = end_date.strftime("%Y-%m-%d")
-                base_records = [t for t in transactions if start_str <= t.date <= end_str]
+                start_date_str = start_date.strftime("%Y-%m-%d")
+                end_date_str = end_date.strftime("%Y-%m-%d")
             
-            # ========== 应用分类筛选 ==========
+            # 从数据库获取统计
             if is_filter_active:
-                filtered_records = []
-                for t in base_records:
-                    if t.type == "income":
-                        if filter_income_categories and t.category in filter_income_categories:
-                            filtered_records.append(t)
-                    else:
-                        if filter_expense_categories and t.category in filter_expense_categories:
-                            filtered_records.append(t)
-                base_records = filtered_records
+                # 有筛选：需要单独计算
+                records = db.get_by_date_range(start_date_str, end_date_str)
+                filtered = [
+                    t for t in records
+                    if (t.type == "income" and t.category in filter_income_categories) or
+                    (t.type == "expense" and t.category in filter_expense_categories)
+                ]
+                month_income = sum(t.amount for t in filtered if t.type == "income")
+                month_expense = sum(t.amount for t in filtered if t.type == "expense")
+                total_count = len(filtered)
+            else:
+                summary = db.get_summary(start_date_str, end_date_str)
+                month_income = summary['total_income']
+                month_expense = summary['total_expense']
+                total_count = summary['total_count']
             
-            # ========== 计算本月收入和支出 ==========
-            month_income = sum(t.amount for t in base_records if t.type == "income")
-            month_expense = sum(t.amount for t in base_records if t.type == "expense")
-            
-            # ========== 计算累计结余 ==========
-            all_transactions_sorted = sorted(transactions, key=lambda x: x.date)
+            # 计算累计结余
+            all_sorted = db.get_all()
+            all_sorted.sort(key=lambda x: f"{x.date} {x.time}")
             running_balance = 0
-            balance_map = {}
-            for t in all_transactions_sorted:
+            for t in all_sorted:
                 if t.type == "income":
                     running_balance += t.amount
                 else:
                     running_balance -= t.amount
-                balance_map[t.id] = running_balance
             cumulative_balance = running_balance
             
-            # ========== 计算上个月末的累计结余 ==========
-            # 获取本月的第一天（转换为字符串）
-            if query_mode == "month":
-                first_day_of_month = datetime(current_year, current_month, 1).date()
-                first_day_str = first_day_of_month.strftime("%Y-%m-%d")
-            else:
-                first_day_str = start_date.strftime("%Y-%m-%d")
+            # 计算上月末结余
+            first_day_str = start_date_str
+            prev_records = db.get_by_date_range("1900-01-01", start_date_str)  # 获取之前的记录
             
-            # 获取本月之前的所有记录
-            prev_records = [t for t in transactions if t.date < first_day_str]
-            
+            previous_month_balance = 0
             if prev_records:
-                prev_records_sorted = sorted(prev_records, key=lambda x: x.date)
-                last_prev_record = prev_records_sorted[-1]
-                previous_month_balance = balance_map.get(last_prev_record.id, 0)
-            else:
-                previous_month_balance = 0
+                prev_records.sort(key=lambda x: f"{x.date} {x.time}")
+                # 重新计算到上月末
+                prev_balance = 0
+                for t in prev_records:
+                    if t.type == "income":
+                        prev_balance += t.amount
+                    else:
+                        prev_balance -= t.amount
+                previous_month_balance = prev_balance
             
-            # 本月结余 = 上月末结余 + 本月收入 - 本月支出
             month_balance = previous_month_balance + month_income - month_expense
             
-            # ========== 日期标题（可点击，弹出日期选择器） ==========
+            # 显示日期标题
             if query_mode == "month":
-                # 判断是否是上月、本月等
                 now = datetime.now()
                 if current_year == now.year and current_month == now.month:
                     date_label_text = "本月"
@@ -9381,22 +9749,16 @@ def main(page: ft.Page):
                     date_label_text = "下月"
                 else:
                     date_label_text = f"{current_year}年{current_month}月"
-                
-                # 按月查询：字体14
                 date_label_font_size = 14
             else:
-                # 区间查询
                 date_label_text = f"{start_date.strftime('%Y.%m.%d')}-{end_date.strftime('%Y.%m.%d')}"
-                # 按月查询：字体14
                 date_label_font_size = 12
-
-            # ========== 可点击的日期标题 ==========
+            
             date_label = ft.Row([
                 ft.Text(date_label_text, size=date_label_font_size, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
-                ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=20, color=ft.Colors.BLUE_700),  # 使用图标
+                ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=20, color=ft.Colors.BLUE_700),
             ], spacing=2, alignment=ft.MainAxisAlignment.START)
-
-            # 让月份文本可点击
+            
             date_label_container = ft.Container(
                 content=date_label,
                 on_click=lambda e: show_date_picker_bottom_sheet(),
@@ -9405,17 +9767,15 @@ def main(page: ft.Page):
                 border_radius=4,
             )
             
-            # 修改 summary_container 中的 Row，将查询按钮放在日期标题旁边
             summary_container.controls.append(
                 ft.Container(
                     content=ft.Column([
                         ft.Divider(height=1),
-                        # ========== 日期标题 + 查询按钮在同一行 ==========
                         ft.Row([
-                            date_label_container,  # 日期标题（可点击）
-                            ft.Container(expand=True),  # 弹性空间
-                            clear_btn,  # 清除按钮（搜索模式下显示）
-                            search_btn,  # 查询按钮
+                            date_label_container,
+                            ft.Container(expand=True),
+                            clear_btn,
+                            search_btn,
                         ], alignment=ft.MainAxisAlignment.START),
                         ft.Row([
                             ft.Column([
@@ -9672,116 +10032,64 @@ def main(page: ft.Page):
             page.update()
 
         def refresh_records_list():
-            """刷新记录列表（支持搜索过滤）- 按日期分组显示，支持展开/收起"""
-            records_list.controls.clear()
-
-            # ========== 如果搜索结束但没有结果，隐藏清除按钮 ==========
-            if not is_search_mode:
-                try:
-                    if hasattr(clear_btn, 'page') and clear_btn.page is not None:
-                        clear_btn.visible = False
-                        clear_btn.update()
-                except:
-                    pass
+            """刷新记录列表（支持分页）"""
+            global current_page
             
-            # ========== 根据查询模式筛选记录 ==========
+            records_list.controls.clear()
+            
+            # 获取基础查询参数
+            start_date_str = None
+            end_date_str = None
+
+            # ========== 声明 filtered 变量 ==========
+            filtered = []  # 添加这行，防止后续引用未定义变量
+            
             if is_search_mode and search_query:
-                base_records = transactions.copy()
+                # 搜索模式：使用搜索
+                records, total = db.search_with_pagination(search_query, current_page, page_size)
             else:
                 if query_mode == "month":
                     month_str = f"{current_year}-{current_month:02d}"
-                    base_records = [t for t in transactions if t.date.startswith(month_str)]
+                    start_date_str = f"{month_str}-01"
+                    # 计算月末
+                    import calendar
+                    last_day = calendar.monthrange(current_year, current_month)[1]
+                    end_date_str = f"{month_str}-{last_day:02d}"
                 else:
-                    start_str = start_date.strftime("%Y-%m-%d")
-                    end_str = end_date.strftime("%Y-%m-%d")
-                    base_records = [t for t in transactions if start_str <= t.date <= end_str]
+                    start_date_str = start_date.strftime("%Y-%m-%d")
+                    end_date_str = end_date.strftime("%Y-%m-%d")
+                
+                # 应用分类筛选
+                if is_filter_active:
+                    # 有筛选：获取所有记录然后过滤
+                    all_records = db.get_by_date_range(start_date_str, end_date_str)
+                    filtered = [
+                        t for t in all_records
+                        if (t.type == "income" and t.category in filter_income_categories) or
+                        (t.type == "expense" and t.category in filter_expense_categories)
+                    ]
+                    total = len(filtered)
+                    # 手动分页
+                    start_idx = (current_page - 1) * page_size
+                    end_idx = start_idx + page_size
+                    records = filtered[start_idx:end_idx]
+                else:
+                    # 无筛选：直接分页查询
+                    records, total = db.get_paginated(current_page, page_size, start_date_str, end_date_str)
             
-            # ========== 应用分类筛选 ==========
-            filtered_records = base_records
+            # ========== 计算统计信息（需要全量数据） ==========
             if is_filter_active:
-                filtered_records = []
-                for t in base_records:
-                    if t.type == "income":
-                        if filter_income_categories and t.category in filter_income_categories:
-                            filtered_records.append(t)
-                    else:
-                        if filter_expense_categories and t.category in filter_expense_categories:
-                            filtered_records.append(t)
-            
-            # ========== 应用搜索过滤 ==========
-            if is_search_mode and search_query:
-                keyword = search_query.lower()
-                search_results = []
-                for t in filtered_records:
-                    matched = False
-                    if keyword in t.category.lower():
-                        matched = True
-                    if not matched and t.note and keyword in t.note.lower():
-                        matched = True
-                    if not matched:
-                        try:
-                            search_num = float(keyword)
-                            if abs(t.amount - search_num) < 0.001:
-                                matched = True
-                        except ValueError:
-                            pass
-                    if not matched:
-                        if keyword in t.date:
-                            matched = True
-                    if matched:
-                        search_results.append(t)
-                filtered_records = search_results
-            
-            # ========== 按日期+时间排序 ==========
-            def sort_key_desc(record):
-                time_str = getattr(record, 'time', '00:00')
-                return f"{record.date} {time_str}"
-            
-            display_records = sorted(filtered_records, key=sort_key_desc, reverse=True)
-            
-            # ========== 计算实时余额 ==========
-            def sort_key_asc(record):
-                time_str = getattr(record, 'time', '00:00')
-                return f"{record.date} {time_str}"
-            
-            all_transactions_sorted = sorted(transactions, key=sort_key_asc)
-            
-            running_balance = 0
-            balance_map = {}
-            for t in all_transactions_sorted:
-                if t.type == "income":
-                    running_balance += t.amount
-                else:
-                    running_balance -= t.amount
-                balance_map[t.id] = running_balance
-            
-            # ========== 计算统计信息 ==========
-            month_income = sum(t.amount for t in filtered_records if t.type == "income")
-            month_expense = sum(t.amount for t in filtered_records if t.type == "expense")
-            
-            if is_search_mode and search_query:
-                month_balance = 0
-                cumulative_balance = 0
+                # 使用已有的filtered列表计算
+                month_income = sum(t.amount for t in filtered if t.type == "income")
+                month_expense = sum(t.amount for t in filtered if t.type == "expense")
             else:
-                cumulative_balance = running_balance
-                if query_mode == "month":
-                    first_day_of_month = datetime(current_year, current_month, 1).date()
-                    first_day_str = first_day_of_month.strftime("%Y-%m-%d")
-                else:
-                    first_day_str = start_date.strftime("%Y-%m-%d")
-                
-                prev_records = [t for t in transactions if t.date < first_day_str]
-                if prev_records:
-                    prev_records_sorted = sorted(prev_records, key=sort_key_asc)
-                    last_prev_record = prev_records_sorted[-1]
-                    previous_month_balance = balance_map.get(last_prev_record.id, 0)
-                else:
-                    previous_month_balance = 0
-                
-                month_balance = previous_month_balance + month_income - month_expense
+                # 从数据库获取统计
+                summary = db.get_summary(start_date_str, end_date_str)
+                month_income = summary['total_income']
+                month_expense = summary['total_expense']
             
             # ========== 空状态 ==========
-            if not display_records:
+            if not records:
                 empty_text = "暂无匹配的记录" if is_search_mode else "暂无记录，点击 + 添加"
                 records_list.controls.append(
                     ft.Container(
@@ -9789,262 +10097,293 @@ def main(page: ft.Page):
                         padding=20,
                     )
                 )
-                # 显示统计信息...
-                records_list.controls.append(
-                    ft.Container(
-                        content=ft.Column([
-                            ft.Divider(height=1),
-                            ft.Row([
-                                ft.Text("📊 统计汇总", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
-                                ft.Container(expand=True),
-                                ft.Text(f"共 {len(display_records)} 笔交易", size=11, color=ft.Colors.GREY_500),
-                            ]),
-                            ft.Row([
-                                ft.Column([
-                                    ft.Text("收入", size=12, color=ft.Colors.GREY_600),
-                                    ft.Text(f"¥ {month_income:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_700),
-                                ], expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                                ft.Column([
-                                    ft.Text("支出", size=12, color=ft.Colors.GREY_600),
-                                    ft.Text(f"¥ {month_expense:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.RED_700),
-                                ], expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                                ft.Column([
-                                    ft.Text("结余", size=12, color=ft.Colors.GREY_600),
-                                    ft.Text(f"¥ {month_balance:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
-                                ], expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                            ], spacing=5),
-                            ft.Divider(height=1),
-                            ft.Row([
-                                ft.Text(f"累计结余: ¥ {cumulative_balance:,.2f}", size=12, color=ft.Colors.GREY_600),
-                            ], alignment=ft.MainAxisAlignment.END),
-                        ], spacing=8),
-                        padding=15,
-                        bgcolor=ft.Colors.TRANSPARENT,
-                        border_radius=10,
-                    )
-                )
+                # 添加分页控件（即使没有数据也要显示）
+                records_list.controls.append(create_pagination_controls(total))
+                records_list.controls.append(ft.Container(height=80))
                 page.update()
                 return
             
-            # ========== 按日期分组显示 ==========
-            grouped_records = {}
-            for t in display_records:
+            # ========== 使用 ListView 显示记录 ==========
+            from flet import ListView
+            list_view = ListView(spacing=5, padding=5, auto_scroll=False)
+            
+            # 获取余额计算
+            balance_map = {}
+            all_sorted = db.get_all()  # 获取所有记录计算余额
+            all_sorted.sort(key=lambda x: f"{x.date} {x.time}")
+            running_balance = 0
+            for t in all_sorted:
+                if t.type == "income":
+                    running_balance += t.amount
+                else:
+                    running_balance -= t.amount
+                balance_map[t.id] = running_balance
+            
+            # 日期分组
+            grouped = {}
+            for t in records:
                 date_key = t.date
-                if date_key not in grouped_records:
-                    grouped_records[date_key] = []
-                grouped_records[date_key].append(t)
+                if date_key not in grouped:
+                    grouped[date_key] = []
+                grouped[date_key].append(t)
             
-            # ========== 获取日期对应的星期几 ==========
-            def get_weekday(date_str):
-                try:
-                    dt = datetime.strptime(date_str, "%Y-%m-%d")
-                    weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
-                    return weekdays[dt.weekday()]
-                except:
-                    return ""
+            sorted_dates = sorted(grouped.keys(), reverse=True)
             
-            # ========== 存储展开状态 ==========
-            # 在 refresh_events_list 函数外部定义一个字典存储状态
-            # 但这里我们使用函数属性来存储
+            # 展开状态
             if not hasattr(refresh_records_list, 'expanded_dates'):
-                refresh_records_list.expanded_dates = {}  # {date_key: True/False}
+                refresh_records_list.expanded_dates = {}
             
-            # ========== 显示分组记录 ==========
-            for date_key, records in grouped_records.items():
-                # 获取当前日期的展开状态（默认展开）
+            def make_toggle_handler(date_key):
+                def handler(e):
+                    current = refresh_records_list.expanded_dates.get(date_key, True)
+                    refresh_records_list.expanded_dates[date_key] = not current
+                    refresh_records_list()
+                return handler
+            
+            # 构建日期卡片
+            for date_key in sorted_dates:
+                records_for_date = grouped[date_key]
+                records_for_date.sort(key=lambda x: getattr(x, 'time', '00:00'), reverse=True)
+                
+                weekday_cache = {}
+                try:
+                    dt = datetime.strptime(date_key, "%Y-%m-%d")
+                    weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+                    weekday_str = weekdays[dt.weekday()]
+                except:
+                    weekday_str = ""
+                
+                daily_income = sum(t.amount for t in records_for_date if t.type == "income")
+                daily_expense = sum(t.amount for t in records_for_date if t.type == "expense")
                 is_expanded = refresh_records_list.expanded_dates.get(date_key, True)
                 
-                # 计算该日统计
-                weekday_str = get_weekday(date_key)
-                daily_income = sum(t.amount for t in records if t.type == "income")
-                daily_expense = sum(t.amount for t in records if t.type == "expense")
-                daily_count = len(records)
-                
-                # ========== 创建日期标题（可点击） ==========
-                # 展开/收起图标
-                expand_icon = ft.Icon(
-                    ft.Icons.EXPAND_LESS if is_expanded else ft.Icons.EXPAND_MORE,
-                    size=20,
-                    color=ft.Colors.BLUE_700,
-                )
-                
+                # 日期标题
                 date_header = ft.Container(
                     content=ft.Row([
-                        expand_icon,
-                        ft.Text(
-                            f"📅 {date_key} {weekday_str}",
-                            size=13,
-                            weight=ft.FontWeight.BOLD,
-                            color=ft.Colors.BLUE_700,
-                        ),
+                        ft.Icon(ft.Icons.EXPAND_LESS if is_expanded else ft.Icons.EXPAND_MORE, size=20, color=ft.Colors.BLUE_700),
+                        ft.Text(f"{date_key} {weekday_str}", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
                         ft.Container(expand=True),
-                        ft.Text(
-                            f"收入: ¥{daily_income:,.2f}  支出: ¥{daily_expense:,.2f}  ({daily_count}笔)",
-                            size=11,
-                            color=ft.Colors.GREY_600,
-                        ),
+                        ft.Text(f"收入: ¥{daily_income:,.2f}  支出: ¥{daily_expense:,.2f}  ({len(records_for_date)}笔)", 
+                                size=11, color=ft.Colors.GREY_600),
                     ], spacing=5),
                     padding=ft.Padding(left=10, right=10, top=8, bottom=8),
                     bgcolor=ft.Colors.BLUE_50,
                     border_radius=8,
                     margin=ft.Padding(left=0, right=0, top=5, bottom=5),
-                    ink=True,  # 点击涟漪效果
-                    on_click=lambda e, dk=date_key: toggle_date_expand(dk),  # 点击切换展开/收起
+                    ink=True,
+                    on_click=make_toggle_handler(date_key),
                 )
-                records_list.controls.append(date_header)
+                list_view.controls.append(date_header)
                 
-                # ========== 该日期的交易记录（根据展开状态控制显示） ==========
-                # 创建一个容器来包裹该日的所有交易记录
-                records_container = ft.Column(
-                    spacing=0,
-                    visible=is_expanded,  # 根据展开状态控制显示
-                )
-                
-                for index, t in enumerate(records):
-                    is_income = t.type == "income"
-                    amount_color = ft.Colors.GREEN_700 if is_income else ft.Colors.RED_700
-                    amount_prefix = "+" if is_income else "-"
-                    current_balance = balance_map.get(t.id, 0)
-                    
-                    # 获取时间
-                    time_str = getattr(t, 'time', '00:00')
-                    if time_str == "00:00":
-                        time_str = ""
-                    
-                    # 格式化金额显示
-                    amount_display = f"{amount_prefix}¥ {abs(t.amount):,.2f}"
-                    balance_display = f"余额: ¥ {current_balance:,.2f}"
-                    
-                    # ========== 交易卡片 ==========
-                    record_card = ft.Container(
-                        content=ft.Row([
-                            # ========== 左侧：时间（固定宽度） ==========
-                            ft.Container(
-                                content=ft.Text(
-                                    time_str,
-                                    size=12,
-                                    color=ft.Colors.GREY_500,
-                                    weight=ft.FontWeight.BOLD,
-                                ),
-                                width=45,
-                                alignment=ft.Alignment(0, 0),
-                            ),
-                            # ========== 中间：分类图标 + 名称 + 备注 ==========
-                            ft.Column([
+                if is_expanded:
+                    for t in records_for_date:
+                        is_income = t.type == "income"
+                        amount_color = ft.Colors.GREEN_700 if is_income else ft.Colors.RED_700
+                        amount_prefix = "+" if is_income else "-"
+                        current_balance = balance_map.get(t.id, 0)
+                        time_str = getattr(t, 'time', '00:00')
+                        if time_str == "00:00":
+                            time_str = ""
+                        
+                        record_card = ft.Container(
+                            content=ft.Column([
                                 ft.Row([
-                                    ft.Icon(
-                                        ft.Icons.ARROW_UPWARD if is_income else ft.Icons.ARROW_DOWNWARD,
-                                        size=14,
-                                        color=amount_color,
-                                    ),
-                                    ft.Text(
-                                        t.category,
-                                        size=14,
-                                        weight=ft.FontWeight.BOLD,
-                                        color=ft.Colors.BLACK,
-                                    ),
+                                    ft.Icon(ft.Icons.ARROW_UPWARD if is_income else ft.Icons.ARROW_DOWNWARD,
+                                            size=14, color=amount_color),
+                                    ft.Text(t.category, size=14, weight=ft.FontWeight.BOLD),
                                     ft.Container(expand=True),
-                                    # 金额在右侧（同一行）
-                                    ft.Text(
-                                        amount_display,
-                                        size=14,
-                                        weight=ft.FontWeight.BOLD,
-                                        color=amount_color,
-                                        text_align=ft.TextAlign.END,
-                                    ),
+                                    ft.Text(f"{amount_prefix}¥ {abs(t.amount):,.2f}", size=14,
+                                            weight=ft.FontWeight.BOLD, color=amount_color,
+                                            text_align=ft.TextAlign.END),
                                 ], spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-                                # 备注和余额（第二行）
                                 ft.Row([
-                                    ft.Text(
-                                        t.note if t.note else "",
-                                        size=11,
-                                        color=ft.Colors.GREY_500,
-                                        max_lines=1,
-                                        overflow=ft.TextOverflow.ELLIPSIS,
-                                        expand=True,
-                                    ),
-                                    ft.Text(
-                                        balance_display,
-                                        size=11,
-                                        color=ft.Colors.GREY_500 if current_balance >= 0 else ft.Colors.RED_700,
-                                        text_align=ft.TextAlign.END,
-                                    ),
+                                    ft.Text(time_str, size=11, color=ft.Colors.GREY_500),
+                                    ft.Text(t.note if t.note else "", size=11, color=ft.Colors.GREY_500,
+                                            max_lines=1, overflow=ft.TextOverflow.ELLIPSIS, expand=True),
+                                    ft.Text(f"余额: ¥ {current_balance:,.2f}", size=11,
+                                            color=ft.Colors.GREY_500 if current_balance >= 0 else ft.Colors.RED_700,
+                                            text_align=ft.TextAlign.END),
                                 ], spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-                            ], spacing=2, expand=True),
-                        ], spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-                        padding=ft.Padding(left=10, right=10, top=8, bottom=8),
-                        border=ft.border.Border(
-                            bottom=ft.border.BorderSide(1, ft.Colors.GREY_100)
-                        ) if index < len(records) - 1 else None,
-                        ink=True,
-                        on_click=lambda e, tr=t: edit_transaction(tr),
+                            ], spacing=2),
+                            padding=ft.Padding(left=10, right=10, top=6, bottom=6),
+                            border=ft.border.Border(bottom=ft.border.BorderSide(1, ft.Colors.GREY_100)),
+                            ink=True,
+                            on_click=lambda e, tr=t: edit_transaction(tr),
+                        )
+                        list_view.controls.append(record_card)
+            
+            # ========== 添加分页控件 ==========
+            list_view.controls.append(create_pagination_controls(total))
+            list_view.controls.append(ft.Container(height=100))
+            
+            records_list.controls.append(list_view)
+            page.update()
+
+        def create_pagination_controls(total):
+            """创建分页控件"""
+            global current_page, page_size
+            
+            total_pages = (total + page_size - 1) // page_size if total > 0 else 1
+            
+            def change_page(delta):
+                def handler(e):
+                    global current_page
+                    new_page = current_page + delta
+                    if 1 <= new_page <= total_pages:
+                        current_page = new_page
+                        refresh_records_list()
+                        # 滚动到顶部
+                        async def scroll_top():
+                            try:
+                                if scroll_container and hasattr(scroll_container, 'scroll_to'):
+                                    await scroll_container.scroll_to(offset=0, duration=300)
+                            except:
+                                pass
+                        asyncio.create_task(scroll_top())
+                return handler
+            
+            def go_to_page(e):
+                global current_page
+                try:
+                    page_num = int(page_input.value.strip())
+                    if 1 <= page_num <= total_pages:
+                        current_page = page_num
+                        refresh_records_list()
+                        async def scroll_top():
+                            try:
+                                if scroll_container and hasattr(scroll_container, 'scroll_to'):
+                                    await scroll_container.scroll_to(offset=0, duration=300)
+                            except:
+                                pass
+                        asyncio.create_task(scroll_top())
+                    else:
+                        page_input.value = str(current_page)
+                        page_input.update()
+                except ValueError:
+                    page_input.value = str(current_page)
+                    page_input.update()
+            
+            # ========== 每页条数选择器（使用 PopupMenuButton 风格） ==========
+            def on_page_size_selected(value):
+                """选择每页条数"""
+                global current_page, page_size
+                try:
+                    new_size = int(value)
+                    if new_size in PAGE_SIZE_OPTIONS:
+                        page_size = new_size
+                        current_page = 1  # 重置到第一页
+                        # 更新显示文本
+                        page_size_popup.content.controls[0].value = f"{new_size}条"
+                        refresh_records_list()
+                except:
+                    pass
+            
+            # 构建菜单项
+            page_size_items = []
+            for size in PAGE_SIZE_OPTIONS:
+                is_selected = (size == page_size)
+                page_size_items.append(
+                    ft.PopupMenuItem(
+                        content=ft.Container(
+                            content=ft.Row([
+                                ft.Text(f"{size}条", size=14, color=ft.Colors.BLUE_700 if is_selected else ft.Colors.BLACK),
+                                ft.Container(expand=True),
+                                ft.Icon(ft.Icons.CHECK, size=16, color=ft.Colors.BLUE_700, visible=is_selected),
+                            ], alignment=ft.MainAxisAlignment.START),
+                            width=120,
+                        ),
+                        on_click=lambda e, val=size: on_page_size_selected(val),
+                        height=36,
                     )
-                    records_container.controls.append(record_card)
-                
-                # 将记录容器添加到列表
-                records_list.controls.append(records_container)
-            
-            # ========== 展开/收起切换函数 ==========
-            def toggle_date_expand(date_key):
-                """切换日期的展开/收起状态"""
-                # 切换状态
-                current_state = refresh_records_list.expanded_dates.get(date_key, True)
-                refresh_records_list.expanded_dates[date_key] = not current_state
-                
-                # 刷新整个列表（重新构建）
-                refresh_records_list()
-            
-            # ========== 底部统计汇总 ==========
-            records_list.controls.append(
-                ft.Container(
-                    content=ft.Column([
-                        ft.Divider(height=1),
-                        ft.Row([
-                            ft.Text("📊 统计汇总", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
-                            ft.Container(expand=True),
-                            ft.Text(f"共 {len(display_records)} 笔交易", size=11, color=ft.Colors.GREY_500),
-                        ]),
-                        ft.Row([
-                            ft.Column([
-                                ft.Text("收入", size=12, color=ft.Colors.GREY_600),
-                                ft.Text(f"¥ {month_income:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_700),
-                            ], expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                            ft.Column([
-                                ft.Text("支出", size=12, color=ft.Colors.GREY_600),
-                                ft.Text(f"¥ {month_expense:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.RED_700),
-                            ], expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                            ft.Column([
-                                ft.Text("结余", size=12, color=ft.Colors.GREY_600),
-                                ft.Text(f"¥ {month_balance:,.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
-                            ], expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                        ], spacing=5),
-                        ft.Divider(height=1),
-                        ft.Row([
-                            ft.Text(f"累计结余: ¥ {cumulative_balance:,.2f}", size=12, color=ft.Colors.GREY_600),
-                        ], alignment=ft.MainAxisAlignment.END),
-                    ], spacing=8),
-                    padding=15,
-                    bgcolor=ft.Colors.TRANSPARENT,
-                    border_radius=10,
                 )
+                if size != PAGE_SIZE_OPTIONS[-1]:
+                    page_size_items.append(
+                        ft.PopupMenuItem(
+                            content=ft.Divider(height=1, color=ft.Colors.GREY_300),
+                            disabled=True,
+                            height=2,
+                        )
+                    )
+            
+            # 创建 PopupMenuButton
+            page_size_popup = ft.PopupMenuButton(
+                content=ft.Row([
+                    ft.Text(f"{page_size}条", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
+                    ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18, color=ft.Colors.BLUE_700),
+                ], spacing=3, alignment=ft.MainAxisAlignment.CENTER),
+                items=page_size_items,
+                bgcolor=ft.Colors.WHITE,
+                menu_position=ft.PopupMenuPosition.UNDER,
             )
             
-            records_list.controls.append(ft.Container(height=130))
+            # 页码输入框
+            page_input = ft.TextField(
+                value=str(current_page),
+                width=45,
+                height=32,
+                text_align=ft.TextAlign.CENTER,
+                on_submit=go_to_page,
+                border=ft.InputBorder.OUTLINE,
+                border_color=ft.Colors.GREY_300,
+                content_padding=5,
+            )
             
-            async def reset_scroll():
-                try:
-                    if scroll_container and hasattr(scroll_container, 'page') and scroll_container.page is not None:
-                        if hasattr(scroll_container, 'scroll_to'):
-                            await scroll_container.scroll_to(offset=0, duration=0)
-                except Exception as e:
-                    print(f"滚动重置失败: {e}")
+            # ========== 两行布局 ==========
+            # 第一行：翻页控件（居中）
+            pagination_row = ft.Row([
+                ft.IconButton(
+                    icon=ft.Icons.FIRST_PAGE,
+                    icon_size=20,
+                    icon_color=ft.Colors.BLUE_700 if current_page > 1 else ft.Colors.GREY_400,
+                    on_click=change_page(-current_page + 1) if current_page > 1 else None,
+                    disabled=current_page <= 1,
+                    tooltip="第一页",
+                ),
+                ft.IconButton(
+                    icon=ft.Icons.KEYBOARD_ARROW_LEFT,
+                    icon_size=20,
+                    icon_color=ft.Colors.BLUE_700 if current_page > 1 else ft.Colors.GREY_400,
+                    on_click=change_page(-1),
+                    disabled=current_page <= 1,
+                    tooltip="上一页",
+                ),
+                ft.Text("第", size=12, color=ft.Colors.GREY_700),
+                page_input,
+                ft.Text(f"/ {total_pages} 页", size=12, color=ft.Colors.GREY_700),
+                ft.IconButton(
+                    icon=ft.Icons.KEYBOARD_ARROW_RIGHT,
+                    icon_size=20,
+                    icon_color=ft.Colors.BLUE_700 if current_page < total_pages else ft.Colors.GREY_400,
+                    on_click=change_page(1),
+                    disabled=current_page >= total_pages,
+                    tooltip="下一页",
+                ),
+                ft.IconButton(
+                    icon=ft.Icons.LAST_PAGE,
+                    icon_size=20,
+                    icon_color=ft.Colors.BLUE_700 if current_page < total_pages else ft.Colors.GREY_400,
+                    on_click=change_page(total_pages - current_page) if current_page < total_pages else None,
+                    disabled=current_page >= total_pages,
+                    tooltip="最后一页",
+                ),
+            ], spacing=10, alignment=ft.MainAxisAlignment.CENTER, vertical_alignment=ft.CrossAxisAlignment.CENTER)
             
-            try:
-                asyncio.create_task(reset_scroll())
-            except:
-                pass
+            # 第二行：每页条数 + 总数
+            info_row = ft.Row([
+                ft.Text("每页", size=12, color=ft.Colors.GREY_700),
+                page_size_popup,
+                ft.Text(f"共 {total} 条", size=12, color=ft.Colors.GREY_600, weight=ft.FontWeight.BOLD),
+            ], spacing=4, alignment=ft.MainAxisAlignment.CENTER, vertical_alignment=ft.CrossAxisAlignment.CENTER)
             
-            page.update()
+            return ft.Container(
+                content=ft.Column([
+                    pagination_row,
+                    ft.Container(height=4),
+                    info_row,
+                ], spacing=0, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                padding=ft.Padding(left=0, right=0, top=8, bottom=8),
+                bgcolor=ft.Colors.TRANSPARENT,
+            )
                 
         def change_month_acct(delta):
             """切换月份"""
@@ -10289,6 +10628,7 @@ def main(page: ft.Page):
             ],
             alignment=ft.MainAxisAlignment.CENTER,
             spacing=8,
+            visible=False,
         )
         
         # ========== 区间查询控件 ==========
@@ -10502,10 +10842,10 @@ def main(page: ft.Page):
                         category=category_field.value,
                         amount=amount,
                         note=note_field.value,
-                        time=time_field.value,  # 新增
+                        time=time_field.value,
                     )
-                    transactions.append(new_transaction)
-                    save_accounting_data()
+                    # 使用数据库保存
+                    db.insert(new_transaction)
                     show_bottom_message(f"已添加{'收入' if transaction_type == 'income' else '支出'}: ¥{amount:,.2f}")
                     close_dialog()
                     refresh_records_list()
@@ -10704,9 +11044,6 @@ def main(page: ft.Page):
                 marquee_text.color = ft.Colors.GREY_600
 
             page.update()
-
-        # ========== 初始化界面 ==========
-        load_accounting_data()
         
         # 统计卡片容器
         summary_container = ft.Column(spacing=10)
@@ -10749,8 +11086,8 @@ def main(page: ft.Page):
                     ft.Text("💰 记账单", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, expand=True, text_align=ft.TextAlign.CENTER),
                     ft.Container(width=40),
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                ft.Divider(),
-                month_row,
+                #ft.Divider(),
+                #month_row,
                 #range_row,
                 summary_container,
                 ft.Divider(),
@@ -15990,7 +16327,7 @@ def main(page: ft.Page):
 
     load_events()           # 加载事件列表
 
-    load_accounting_data()  # 加载记账列表
+    #load_accounting_data()  # 加载记账列表
 
     load_memo_notes()       # 加载备忘录数据
 
@@ -17353,11 +17690,11 @@ def main(page: ft.Page):
                     close_confirm_dialog()
                     global transactions
                     transactions = new_transactions
-                    save_accounting_data()
+                    #save_accounting_data()
 
                     # ========== 直接更新界面，不调用 refresh 函数 ==========
                     # 重新加载数据并刷新显示
-                    load_accounting_data()
+                    #load_accounting_data()
 
                     show_bottom_message(f"成功导入 {imported_count} 条记账记录")
                     page.update()
