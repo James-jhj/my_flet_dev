@@ -88,8 +88,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.246"
-APP_VERSION_CODE = 246
+APP_VERSION = "1.0.247"
+APP_VERSION_CODE = 247
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -292,6 +292,10 @@ else:
     except ImportError:
         PYCNM_AVAILABLE = False
         print("警告: pyncm 模块不可用")
+
+# 在文件顶部添加
+refresh_records_list_global = None
+refresh_summary_global = None
 
 # ========== 添加 SQLite 数据库管理类 ==========
 class AccountingDB:
@@ -8213,6 +8217,7 @@ def main(page: ft.Page):
         """显示记账页面（使用SQLite存储 + 分页）"""
         global transactions, current_page, page_size
         global current_page, floating_add_button, original_floating_add_click
+        global refresh_records_list_global, refresh_summary_global  # 添加全局变量
 
         # 切换到记账页面
         current_page = "accounting"
@@ -8258,9 +8263,6 @@ def main(page: ft.Page):
 
         # 记录列表容器（用于滚动）
         records_list = ft.Column(spacing=5, expand=True)  # 移除 scroll，由外层控制
-
-        # 加载数据
-        #load_accounting_data()
 
         # ========== 在函数顶部定义滚动状态变量 ==========
         show_scroll_top_btn = False  # 定义在函数顶部，所有内部函数都可以访问
@@ -8530,109 +8532,6 @@ def main(page: ft.Page):
             
             page.overlay.append(dialog_container)
             page.update()
-
-        def save_transaction_to_db(transaction):
-            """保存单条记录到数据库"""
-            db.insert(transaction)
-
-        # ========== 修改删除函数 ==========
-        def delete_transaction(transaction_id, transaction_name):
-            """删除记录（使用数据库）"""
-            # 找到要删除的记录
-            transaction_to_delete = None
-            # 从数据库获取所有记录查找
-            all_records = db.get_all()
-            for t in all_records:
-                if t.id == transaction_id:
-                    transaction_to_delete = t
-                    break
-            
-            if not transaction_to_delete:
-                show_bottom_message("未找到该记录")
-                return
-            
-            dialog_container = None
-            
-            def close_dialog():
-                nonlocal dialog_container
-                if dialog_container and dialog_container in page.overlay:
-                    page.overlay.remove(dialog_container)
-                    dialog_container = None
-                    page.update()
-            
-            def confirm_delete(e):
-                close_dialog()
-                db.delete(transaction_id)
-                refresh_records_list()
-                refresh_summary()
-                show_bottom_message(f"已删除{transaction_to_delete.category}记录")
-            
-            def cancel_delete(e):
-                close_dialog()
-                show_bottom_message(f"已取消删除")
-                page.update()
-            
-            is_income = transaction_to_delete.type == "income"
-            type_text = "收入" if is_income else "支出"
-            amount_text = f"{transaction_to_delete.category} - ¥{abs(transaction_to_delete.amount):,.2f}"
-            
-            dialog_content = ft.Container(
-                content=ft.Column([
-                    ft.Container(
-                        content=ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, size=55, color=ft.Colors.RED_700),
-                        padding=10,
-                        bgcolor=ft.Colors.RED_50,
-                        border_radius=50,
-                    ),
-                    ft.Text("确认删除", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.RED_700, text_align=ft.TextAlign.CENTER),
-                    ft.Divider(height=1, color=ft.Colors.GREY_300),
-                    ft.Text(f"确定要删除这条{type_text}记录吗？", size=14, color=ft.Colors.GREY_700, text_align=ft.TextAlign.CENTER),
-                    ft.Text(amount_text, size=13, color=ft.Colors.BLUE_700, text_align=ft.TextAlign.CENTER),
-                    ft.Text(transaction_to_delete.date, size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
-                    ft.Text("此操作不可撤销！", size=12, color=ft.Colors.RED_500, text_align=ft.TextAlign.CENTER),
-                    ft.Divider(height=1, color=ft.Colors.GREY_300),
-                    ft.Row([
-                        ft.ElevatedButton(
-                            "取消", 
-                            on_click=cancel_delete, 
-                            expand=True,
-                            style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.GREY_700),
-                        ),
-                        ft.ElevatedButton(
-                            "确认删除", 
-                            on_click=confirm_delete, 
-                            expand=True,
-                            style=ft.ButtonStyle(bgcolor=ft.Colors.RED_700, color=ft.Colors.WHITE),
-                        ),
-                    ], spacing=12, alignment=ft.MainAxisAlignment.CENTER),
-                ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                width=320,
-                padding=20,
-                bgcolor=ft.Colors.WHITE,
-                border_radius=16,
-            )
-            
-            dialog_container = ft.Container(
-                content=ft.Column([
-                    ft.Container(expand=True),
-                    ft.Row([
-                        ft.Container(expand=True),
-                        dialog_content,
-                        ft.Container(expand=True),
-                    ]),
-                    ft.Container(expand=True),
-                ]),
-                expand=True,
-                bgcolor=ft.Colors.BLACK26,
-                on_click=close_dialog,
-            )
-            
-            page.overlay.append(dialog_container)
-            page.update()
-
-        def update_transaction_in_db(transaction):
-            """更新数据库中的记录"""
-            db.update(transaction)
         
         def edit_transaction(transaction):
             """编辑记录（与添加事件界面风格一致）"""
@@ -8898,7 +8797,7 @@ def main(page: ft.Page):
             # 顶部按钮栏（与添加事件一致）
             top_bar = ft.Row([
                 ft.IconButton(
-                    icon=ft.Icons.CLOSE,
+                    icon=ft.Icons.ARROW_BACK,
                     icon_size=28,
                     icon_color=ft.Colors.RED_700,
                     tooltip="取消",
@@ -10035,6 +9934,13 @@ def main(page: ft.Page):
             """刷新记录列表（支持分页）"""
             global current_page
             
+            # ========== 确保 current_page 是整数 ==========
+            if isinstance(current_page, str):
+                try:
+                    current_page = int(current_page)
+                except:
+                    current_page = 1
+
             records_list.controls.clear()
             
             # 获取基础查询参数
@@ -10219,6 +10125,8 @@ def main(page: ft.Page):
             records_list.controls.append(list_view)
             page.update()
 
+        
+
         def create_pagination_controls(total):
             """创建分页控件"""
             global current_page, page_size
@@ -10245,10 +10153,11 @@ def main(page: ft.Page):
             def go_to_page(e):
                 global current_page
                 try:
+                    # ========== 关键修复：转换为整数 ==========
                     page_num = int(page_input.value.strip())
                     if 1 <= page_num <= total_pages:
                         current_page = page_num
-                        refresh_records_list()
+                        refresh_records_list_global()
                         async def scroll_top():
                             try:
                                 if scroll_container and hasattr(scroll_container, 'scroll_to'):
@@ -10265,16 +10174,15 @@ def main(page: ft.Page):
             
             # ========== 每页条数选择器（使用 PopupMenuButton 风格） ==========
             def on_page_size_selected(value):
-                """选择每页条数"""
                 global current_page, page_size
                 try:
+                    # ========== 关键修复：确保是整数 ==========
                     new_size = int(value)
                     if new_size in PAGE_SIZE_OPTIONS:
                         page_size = new_size
-                        current_page = 1  # 重置到第一页
-                        # 更新显示文本
+                        current_page = 1
                         page_size_popup.content.controls[0].value = f"{new_size}条"
-                        refresh_records_list()
+                        refresh_records_list_global()
                 except:
                     pass
             
@@ -10384,6 +10292,10 @@ def main(page: ft.Page):
                 padding=ft.Padding(left=0, right=0, top=8, bottom=8),
                 bgcolor=ft.Colors.TRANSPARENT,
             )
+
+        # ========== 保存到全局变量，供导入函数使用 ==========
+        refresh_records_list_global = refresh_records_list
+        refresh_summary_global = refresh_summary
                 
         def change_month_acct(delta):
             """切换月份"""
@@ -10860,7 +10772,7 @@ def main(page: ft.Page):
             # 顶部按钮栏（与添加事件一致）
             top_bar = ft.Row([
                 ft.IconButton(
-                    icon=ft.Icons.CLOSE,
+                    icon=ft.Icons.ARROW_BACK,
                     icon_size=24,
                     icon_color=ft.Colors.RED_700,
                     tooltip="取消",
@@ -15280,7 +15192,7 @@ def main(page: ft.Page):
         
         top_bar = ft.Row([
             ft.IconButton(
-                icon=ft.Icons.CLOSE,
+                icon=ft.Icons.ARROW_BACK,
                 icon_size=24,
                 icon_color=ft.Colors.RED_700,
                 tooltip="取消",
@@ -17320,14 +17232,19 @@ def main(page: ft.Page):
 
     # ========== 记账数据导入导出 ==========
     async def export_accounting_async(e):
-        """导出记账数据到Excel（按日期+时间由近到远排序）"""
-        global transactions
+        """导出记账数据到Excel（从SQLite导出）"""
         try:
-            print(f"[导出记账] transactions 数量: {len(transactions)}")
+            # 创建数据库实例
+            db = AccountingDB()
             
-            if not transactions:
+            # 从数据库获取所有记录
+            all_records = db.get_all()
+            
+            if not all_records:
                 show_bottom_message("没有记账数据可导出")
                 return
+            
+            print(f"[导出记账] 从数据库获取到 {len(all_records)} 条记录")
             
             # ========== 按日期+时间由近到远排序 ==========
             def get_sort_key(record):
@@ -17335,7 +17252,7 @@ def main(page: ft.Page):
                 time_str = getattr(record, 'time', '00:00')
                 return f"{record.date} {time_str}"
             
-            sorted_transactions = sorted(transactions, key=get_sort_key, reverse=True)
+            sorted_transactions = sorted(all_records, key=get_sort_key, reverse=True)
             
             temp_dir = get_data_file_path("")
             temp_file = os.path.join(temp_dir, f"accounting_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
@@ -17386,16 +17303,16 @@ def main(page: ft.Page):
             
             # 设置金额列为数字格式
             for row in range(ws.max_row - len(sorted_transactions) + 1, ws.max_row + 1):
-                cell = ws.cell(row=row, column=5)  # 金额在第5列
+                cell = ws.cell(row=row, column=5)
                 cell.number_format = '#,##0.00'
             
             # 调整列宽
-            ws.column_dimensions['A'].width = 14  # 日期
-            ws.column_dimensions['B'].width = 10  # 时间
-            ws.column_dimensions['C'].width = 10  # 类型
-            ws.column_dimensions['D'].width = 18  # 分类
-            ws.column_dimensions['E'].width = 14  # 金额
-            ws.column_dimensions['F'].width = 30  # 备注
+            ws.column_dimensions['A'].width = 14
+            ws.column_dimensions['B'].width = 10
+            ws.column_dimensions['C'].width = 10
+            ws.column_dimensions['D'].width = 18
+            ws.column_dimensions['E'].width = 14
+            ws.column_dimensions['F'].width = 30
             
             wb.save(temp_file)
             
@@ -17430,8 +17347,7 @@ def main(page: ft.Page):
             traceback.print_exc()
 
     async def import_accounting_async(e):
-        """从Excel导入记账数据（支持时间列）"""
-        global transactions
+        """从Excel导入记账数据到SQLite（支持时间列）"""
         
         menu_container = None
         
@@ -17498,11 +17414,14 @@ def main(page: ft.Page):
             show_bottom_message("已取消导入")
         
         async def do_import_accounting(file_path):
-            """执行记账数据导入（从第6行开始读取）"""
+            """执行记账数据导入到SQLite"""
             show_bottom_message(f"正在导入记账数据: {os.path.basename(file_path)}")
             page.update()
             
             try:
+                # 创建数据库实例
+                db = AccountingDB()
+                
                 wb = load_workbook(file_path)
                 ws = wb.active
                 
@@ -17518,15 +17437,13 @@ def main(page: ft.Page):
                 header_row_idx = None
                 header_row = None
                 
-                # 从第6行开始查找表头（因为前5行是汇总信息）
                 for row_idx in range(5, min(21, ws.max_row + 1)):
                     row_data = []
-                    for col in range(1, 10):  # 检查前10列
+                    for col in range(1, 10):
                         cell_value = ws.cell(row=row_idx, column=col).value
                         if cell_value:
                             row_data.append(str(cell_value).strip())
                     
-                    # 检查是否包含表头关键字
                     row_text = " ".join(row_data)
                     if "日期" in row_text and "类型" in row_text and "分类" in row_text:
                         header_row_idx = row_idx
@@ -17536,7 +17453,6 @@ def main(page: ft.Page):
                         break
                 
                 if header_row_idx is None:
-                    # 如果没找到表头，尝试使用第6行
                     header_row_idx = 6
                     header_row = []
                     for col in range(1, 10):
@@ -17545,7 +17461,7 @@ def main(page: ft.Page):
                             header_row.append(str(cell_value).strip())
                     print(f"[导入] 未找到标准表头，使用第6行: {header_row}")
                 
-                # ========== 确定各列的索引（基于表头内容） ==========
+                # ========== 确定各列的索引 ==========
                 col_index = {}
                 for idx, col_name in enumerate(header_row):
                     if col_name:
@@ -17582,7 +17498,6 @@ def main(page: ft.Page):
                 
                 for row_idx in range(start_row, ws.max_row + 1):
                     try:
-                        # 获取每列的数据
                         row_data = {}
                         for col_name, col_pos in col_index.items():
                             cell_value = ws.cell(row=row_idx, column=col_pos + 1).value
@@ -17591,7 +17506,6 @@ def main(page: ft.Page):
                             else:
                                 row_data[col_name] = ""
                         
-                        # 提取各字段
                         date = row_data.get('date', '')
                         time_str = row_data.get('time', '00:00')
                         type_str = row_data.get('type', '')
@@ -17599,11 +17513,9 @@ def main(page: ft.Page):
                         amount_str = row_data.get('amount', '')
                         note = row_data.get('note', '')
                         
-                        # 跳过空行
                         if not date and not category and not amount_str:
                             continue
                         
-                        # 验证必要字段
                         if not date:
                             print(f"[导入] 第 {row_idx} 行: 日期为空，跳过")
                             skipped_count += 1
@@ -17619,15 +17531,12 @@ def main(page: ft.Page):
                             skipped_count += 1
                             continue
                         
-                        # 如果时间格式不正确，设置为 "00:00"
                         if time_str and ":" not in time_str:
                             time_str = "00:00"
                         elif not time_str:
                             time_str = "00:00"
                         
-                        # 解析金额
                         try:
-                            # 处理千位分隔符和货币符号
                             amount_str_clean = amount_str.replace(',', '').replace('¥', '').replace('$', '').replace(' ', '')
                             amount = float(amount_str_clean)
                             if amount <= 0:
@@ -17639,7 +17548,6 @@ def main(page: ft.Page):
                             skipped_count += 1
                             continue
                         
-                        # 确定交易类型
                         if "收入" in type_str or "income" in type_str.lower():
                             transaction_type = "income"
                         elif "支出" in type_str or "expense" in type_str.lower():
@@ -17649,7 +17557,6 @@ def main(page: ft.Page):
                             skipped_count += 1
                             continue
                         
-                        # 创建交易记录
                         transaction_id = str(int(datetime.now().timestamp() * 1000) + imported_count)
                         new_transaction = Transaction(
                             id=transaction_id,
@@ -17669,7 +17576,6 @@ def main(page: ft.Page):
                         skipped_count += 1
                         continue
                 
-                # ========== 导入完成，显示结果 ==========
                 print(f"[导入] 导入完成: 成功 {imported_count} 条，跳过 {skipped_count} 行")
                 
                 if imported_count == 0:
@@ -17688,15 +17594,15 @@ def main(page: ft.Page):
                 
                 def confirm_replace():
                     close_confirm_dialog()
-                    global transactions
-                    transactions = new_transactions
-                    #save_accounting_data()
-
-                    # ========== 直接更新界面，不调用 refresh 函数 ==========
-                    # 重新加载数据并刷新显示
-                    #load_accounting_data()
-
+                    # ========== 清空数据库并导入新数据 ==========
+                    db.clear_all()
+                    db.insert_many(new_transactions)
                     show_bottom_message(f"成功导入 {imported_count} 条记账记录")
+                    # 使用全局函数刷新
+                    if refresh_records_list_global:
+                        refresh_records_list_global()
+                    if refresh_summary_global:
+                        refresh_summary_global()
                     page.update()
                 
                 def cancel_replace():
@@ -17715,11 +17621,11 @@ def main(page: ft.Page):
                         ft.Text("确认导入", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_700, text_align=ft.TextAlign.CENTER),
                         ft.Divider(),
                         ft.Text(f"即将导入 {imported_count} 条记账记录", size=14),
-                        ft.Text(f"当前有 {len(transactions)} 条记录将被替换", size=12, color=ft.Colors.ORANGE_700),
+                        ft.Text(f"当前数据将被替换", size=12, color=ft.Colors.ORANGE_700),
                         ft.Divider(),
                         ft.Row([
-                            ft.ElevatedButton("取消", on_click=lambda e: cancel_replace(), expand=True),
-                            ft.ElevatedButton("确认导入", on_click=lambda e: confirm_replace(), expand=True,
+                            ft.Button("取消", on_click=lambda e: cancel_replace(), expand=True),
+                            ft.Button("确认导入", on_click=lambda e: confirm_replace(), expand=True,
                                             style=ft.ButtonStyle(bgcolor=ft.Colors.GREEN_700, color=ft.Colors.WHITE)),
                         ], spacing=12),
                     ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
@@ -17763,7 +17669,7 @@ def main(page: ft.Page):
                 ft.Row([
                     ft.ElevatedButton(
                         "选择Excel文件", 
-                        on_click=lambda e: on_select_file(),  # 使用包装函数
+                        on_click=lambda e: on_select_file(),
                         expand=True,
                         style=ft.ButtonStyle(bgcolor=ft.Colors.GREEN_700, color=ft.Colors.WHITE),
                     ),
