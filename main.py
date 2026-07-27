@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.253"
-APP_VERSION_CODE = 253
+APP_VERSION = "1.0.254"
+APP_VERSION_CODE = 254
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -7957,25 +7957,54 @@ def main(page: ft.Page):
                     
                     # ========== 构建预览内容（保持不变） ==========
                     preview_content = build_preview_content(file_path, file_name, ext, size_str)
+
+                    async def save_attachment_async(file_path):
+                        """异步保存附件（使用 FilePicker）"""
+                        try:
+                            file_name = os.path.basename(file_path)
+                            
+                            # 读取文件内容
+                            with open(file_path, 'rb') as f:
+                                file_bytes = f.read()
+                            
+                            # 创建 FilePicker
+                            file_picker = ft.FilePicker()
+                            page.services.append(file_picker)
+                            page.update()
+                            
+                            # 让用户选择保存位置
+                            result = await file_picker.save_file(
+                                file_name=file_name,
+                                src_bytes=file_bytes,
+                                dialog_title=f"保存 {file_name}"
+                            )
+                            
+                            # 移除 FilePicker
+                            if file_picker in page.services:
+                                page.services.remove(file_picker)
+                            page.update()
+                            
+                            if result:
+                                show_bottom_message(f"✅ 文件已保存到: {os.path.basename(result)}")
+                                # Android 上尝试打开文件夹
+                                if platform.system() == "Linux":
+                                    try:
+                                        import subprocess
+                                        subprocess.Popen(['xdg-open', os.path.dirname(result)])
+                                    except:
+                                        pass
+                            else:
+                                show_bottom_message("已取消保存")
+                                
+                        except Exception as e:
+                            print(f"[保存] 失败: {e}")
+                            show_bottom_message(f"保存失败: {str(e)}", is_error=True)
                     
                     # ========== 保存到下载目录 ==========
                     def save_to_download(e):
-                        """保存附件到下载目录"""
-                        success, dest_path, message = copy_attachment_to_download(file_path)
-                        if success:
-                            show_bottom_message(f"✅ {message}")
-                            # 如果文件在 Download 目录，提供打开选项
-                            if platform.system() == "Linux":
-                                # Android: 提示用户去文件管理器查看
-                                show_bottom_message(f"📁 文件已保存到 Download 目录")
-                            else:
-                                # Windows: 打开文件夹
-                                try:
-                                    os.startfile(os.path.dirname(dest_path))
-                                except:
-                                    pass
-                        else:
-                            show_bottom_message(f"❌ {message}", is_error=True)
+                        """保存附件到下载目录（使用 FilePicker）"""
+                        # 直接调用异步函数
+                        asyncio.create_task(save_attachment_async(file_path))
                     
                     # ========== 在系统中打开 ==========
                     def open_in_system(e):
@@ -8034,8 +8063,8 @@ def main(page: ft.Page):
                                     style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.BLUE_700),
                                 ),
                                 ft.ElevatedButton(
-                                    "💾 保存到下载",
-                                    on_click=save_to_download,
+                                    "💾 保存到...",
+                                    on_click=lambda e: asyncio.create_task(save_attachment_async(file_path)),
                                     expand=True,
                                     style=ft.ButtonStyle(bgcolor=ft.Colors.GREEN_700, color=ft.Colors.WHITE),
                                 ),
