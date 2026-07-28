@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.258"
-APP_VERSION_CODE = 258
+APP_VERSION = "1.0.259"
+APP_VERSION_CODE = 259
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -8059,55 +8059,10 @@ def main(page: ft.Page):
                         except Exception as e:
                             show_bottom_message(f"打开失败: {str(e)}", is_error=True)
 
-                    def save_to_media_store(file_path, mime_type="application/octet-stream"):
-                        """使用 MediaStore 保存文件到 Download 目录（Android 10+ 兼容）"""
-                        try:
-                            from android import activity
-                            from android.content import ContentValues, Context
-                            from android.os import Environment
-                            from android.provider import MediaStore
-                            from android.net import Uri
-                            
-                            file_name = os.path.basename(file_path)
-                            
-                            # 读取文件内容
-                            with open(file_path, 'rb') as f:
-                                file_bytes = f.read()
-                            
-                            # 创建 ContentValues
-                            values = ContentValues()
-                            values.put(MediaStore.MediaColumns.DISPLAY_NAME, file_name)
-                            values.put(MediaStore.MediaColumns.MIME_TYPE, mime_type)
-                            values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-                            
-                            # 插入到 MediaStore
-                            content_resolver = activity.getContentResolver()
-                            uri = content_resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-                            
-                            if uri:
-                                # 写入文件内容
-                                output_stream = content_resolver.openOutputStream(uri)
-                                output_stream.write(file_bytes)
-                                output_stream.close()
-                                
-                                print(f"[MediaStore] ✅ 保存成功: {file_name}")
-                                show_bottom_message(f"✅ 已保存到 Download 目录: {file_name}")
-                                return True, str(uri)
-                            else:
-                                print("[MediaStore] ❌ 保存失败")
-                                return False, None
-                                
-                        except Exception as e:
-                            print(f"[MediaStore] ❌ 错误: {e}")
-                            import traceback
-                            traceback.print_exc()
-                            return False, None
     
                     def save_to_root_silent(file_path):
-                        """静默保存文件到手机根目录 /storage/emulated/0/"""
-                        # ========== 方法1：尝试 MediaStore（Android 10+ 推荐） ==========
-
-                        # 获取 MIME 类型
+                        """静默保存文件（优先 MediaStore，降级到 FilePicker）"""
+                        # ========== 尝试 MediaStore ==========
                         ext = os.path.splitext(file_path)[1].lower()
                         mime_types = {
                             '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
@@ -8118,8 +8073,6 @@ def main(page: ft.Page):
                             '.xls': 'application/vnd.ms-excel',
                             '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                             '.txt': 'text/plain',
-                            '.mp3': 'audio/mpeg',
-                            '.mp4': 'video/mp4',
                         }
                         mime_type = mime_types.get(ext, 'application/octet-stream')
                         
@@ -8151,78 +8104,10 @@ def main(page: ft.Page):
                                 return True
                         except Exception as e:
                             print(f"[MediaStore] 失败: {e}")
-
-                            # ========== 方法2：传统文件复制（需要 MANAGE_EXTERNAL_STORAGE 权限） ==========
-                            try:
-                                # Android 根目录路径
-                                root_paths = [
-                                    "/storage/emulated/0/file",
-                                    "/sdcard/",
-                                    "/storage/self/primary/",
-                                ]
-                                
-                                # 找到可用的根目录
-                                target_dir = None
-                                for path in root_paths:
-                                    if os.path.exists(path):
-                                        target_dir = path
-                                        break
-                                
-                                if not target_dir:
-                                    show_bottom_message("找不到存储目录", is_error=True)
-                                    return False
-                                
-                                file_name = os.path.basename(file_path)
-                                dest_path = os.path.join(target_dir, file_name)
-                                
-                                # 如果文件已存在，添加时间戳
-                                if os.path.exists(dest_path):
-                                    name, ext = os.path.splitext(file_name)
-                                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                                    dest_path = os.path.join(target_dir, f"{name}_{timestamp}{ext}")
-                                
-                                # 复制文件
-                                shutil.copy2(file_path, dest_path)
-                                print(f"[静默保存] ✅ 成功: {dest_path}")
-                                
-                                # 验证文件是否存在
-                                if os.path.exists(dest_path):
-                                    #file_size = os.path.getsize(dest_path)
-                                    show_bottom_message(f"✅ 已保存到手机根目录: {os.path.basename(dest_path)}")
-                                    return True
-                                else:
-                                    show_bottom_message("保存失败：文件不存在", is_error=True)
-                                    return False
-                                    
-                            except PermissionError as e:
-                                print(f"[静默保存] 权限错误: {e}")
-                                show_bottom_message("权限不足，请授予「所有文件访问权限」", is_error=True)
-                                # 引导用户去设置
-                                try:
-                                    from android import activity
-                                    from android.content import Intent
-                                    from android.net import Uri
-                                    
-                                    intent = Intent(
-                                        "android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION",
-                                        Uri.parse(f"package:{activity.getPackageName()}")
-                                    )
-                                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    activity.startActivity(intent)
-                                except:
-                                    pass
-                                return False
-                            except Exception as e:
-                                print(f"[静默保存] 失败: {e}")
-                                import traceback
-                                traceback.print_exc()
-                                show_bottom_message(f"保存失败: {str(e)}", is_error=True)
-                                return False
-
-                        # ========== 降级：使用 FilePicker ==========
-                        show_bottom_message("使用文件选择器保存...")
-                        asyncio.create_task(save_attachment_async(file_path))
-                        return True
+                            # ========== 降级：使用 FilePicker ==========
+                            show_bottom_message("使用文件选择器保存...")
+                            asyncio.create_task(save_attachment_async(file_path))
+                            return True
                     
                     # ========== 构建对话框 ==========
                     dialog_content = ft.Container(
