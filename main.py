@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.262"
-APP_VERSION_CODE = 262
+APP_VERSION = "1.0.263"
+APP_VERSION_CODE = 263
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -7966,43 +7966,37 @@ def main(page: ft.Page):
                 
 
                 # ========== 全屏图片查看器 ==========
-                fullscreen_image_container = None
-
                 def show_fullscreen_image(file_path):
-                    """显示全屏图片查看器"""
+                    """显示全屏图片查看器（顶部固定控制栏，图片占满剩余空间）"""
                     global fullscreen_image_container
-                    global is_image_fullscreen
                     
                     if not os.path.exists(file_path):
                         show_bottom_message("文件不存在", is_error=True)
                         return
                     
-                    # 重置状态
-                    is_image_fullscreen = True
-                    
-                    # ========== 使用 Container 包裹 Image，用 Transform 实现缩放 ==========
+                    # ========== 图片控件 ==========
                     image_widget = ft.Image(
                         src=file_path,
-                        fit="contain",  # ← 使用字符串
+                        fit="fill",  # ← 改为 fill，填满整个区域
                         width=float("inf"),
                         height=float("inf"),
                         gapless_playback=True,
                     )
 
-                    # 缩放容器
+                    # 图片容器
                     transform_container = ft.Container(
                         content=image_widget,
                         expand=True,
                         alignment=ft.Alignment(0, 0),
                     )
                     
-                    # UI 控制层（返回按钮，点击切换显示/隐藏）
+                    # ========== 顶部控制栏（固定显示，不隐藏） ==========
                     ui_overlay = ft.Container(
                         content=ft.Row([
                             ft.IconButton(
                                 icon=ft.Icons.ARROW_BACK,
                                 icon_size=30,
-                                icon_color=ft.Colors.BLACK_45,
+                                icon_color=ft.Colors.WHITE,
                                 on_click=lambda e: close_fullscreen_image(),
                                 tooltip="返回",
                             ),
@@ -8010,42 +8004,26 @@ def main(page: ft.Page):
                             ft.IconButton(
                                 icon=ft.Icons.INFO_OUTLINE,
                                 icon_size=24,
-                                icon_color=ft.Colors.BLACK_45,
+                                icon_color=ft.Colors.WHITE,
                                 on_click=lambda e: show_image_info(file_path),
                                 tooltip="文件信息",
                             ),
                         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                        padding=ft.Padding(left=0, right=0, top=16, bottom=0),
-                        bgcolor=ft.Colors.TRANSPARENT,
-                        visible=True,
+                        padding=ft.Padding(left=0, right=0, top=20, bottom=0),
+                        bgcolor=ft.Colors.BLACK_12,
                     )
                     
-                    # 主容器
+                    # ========== 主容器 ==========
                     fullscreen_image_container = ft.Container(
-                        content=ft.Stack([
-                            # 背景
+                        content=ft.Column([
+                            # 顶部控制栏（固定高度）
+                            ui_overlay,
+                            # 图片（占满剩余空间）
                             ft.Container(
-                                expand=True,
-                                bgcolor=ft.Colors.BLACK,
-                            ),
-                            # 图片
-                            ft.GestureDetector(
                                 content=transform_container,
                                 expand=True,
-                                on_tap=on_ui_toggle,
                             ),
-                            # UI 控制层（点击切换显示/隐藏）
-                            ft.GestureDetector(
-                                content=ft.Container(
-                                    content=ft.Column([
-                                        ui_overlay,
-                                        ft.Container(expand=True),
-                                    ]),
-                                    expand=True,
-                                ),
-                                on_tap=on_ui_toggle,
-                            ),
-                        ]),
+                        ], spacing=0, expand=True),
                         left=0,
                         top=0,
                         right=0,
@@ -8055,40 +8033,21 @@ def main(page: ft.Page):
                     
                     fullscreen_image_container.data = {
                         'file_path': file_path,
-                        'ui_visible': True,
-                        'transform_container': transform_container,
-                        'image_widget': image_widget,
-                        'ui_overlay': ui_overlay,
                     }
                     
                     page.overlay.append(fullscreen_image_container)
                     page.update()
 
+
                 def close_fullscreen_image():
                     """关闭全屏图片查看器"""
-                    global fullscreen_image_container, is_image_fullscreen
+                    global fullscreen_image_container
                     
                     if fullscreen_image_container and fullscreen_image_container in page.overlay:
                         page.overlay.remove(fullscreen_image_container)
                         fullscreen_image_container = None
-                        is_image_fullscreen = False
                         page.update()
 
-                def on_ui_toggle(e):
-                    """点击切换 UI 显示/隐藏"""
-                    container = fullscreen_image_container
-                    if not container or not container.data:
-                        return
-                    
-                    ui_visible = container.data.get('ui_visible', True)
-                    ui_visible = not ui_visible
-                    container.data['ui_visible'] = ui_visible
-                    
-                    ui_overlay = container.data.get('ui_overlay')
-                    
-                    if ui_overlay:
-                        ui_overlay.visible = ui_visible
-                        ui_overlay.update()
 
                 def show_image_info(file_path):
                     """显示图片信息"""
