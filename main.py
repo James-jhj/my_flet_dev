@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.254"
-APP_VERSION_CODE = 254
+APP_VERSION = "1.0.255"
+APP_VERSION_CODE = 255
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -8020,14 +8020,77 @@ def main(page: ft.Page):
                             show_bottom_message("正在打开文件...")
                         except Exception as e:
                             show_bottom_message(f"打开失败: {str(e)}", is_error=True)
-                    
-                    # ========== 复制路径（保留作为备选） ==========
-                    def copy_path(e):
-                        success = copy_to_clipboard(file_path)
-                        if success:
-                            show_bottom_message("✅ 路径已复制到剪贴板")
-                        else:
-                            show_bottom_message(f"请手动复制路径:\n{file_path}", is_error=True)
+
+                    def save_to_root_silent(file_path):
+                        """静默保存文件到手机根目录 /storage/emulated/0/"""
+                        # ========== 检查平台 ==========
+                        if platform.system() != "Linux":
+                            show_bottom_message("仅 Android 平台支持", is_error=True)
+                            return False
+
+                        # ========== 检查存储权限 ==========
+                        try:
+                            # 尝试写入一个测试文件来验证权限
+                            test_path = "/storage/emulated/0/.test_write"
+                            with open(test_path, 'w') as f:
+                                f.write("test")
+                            os.remove(test_path)
+                            print("[权限] ✅ 存储权限正常")
+                        except:
+                            show_bottom_message("请授予存储权限后重试", is_error=True)
+                            return False
+    
+                        try:
+                            # Android 根目录路径
+                            root_paths = [
+                                "/storage/emulated/0/",
+                                "/sdcard/",
+                                "/storage/self/primary/",
+                            ]
+                            
+                            # 找到可用的根目录
+                            target_dir = None
+                            for path in root_paths:
+                                if os.path.exists(path):
+                                    target_dir = path
+                                    break
+                            
+                            if not target_dir:
+                                show_bottom_message("找不到存储目录", is_error=True)
+                                return False
+                            
+                            file_name = os.path.basename(file_path)
+                            dest_path = os.path.join(target_dir, file_name)
+                            
+                            # 如果文件已存在，添加时间戳
+                            if os.path.exists(dest_path):
+                                name, ext = os.path.splitext(file_name)
+                                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                dest_path = os.path.join(target_dir, f"{name}_{timestamp}{ext}")
+                            
+                            # 复制文件
+                            shutil.copy2(file_path, dest_path)
+                            print(f"[静默保存] ✅ 成功: {dest_path}")
+                            
+                            # 验证文件是否存在
+                            if os.path.exists(dest_path):
+                                file_size = os.path.getsize(dest_path)
+                                show_bottom_message(f"✅ 已保存到手机根目录: {os.path.basename(dest_path)}")
+                                return True
+                            else:
+                                show_bottom_message("保存失败：文件不存在", is_error=True)
+                                return False
+                                
+                        except PermissionError as e:
+                            print(f"[静默保存] 权限错误: {e}")
+                            show_bottom_message("权限不足，请检查存储权限", is_error=True)
+                            return False
+                        except Exception as e:
+                            print(f"[静默保存] 失败: {e}")
+                            import traceback
+                            traceback.print_exc()
+                            show_bottom_message(f"保存失败: {str(e)}", is_error=True)
+                            return False
                     
                     # ========== 构建对话框 ==========
                     dialog_content = ft.Container(
@@ -8057,10 +8120,10 @@ def main(page: ft.Page):
                             # ========== 操作按钮（3个按钮） ==========
                             ft.Row([
                                 ft.ElevatedButton(
-                                    "📋 复制路径",
-                                    on_click=copy_path,
+                                    "📁 保存到手机",
+                                    on_click=lambda e: save_to_root_silent(file_path),
                                     expand=True,
-                                    style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.BLUE_700),
+                                    style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE),
                                 ),
                                 ft.ElevatedButton(
                                     "💾 保存到...",
