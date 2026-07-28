@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.263"
-APP_VERSION_CODE = 263
+APP_VERSION = "1.0.264"
+APP_VERSION_CODE = 264
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -4552,7 +4552,7 @@ def main(page: ft.Page):
                     content=ft.Row([
                         ft.IconButton(
                             icon=ft.Icons.ARROW_BACK,
-                            icon_size=30,
+                            icon_size=28,
                             on_click=lambda e: close_fullscreen_lyrics(user_closed=True)  # 标记为用户关闭
                         ),
                         title_text,  # 使用闪烁标题
@@ -7995,7 +7995,7 @@ def main(page: ft.Page):
                         content=ft.Row([
                             ft.IconButton(
                                 icon=ft.Icons.ARROW_BACK,
-                                icon_size=30,
+                                icon_size=28,
                                 icon_color=ft.Colors.WHITE,
                                 on_click=lambda e: close_fullscreen_image(),
                                 tooltip="返回",
@@ -12079,7 +12079,7 @@ def main(page: ft.Page):
             top_bar = ft.Row([
                 ft.IconButton(
                     icon=ft.Icons.ARROW_BACK,
-                    icon_size=24,
+                    icon_size=28,
                     icon_color=ft.Colors.RED_700,
                     tooltip="取消",
                     on_click=cancel_click,
@@ -12087,7 +12087,7 @@ def main(page: ft.Page):
                 ft.Text(f"{title_icon} {title_text}", size=18, weight=ft.FontWeight.BOLD, expand=True, text_align=ft.TextAlign.CENTER),
                 ft.IconButton(
                     icon=ft.Icons.CHECK,
-                    icon_size=24,
+                    icon_size=28,
                     icon_color=ft.Colors.GREEN_700,
                     tooltip="保存",
                     on_click=save_transaction,
@@ -12266,7 +12266,7 @@ def main(page: ft.Page):
         # 统计卡片容器
         summary_container = ft.Column(spacing=10)
         
-        back_btn = ft.IconButton(ft.Icons.ARROW_BACK, on_click=lambda e: back_to_main())
+        back_btn = ft.IconButton(ft.Icons.ARROW_BACK, icon_size=28, on_click=lambda e: back_to_main())
         
         refresh_summary()
         refresh_records_list()
@@ -16499,7 +16499,7 @@ def main(page: ft.Page):
         top_bar = ft.Row([
             ft.IconButton(
                 icon=ft.Icons.ARROW_BACK,
-                icon_size=24,
+                icon_size=28,
                 icon_color=ft.Colors.RED_700,
                 tooltip="取消",
                 on_click=cancel_click,
@@ -16507,7 +16507,7 @@ def main(page: ft.Page):
             ft.Text("编辑事件" if is_edit else "添加事件", size=18, weight=ft.FontWeight.BOLD, expand=True, text_align=ft.TextAlign.CENTER),
             ft.IconButton(
                 icon=ft.Icons.CHECK,
-                icon_size=24,
+                icon_size=28,
                 icon_color=ft.Colors.GREEN_700,
                 tooltip="保存",
                 on_click=save_click_wrapper,
