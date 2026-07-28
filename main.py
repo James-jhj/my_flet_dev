@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.259"
-APP_VERSION_CODE = 259
+APP_VERSION = "1.0.260"
+APP_VERSION_CODE = 260
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -7963,9 +7963,346 @@ def main(page: ft.Page):
                     
                     print("[剪贴板] ❌ 所有复制方法都失败")
                     return False
+                
+
+                # ========== 全屏图片查看器 ==========
+                fullscreen_image_container = None
+                image_scale = 1.0
+                image_offset_x = 0.0
+                image_offset_y = 0.0
+                is_image_fullscreen = False
+                image_gesture_start_x = 0.0
+                image_gesture_start_y = 0.0
+                image_scale_start = 1.0
+                image_offset_start_x = 0.0
+                image_offset_start_y = 0.0
+                is_image_dragging = False
+                is_image_zooming = False
+
+                def show_fullscreen_image(file_path):
+                    """显示全屏图片查看器（支持缩放和拖动）"""
+                    global fullscreen_image_container, image_scale, image_offset_x, image_offset_y
+                    global is_image_fullscreen, image_gesture_start_x, image_gesture_start_y
+                    global image_scale_start, image_offset_start_x, image_offset_start_y
+                    global is_image_dragging, is_image_zooming
+                    
+                    if not os.path.exists(file_path):
+                        show_bottom_message("文件不存在", is_error=True)
+                        return
+                    
+                    # 重置状态
+                    image_scale = 1.0
+                    image_offset_x = 0.0
+                    image_offset_y = 0.0
+                    is_image_fullscreen = True
+                    is_image_dragging = False
+                    is_image_zooming = False
+                    
+                    # 创建图片控件
+                    image_widget = ft.Image(
+                        src=file_path,
+                        fit="contain",
+                        width=float("inf"),
+                        height=float("inf"),
+                        gapless_playback=True,
+                    )
+                    
+                    # UI 控制层（返回按钮，点击切换显示/隐藏）
+                    ui_overlay = ft.Container(
+                        content=ft.Row([
+                            ft.IconButton(
+                                icon=ft.Icons.ARROW_BACK,
+                                icon_size=30,
+                                icon_color=ft.Colors.WHITE,
+                                on_click=lambda e: close_fullscreen_image(),
+                                tooltip="返回",
+                            ),
+                            ft.Container(expand=True),
+                            ft.IconButton(
+                                icon=ft.Icons.INFO_OUTLINE,
+                                icon_size=24,
+                                icon_color=ft.Colors.WHITE,
+                                on_click=lambda e: show_image_info(file_path),
+                                tooltip="文件信息",
+                            ),
+                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        padding=ft.Padding(left=15, right=15, top=40, bottom=10),
+                        bgcolor=ft.Colors.BLACK26,
+                    )
+                    
+                    # 底部提示
+                    bottom_hint = ft.Container(
+                        content=ft.Text(
+                            "👆 单指拖动 | ✌️ 双指缩放 | 点击切换控制栏",
+                            size=12,
+                            color=ft.Colors.WHITE70,
+                            text_align=ft.TextAlign.CENTER,
+                        ),
+                        padding=ft.Padding(left=10, right=10, top=10, bottom=30),
+                        bgcolor=ft.Colors.BLACK26,
+                    )
+                    
+                    # 缩放和拖动的 Stack
+                    image_stack = ft.Stack(
+                        controls=[
+                            image_widget,
+                        ],
+                        expand=True,
+                    )
+                    
+                    # 主容器
+                    fullscreen_image_container = ft.Container(
+                        content=ft.Stack([
+                            # 背景
+                            ft.Container(
+                                expand=True,
+                                bgcolor=ft.Colors.BLACK,
+                            ),
+                            # 图片（带手势）
+                            ft.GestureDetector(
+                                content=image_stack,
+                                expand=True,
+                                on_scale_start=on_image_scale_start,
+                                on_scale_update=on_image_scale_update,
+                                on_scale_end=on_image_scale_end,
+                                on_pan_start=on_image_pan_start,
+                                on_pan_update=on_image_pan_update,
+                                on_pan_end=on_image_pan_end,
+                                on_tap=on_image_tap,
+                                on_double_tap=on_image_double_tap,
+                            ),
+                            # UI 控制层（点击切换显示/隐藏）
+                            ft.GestureDetector(
+                                content=ft.Container(
+                                    content=ft.Column([
+                                        ui_overlay,
+                                        ft.Container(expand=True),
+                                        bottom_hint,
+                                    ]),
+                                    expand=True,
+                                ),
+                                on_tap=on_ui_toggle,
+                            ),
+                        ]),
+                        left=0,
+                        top=0,
+                        right=0,
+                        bottom=0,
+                        bgcolor=ft.Colors.BLACK,
+                    )
+                    
+                    fullscreen_image_container.data = {
+                        'file_path': file_path,
+                        'ui_visible': True,
+                        'image_widget': image_widget,
+                        'ui_overlay': ui_overlay,
+                        'bottom_hint': bottom_hint,
+                        'image_stack': image_stack,
+                    }
+                    
+                    page.overlay.append(fullscreen_image_container)
+                    page.update()
+
+
+                def close_fullscreen_image():
+                    """关闭全屏图片查看器"""
+                    global fullscreen_image_container, is_image_fullscreen
+                    
+                    if fullscreen_image_container and fullscreen_image_container in page.overlay:
+                        page.overlay.remove(fullscreen_image_container)
+                        fullscreen_image_container = None
+                        is_image_fullscreen = False
+                        page.update()
+
+
+                def on_image_scale_start(e):
+                    """开始缩放"""
+                    global is_image_zooming, image_scale_start
+                    
+                    is_image_zooming = True
+                    image_scale_start = image_scale
+                    print(f"[缩放] 开始，当前缩放: {image_scale}")
+
+
+                def on_image_scale_update(e):
+                    """缩放更新"""
+                    global image_scale, image_offset_x, image_offset_y
+                    global image_scale_start
+                    
+                    if not is_image_zooming:
+                        return
+                    
+                    # 计算新缩放
+                    new_scale = image_scale_start * e.scale
+                    # 限制缩放范围（0.5x ~ 5x）
+                    new_scale = max(0.5, min(5.0, new_scale))
+                    
+                    # 计算偏移（以缩放中心为准）
+                    # 先获取图片控件
+                    container = fullscreen_image_container
+                    if container and container.data and container.data.get('image_stack'):
+                        image_stack = container.data['image_stack']
+                        if len(image_stack.controls) > 0:
+                            img = image_stack.controls[0]
+                            # 应用缩放
+                            img.scale = new_scale
+                            # 更新偏移
+                            if image_scale != 1.0:
+                                # 根据缩放调整偏移
+                                delta_scale = new_scale - image_scale
+                                image_offset_x += e.local_focal_point_delta.x * delta_scale
+                                image_offset_y += e.local_focal_point_delta.y * delta_scale
+                            
+                            image_scale = new_scale
+                            img.offset = ft.Offset(image_offset_x, image_offset_y)
+                            img.update()
+                    
+                    print(f"[缩放] 当前缩放: {image_scale:.2f}")
+
+
+                def on_image_scale_end(e):
+                    """缩放结束"""
+                    global is_image_zooming
+                    
+                    is_image_zooming = False
+                    print(f"[缩放] 结束，最终缩放: {image_scale:.2f}")
+
+
+                def on_image_pan_start(e):
+                    """开始拖动"""
+                    global is_image_dragging, image_offset_start_x, image_offset_start_y
+                    global image_gesture_start_x, image_gesture_start_y
+                    
+                    if image_scale <= 1.0:
+                        return
+                    
+                    is_image_dragging = True
+                    image_offset_start_x = image_offset_x
+                    image_offset_start_y = image_offset_y
+                    image_gesture_start_x = e.local_x
+                    image_gesture_start_y = e.local_y
+
+
+                def on_image_pan_update(e):
+                    """拖动更新"""
+                    global image_offset_x, image_offset_y
+                    
+                    if not is_image_dragging or image_scale <= 1.0:
+                        return
+                    
+                    # 计算新偏移
+                    delta_x = e.local_x - image_gesture_start_x
+                    delta_y = e.local_y - image_gesture_start_y
+                    
+                    image_offset_x = image_offset_start_x + delta_x
+                    image_offset_y = image_offset_start_y + delta_y
+                    
+                    # 应用到图片
+                    container = fullscreen_image_container
+                    if container and container.data and container.data.get('image_stack'):
+                        image_stack = container.data['image_stack']
+                        if len(image_stack.controls) > 0:
+                            img = image_stack.controls[0]
+                            img.offset = ft.Offset(image_offset_x, image_offset_y)
+                            img.update()
+
+
+                def on_image_pan_end(e):
+                    """拖动结束"""
+                    global is_image_dragging
+                    
+                    is_image_dragging = False
+                    print(f"[拖动] 结束，偏移: ({image_offset_x:.0f}, {image_offset_y:.0f})")
+
+
+                def on_image_tap(e):
+                    """单击图片：切换 UI 显示/隐藏"""
+                    # 由 on_ui_toggle 处理
+                    pass
+
+
+                def on_image_double_tap(e):
+                    """双击图片：重置缩放或放大"""
+                    global image_scale, image_offset_x, image_offset_y
+                    
+                    container = fullscreen_image_container
+                    if not container or not container.data:
+                        return
+                    
+                    image_stack = container.data.get('image_stack')
+                    if not image_stack or len(image_stack.controls) == 0:
+                        return
+                    
+                    img = image_stack.controls[0]
+                    
+                    # 如果当前缩放 > 1.2，重置为 1.0
+                    if image_scale > 1.2:
+                        image_scale = 1.0
+                        image_offset_x = 0.0
+                        image_offset_y = 0.0
+                    else:
+                        # 放大到 2.5 倍
+                        image_scale = 2.5
+                        # 居中放大
+                        image_offset_x = 0.0
+                        image_offset_y = 0.0
+                    
+                    img.scale = image_scale
+                    img.offset = ft.Offset(image_offset_x, image_offset_y)
+                    img.update()
+                    
+                    print(f"[双击] 缩放: {image_scale:.2f}")
+
+
+                def on_ui_toggle(e):
+                    """点击切换 UI 显示/隐藏"""
+                    container = fullscreen_image_container
+                    if not container or not container.data:
+                        return
+                    
+                    ui_visible = container.data.get('ui_visible', True)
+                    ui_visible = not ui_visible
+                    container.data['ui_visible'] = ui_visible
+                    
+                    ui_overlay = container.data.get('ui_overlay')
+                    bottom_hint = container.data.get('bottom_hint')
+                    
+                    if ui_overlay:
+                        ui_overlay.visible = ui_visible
+                        ui_overlay.update()
+                    
+                    if bottom_hint:
+                        bottom_hint.visible = ui_visible
+                        bottom_hint.update()
+
+
+                def show_image_info(file_path):
+                    """显示图片信息"""
+                    import os as os_module
+                    
+                    file_name = os_module.path.basename(file_path)
+                    file_size = os_module.path.getsize(file_path)
+                    
+                    if file_size < 1024:
+                        size_str = f"{file_size} B"
+                    elif file_size < 1024 * 1024:
+                        size_str = f"{file_size / 1024:.1f} KB"
+                    else:
+                        size_str = f"{file_size / 1024 / 1024:.1f} MB"
+                    
+                    # 获取图片尺寸
+                    try:
+                        from PIL import Image
+                        img = Image.open(file_path)
+                        width, height = img.size
+                        resolution_str = f"{width} x {height}"
+                    except:
+                        resolution_str = "未知"
+                    
+                    show_bottom_message(f"📄 {file_name} | {resolution_str} | {size_str}")
 
                 def open_attachment_file(file_path):
-                    """打开附件预览对话框（支持保存到下载目录）"""
+                    """打开附件预览对话框（支持全屏图片查看）"""
                     import os as os_module
                     
                     if not os_module.path.exists(file_path):
@@ -7975,6 +8312,11 @@ def main(page: ft.Page):
                     file_name = os_module.path.basename(file_path)
                     file_size = os_module.path.getsize(file_path)
                     ext = os_module.path.splitext(file_name)[1].lower()
+
+                    # ========== 图片文件：直接打开全屏查看器 ==========
+                    if ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp']:
+                        show_fullscreen_image(file_path)
+                        return
                     
                     # 格式化文件大小
                     if file_size < 1024:
