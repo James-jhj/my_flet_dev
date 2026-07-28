@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.260"
-APP_VERSION_CODE = 260
+APP_VERSION = "1.0.261"
+APP_VERSION_CODE = 261
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -7982,9 +7982,7 @@ def main(page: ft.Page):
                 def show_fullscreen_image(file_path):
                     """显示全屏图片查看器（支持缩放和拖动）"""
                     global fullscreen_image_container, image_scale, image_offset_x, image_offset_y
-                    global is_image_fullscreen, image_gesture_start_x, image_gesture_start_y
-                    global image_scale_start, image_offset_start_x, image_offset_start_y
-                    global is_image_dragging, is_image_zooming
+                    global is_image_fullscreen
                     
                     if not os.path.exists(file_path):
                         show_bottom_message("文件不存在", is_error=True)
@@ -7995,16 +7993,21 @@ def main(page: ft.Page):
                     image_offset_x = 0.0
                     image_offset_y = 0.0
                     is_image_fullscreen = True
-                    is_image_dragging = False
-                    is_image_zooming = False
                     
-                    # 创建图片控件
+                    # ========== 使用 Container 包裹 Image，用 Transform 实现缩放 ==========
                     image_widget = ft.Image(
                         src=file_path,
-                        fit="contain",
+                        fit="contain",  # ← 使用字符串
                         width=float("inf"),
                         height=float("inf"),
                         gapless_playback=True,
+                    )
+
+                    # 缩放容器
+                    transform_container = ft.Container(
+                        content=image_widget,
+                        expand=True,
+                        alignment=ft.Alignment(0, 0),
                     )
                     
                     # UI 控制层（返回按钮，点击切换显示/隐藏）
@@ -8026,7 +8029,7 @@ def main(page: ft.Page):
                                 tooltip="文件信息",
                             ),
                         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                        padding=ft.Padding(left=15, right=15, top=40, bottom=10),
+                        padding=ft.Padding(left=0, right=0, top=16, bottom=0),
                         bgcolor=ft.Colors.BLACK26,
                     )
                     
@@ -8038,16 +8041,9 @@ def main(page: ft.Page):
                             color=ft.Colors.WHITE70,
                             text_align=ft.TextAlign.CENTER,
                         ),
-                        padding=ft.Padding(left=10, right=10, top=10, bottom=30),
+                        #padding=ft.Padding(left=10, right=10, top=10, bottom=30),
                         bgcolor=ft.Colors.BLACK26,
-                    )
-                    
-                    # 缩放和拖动的 Stack
-                    image_stack = ft.Stack(
-                        controls=[
-                            image_widget,
-                        ],
-                        expand=True,
+                        visible=False,
                     )
                     
                     # 主容器
@@ -8060,7 +8056,7 @@ def main(page: ft.Page):
                             ),
                             # 图片（带手势）
                             ft.GestureDetector(
-                                content=image_stack,
+                                content=transform_container,
                                 expand=True,
                                 on_scale_start=on_image_scale_start,
                                 on_scale_update=on_image_scale_update,
@@ -8094,10 +8090,10 @@ def main(page: ft.Page):
                     fullscreen_image_container.data = {
                         'file_path': file_path,
                         'ui_visible': True,
+                        'transform_container': transform_container,
                         'image_widget': image_widget,
                         'ui_overlay': ui_overlay,
                         'bottom_hint': bottom_hint,
-                        'image_stack': image_stack,
                     }
                     
                     page.overlay.append(fullscreen_image_container)
@@ -8134,30 +8130,16 @@ def main(page: ft.Page):
                     
                     # 计算新缩放
                     new_scale = image_scale_start * e.scale
-                    # 限制缩放范围（0.5x ~ 5x）
                     new_scale = max(0.5, min(5.0, new_scale))
                     
-                    # 计算偏移（以缩放中心为准）
-                    # 先获取图片控件
                     container = fullscreen_image_container
-                    if container and container.data and container.data.get('image_stack'):
-                        image_stack = container.data['image_stack']
-                        if len(image_stack.controls) > 0:
-                            img = image_stack.controls[0]
-                            # 应用缩放
-                            img.scale = new_scale
-                            # 更新偏移
-                            if image_scale != 1.0:
-                                # 根据缩放调整偏移
-                                delta_scale = new_scale - image_scale
-                                image_offset_x += e.local_focal_point_delta.x * delta_scale
-                                image_offset_y += e.local_focal_point_delta.y * delta_scale
-                            
+                    if container and container.data:
+                        transform_container = container.data.get('transform_container')
+                        if transform_container:
+                            # 使用 scale 属性
+                            transform_container.scale = new_scale
                             image_scale = new_scale
-                            img.offset = ft.Offset(image_offset_x, image_offset_y)
-                            img.update()
-                    
-                    print(f"[缩放] 当前缩放: {image_scale:.2f}")
+                            transform_container.update()
 
 
                 def on_image_scale_end(e):
@@ -8190,21 +8172,18 @@ def main(page: ft.Page):
                     if not is_image_dragging or image_scale <= 1.0:
                         return
                     
-                    # 计算新偏移
                     delta_x = e.local_x - image_gesture_start_x
                     delta_y = e.local_y - image_gesture_start_y
                     
                     image_offset_x = image_offset_start_x + delta_x
                     image_offset_y = image_offset_start_y + delta_y
                     
-                    # 应用到图片
                     container = fullscreen_image_container
-                    if container and container.data and container.data.get('image_stack'):
-                        image_stack = container.data['image_stack']
-                        if len(image_stack.controls) > 0:
-                            img = image_stack.controls[0]
-                            img.offset = ft.Offset(image_offset_x, image_offset_y)
-                            img.update()
+                    if container and container.data:
+                        transform_container = container.data.get('transform_container')
+                        if transform_container:
+                            transform_container.offset = ft.Offset(image_offset_x, image_offset_y)
+                            transform_container.update()
 
 
                 def on_image_pan_end(e):
@@ -8229,11 +8208,9 @@ def main(page: ft.Page):
                     if not container or not container.data:
                         return
                     
-                    image_stack = container.data.get('image_stack')
-                    if not image_stack or len(image_stack.controls) == 0:
+                    transform_container = container.data.get('transform_container')
+                    if not transform_container:
                         return
-                    
-                    img = image_stack.controls[0]
                     
                     # 如果当前缩放 > 1.2，重置为 1.0
                     if image_scale > 1.2:
@@ -8243,15 +8220,12 @@ def main(page: ft.Page):
                     else:
                         # 放大到 2.5 倍
                         image_scale = 2.5
-                        # 居中放大
                         image_offset_x = 0.0
                         image_offset_y = 0.0
                     
-                    img.scale = image_scale
-                    img.offset = ft.Offset(image_offset_x, image_offset_y)
-                    img.update()
-                    
-                    print(f"[双击] 缩放: {image_scale:.2f}")
+                    transform_container.scale = image_scale
+                    transform_container.offset = ft.Offset(image_offset_x, image_offset_y)
+                    transform_container.update()
 
 
                 def on_ui_toggle(e):
