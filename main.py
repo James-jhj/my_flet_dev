@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.256"
-APP_VERSION_CODE = 256
+APP_VERSION = "1.0.257"
+APP_VERSION_CODE = 257
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -8038,20 +8038,9 @@ def main(page: ft.Page):
                         """静默保存文件到手机根目录 /storage/emulated/0/"""
                         # ========== 检查存储权限 ==========
                         try:
-                            # 尝试写入一个测试文件来验证权限
-                            test_path = "/storage/emulated/0/.test_write"
-                            with open(test_path, 'w') as f:
-                                f.write("test")
-                            os.remove(test_path)
-                            print("[权限] ✅ 存储权限正常")
-                        except:
-                            show_bottom_message("请授予存储权限后重试", is_error=True)
-                            return False
-    
-                        try:
                             # Android 根目录路径
                             root_paths = [
-                                "/storage/emulated/0/",
+                                "/storage/emulated/0/file",
                                 "/sdcard/",
                                 "/storage/self/primary/",
                             ]
