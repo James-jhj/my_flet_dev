@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.255"
-APP_VERSION_CODE = 255
+APP_VERSION = "1.0.256"
+APP_VERSION_CODE = 256
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -6001,23 +6001,32 @@ def main(page: ft.Page):
             return note_dir
 
         def copy_attachment_to_note(original_path, note_id):
-            """复制附件到笔记目录，返回相对路径"""
+            """复制附件到笔记目录，返回相对路径（包含文件名）"""
             note_dir = get_note_attachments_dir(note_id)
-            original_filename = os.path.basename(original_path)
+            original_filename = os.path.basename(original_path)  # 获取文件名
             
-            # 如果文件已存在，添加时间戳避免覆盖
+            # 如果文件名包含路径分隔符，清理一下
+            original_filename = original_filename.replace('/', '_').replace('\\', '_')
+            
             dest_path = os.path.join(note_dir, original_filename)
+            
+            # 如果文件已存在，添加时间戳
             if os.path.exists(dest_path):
                 name, ext = os.path.splitext(original_filename)
                 timestamp = datetime.now().strftime("%H%M%S")
                 dest_path = os.path.join(note_dir, f"{name}_{timestamp}{ext}")
             
+            # 复制文件
             shutil.copy2(original_path, dest_path)
+            print(f"[复制附件] 源: {original_path}")
+            print(f"[复制附件] 目标: {dest_path}")
             
-            # 返回相对于 app_data_dir 的路径
+            # 返回相对于 app_data_dir 的完整路径
             app_data_dir = get_data_file_path("")
             rel_path = os.path.relpath(dest_path, app_data_dir)
-            return rel_path
+            print(f"[复制附件] 相对路径: {rel_path}")
+            
+            return rel_path  # 应该包含文件名，如 "attachments/1784906072205/image.jpg"
 
         def delete_attachment_file(rel_path):
             """删除附件文件"""
@@ -6033,10 +6042,14 @@ def main(page: ft.Page):
 
         def get_attachment_display_name(file_path):
             """获取附件显示名称（截断长文件名）"""
-            filename = os.path.basename(file_path)
-            if len(filename) > 20:
+            # file_path 可能是相对路径 "attachments/xxx/image.jpg"
+            # 也可能是绝对路径
+            filename = os.path.basename(file_path)  # 这行会提取文件名
+            if not filename:
+                return "未知文件"
+            if len(filename) > 25:
                 name, ext = os.path.splitext(filename)
-                return name[:15] + "..." + ext
+                return name[:18] + "..." + ext
             return filename
 
         def get_attachment_icon(file_path):
@@ -8023,11 +8036,6 @@ def main(page: ft.Page):
 
                     def save_to_root_silent(file_path):
                         """静默保存文件到手机根目录 /storage/emulated/0/"""
-                        # ========== 检查平台 ==========
-                        if platform.system() != "Linux":
-                            show_bottom_message("仅 Android 平台支持", is_error=True)
-                            return False
-
                         # ========== 检查存储权限 ==========
                         try:
                             # 尝试写入一个测试文件来验证权限
@@ -8174,13 +8182,52 @@ def main(page: ft.Page):
 
                 def build_preview_content(file_path, file_name, ext, size_str):
                     """构建预览内容"""
+                    
+                    print(f"[预览] file_path: {file_path}")
+                    print(f"[预览] file_name: {file_name}")
+                    print(f"[预览] ext: {ext}")
+                    
                     # 图片预览
                     if ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp']:
                         try:
+                            # 确保文件存在
+                            if not os.path.exists(file_path):
+                                print(f"[预览] ❌ 文件不存在: {file_path}")
+                                return ft.Container(
+                                    content=ft.Column([
+                                        ft.Icon(ft.Icons.IMAGE_NOT_SUPPORTED, size=48, color=ft.Colors.GREY_400),
+                                        ft.Text("文件不存在", size=14, color=ft.Colors.RED_700),
+                                        ft.Text(f"路径: {file_path}", size=10, color=ft.Colors.GREY_500),
+                                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10),
+                                    padding=20,
+                                    bgcolor=ft.Colors.GREY_100,
+                                    border_radius=8,
+                                    height=200,
+                                )
+                            
+                            import base64
+                            
+                            # 读取图片并转为 Base64
+                            with open(file_path, 'rb') as f:
+                                image_data = f.read()
+                                print(f"[预览] 图片大小: {len(image_data)} bytes")
+                                base64_data = base64.b64encode(image_data).decode('utf-8')
+                            
+                            mime_types = {
+                                '.png': 'image/png',
+                                '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+                                '.gif': 'image/gif',
+                                '.bmp': 'image/bmp',
+                                '.webp': 'image/webp',
+                            }
+                            mime_type = mime_types.get(ext, 'image/jpeg')
+                            
+                            src = f"data:{mime_type};base64,{base64_data}"
+                            
                             return ft.Container(
                                 content=ft.Image(
-                                    src=file_path,
-                                    fit=ft.ImageFit.CONTAIN,
+                                    src=src,
+                                    fit="contain",  # ← 使用字符串而不是 ft.ImageFit.CONTAIN
                                     width=350,
                                     height=300,
                                 ),
@@ -8188,12 +8235,18 @@ def main(page: ft.Page):
                                 bgcolor=ft.Colors.GREY_100,
                                 border_radius=8,
                             )
+                            
                         except Exception as e:
                             print(f"[预览] 图片加载失败: {e}")
+                            import traceback
+                            traceback.print_exc()
+                            
                             return ft.Container(
                                 content=ft.Column([
                                     ft.Icon(ft.Icons.IMAGE_NOT_SUPPORTED, size=48, color=ft.Colors.GREY_400),
-                                    ft.Text("图片加载失败", size=14, color=ft.Colors.GREY_500),
+                                    ft.Text("图片加载失败", size=14, color=ft.Colors.RED_700),
+                                    ft.Text(f"{str(e)[:50]}", size=11, color=ft.Colors.GREY_500),
+                                    ft.Text(f"路径: {os.path.basename(file_path)}", size=10, color=ft.Colors.GREY_400),
                                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10),
                                 padding=20,
                                 bgcolor=ft.Colors.GREY_100,
@@ -8295,6 +8348,48 @@ def main(page: ft.Page):
                         border_radius=8,
                         height=250,
                     )
+
+                def fix_attachment_paths():
+                    """修复已有笔记的附件路径（添加文件名）"""
+                    app_data_dir = get_data_file_path("")
+                    
+                    for note in memo_notes:
+                        if not note.attachments:
+                            continue
+                        
+                        fixed_attachments = []
+                        for rel_path in note.attachments:
+                            # 检查路径是否以文件扩展名结尾
+                            ext = os.path.splitext(rel_path)[1].lower()
+                            
+                            if ext not in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', 
+                                        '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt']:
+                                # 路径没有扩展名，可能是目录
+                                print(f"[修复] 检测到问题路径: {rel_path}")
+                                
+                                # 尝试在目录中查找文件
+                                full_path = os.path.join(app_data_dir, rel_path)
+                                if os.path.exists(full_path) and os.path.isdir(full_path):
+                                    # 列出目录中的文件
+                                    files = os.listdir(full_path)
+                                    if files:
+                                        # 取第一个文件
+                                        first_file = files[0]
+                                        fixed_path = os.path.join(rel_path, first_file)
+                                        print(f"[修复] 更新为: {fixed_path}")
+                                        fixed_attachments.append(fixed_path)
+                                    else:
+                                        # 目录为空，跳过
+                                        print(f"[修复] 目录为空，跳过")
+                                else:
+                                    fixed_attachments.append(rel_path)
+                            else:
+                                fixed_attachments.append(rel_path)
+                        
+                        note.attachments = fixed_attachments
+                    
+                    save_memo_notes()
+                    print("[修复] 附件路径修复完成")
 
                 def delete_attachment_from_note(rel_path, note):
                     """从笔记中删除附件"""
