@@ -97,6 +97,10 @@ jobs:
           assets_dir = "assets"
           android_adaptive_icon_background = "#ffffff"  # 白色背景，可按需修改
 
+          [tool.flet.android]
+          request_legacy_external_storage = true
+          preserve_legacy_external_storage = true
+
           # ========== 合并 Flutter 配置 ==========
           [tool.flet.flutter]
           dependencies = ["flet_audio", "local_auth"]
@@ -113,6 +117,8 @@ jobs:
           "android.permission.FOREGROUND_SERVICE" = true
           "android.permission.POST_NOTIFICATIONS" = true
           "android.permission.VIBRATE" = true
+          # ========== 新增：管理外部存储权限（Android 11+） ==========
+          "android.permission.MANAGE_EXTERNAL_STORAGE" = true
           EOF
 
       - name: 恢复签名密钥
