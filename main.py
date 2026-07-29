@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.264"
-APP_VERSION_CODE = 264
+APP_VERSION = "1.0.265"
+APP_VERSION_CODE = 265
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -6395,7 +6395,9 @@ def main(page: ft.Page):
                     border_width = 2
                     bg_color = ft.Colors.ORANGE_50  # 置顶卡片浅橙色背景
                     # 置顶时使用星号或特殊符号
-                    divider = ft.Text("✦", size=10, color=ft.Colors.ORANGE_700)  # 使用星号
+                    #divider = ft.Text("✦", size=10, color=ft.Colors.ORANGE_700)  # 使用星号
+                    divider = ft.Icon(ft.Icons.PUSH_PIN, size=10, color=ft.Colors.ORANGE_700)
+                    #divider = ft.Icon(ft.Icons.VERTICAL_ALIGN_TOP, size=10, color=ft.Colors.ORANGE_700)
                 else:
                     title_color = ft.Colors.BLACK
                     preview_color = ft.Colors.GREY_600
@@ -6403,7 +6405,9 @@ def main(page: ft.Page):
                     border_width = 1
                     bg_color = ft.Colors.WHITE
                     # 普通时使用竖线
-                    divider = ft.Text("|", size=10, color=ft.Colors.GREY_300)
+                    #divider = ft.Text("|", size=10, color=ft.Colors.GREY_600)
+                    divider = ft.Icon(ft.Icons.PUSH_PIN_OUTLINED, size=10, color=ft.Colors.GREY_600)
+                    #divider = ft.Icon(ft.Icons.VERTICAL_ALIGN_TOP_OUTLINED, size=10, color=ft.Colors.GREY_600)
 
                 # ========== 构建标题（包含锁标识） ==========
                 # 标题文本
@@ -6870,7 +6874,7 @@ def main(page: ft.Page):
                             open_memo_edit_dialog(note.id)
                         threading.Timer(0.1, open_edit).start()
                     else:
-                        show_bottom_message("❌ 密码错误，请重试", is_error=True)
+                        show_bottom_message("密码错误，请重试", is_error=True)
                         password_field.value = ""
                         password_field.update()
                 
@@ -7856,113 +7860,6 @@ def main(page: ft.Page):
                     else:
                         # Windows: 用户下载目录
                         return os.path.join(os.path.expanduser("~"), "Downloads")
-
-
-                def copy_attachment_to_download(file_path):
-                    """
-                    复制附件到 Download 目录
-                    返回: (成功, 目标路径, 提示信息)
-                    """
-                    try:
-                        download_dir = get_download_dir()
-                        file_name = os.path.basename(file_path)
-                        
-                        # 如果文件已经在 Download 目录，直接返回
-                        if os.path.dirname(file_path) == download_dir:
-                            return True, file_path, "文件已在下载目录"
-                        
-                        # 构建目标路径
-                        dest_path = os.path.join(download_dir, file_name)
-                        
-                        # 如果目标文件已存在，添加时间戳
-                        if os.path.exists(dest_path):
-                            name, ext = os.path.splitext(file_name)
-                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                            dest_path = os.path.join(download_dir, f"{name}_{timestamp}{ext}")
-                        
-                        # 复制文件
-                        shutil.copy2(file_path, dest_path)
-                        print(f"[复制到下载] 成功: {dest_path}")
-                        return True, dest_path, f"已复制到下载目录: {file_name}"
-                        
-                    except Exception as e:
-                        print(f"[复制到下载] 失败: {e}")
-                        return False, None, f"复制失败: {str(e)}"
-
-                def copy_to_clipboard(text):
-                    """跨平台复制文本到剪贴板"""
-                    print(f"[剪贴板] 尝试复制: {text[:50]}...")
-                    
-                    # ========== 方法1：使用 Flet 的 Clipboard ==========
-                    try:
-                        clipboard = ft.Clipboard()
-                        clipboard.set(text)
-                        print("[剪贴板] ✅ Flet Clipboard 复制成功")
-                        return True
-                    except Exception as e:
-                        print(f"[剪贴板] ❌ Flet Clipboard 复制失败: {e}")
-                    
-                    # ========== 方法2：Android 原生剪贴板 ==========
-                    if platform.system() == "Linux":
-                        try:
-                            from android import activity
-                            from android.content import Context
-                            from android.text import ClipData
-                            
-                            clipboard_manager = activity.getSystemService(Context.CLIPBOARD_SERVICE)
-                            clip = ClipData.newPlainText("text", text)
-                            clipboard_manager.setPrimaryClip(clip)
-                            print("[剪贴板] ✅ Android 原生剪贴板复制成功")
-                            return True
-                        except Exception as e:
-                            print(f"[剪贴板] ❌ Android 原生剪贴板复制失败: {e}")
-                    
-                    # ========== 方法3：使用 pyperclip（如果已安装） ==========
-                    try:
-                        import pyperclip
-                        pyperclip.copy(text)
-                        print("[剪贴板] ✅ pyperclip 复制成功")
-                        return True
-                    except ImportError:
-                        print("[剪贴板] pyperclip 未安装")
-                    except Exception as e:
-                        print(f"[剪贴板] ❌ pyperclip 复制失败: {e}")
-                    
-                    # ========== 方法4：Windows / macOS 系统命令 ==========
-                    try:
-                        import subprocess
-                        import platform as plat
-                        
-                        system = plat.system()
-                        if system == "Windows":
-                            # Windows: 使用 PowerShell
-                            result = subprocess.run(
-                                ['powershell', '-Command', f'Set-Clipboard "{text}"'],
-                                capture_output=True,
-                                timeout=2
-                            )
-                            if result.returncode == 0:
-                                print("[剪贴板] ✅ PowerShell 复制成功")
-                                return True
-                        elif system == "Darwin":  # macOS
-                            subprocess.run(['pbcopy'], input=text.encode('utf-8'), timeout=2)
-                            print("[剪贴板] ✅ pbcopy 复制成功")
-                            return True
-                        elif system == "Linux":
-                            # Linux: 尝试 xclip 或 xsel
-                            for cmd in ['xclip -selection clipboard', 'xsel --clipboard --input']:
-                                try:
-                                    subprocess.run(cmd.split(), input=text.encode('utf-8'),
-                                                capture_output=True, timeout=2)
-                                    print(f"[剪贴板] ✅ {cmd} 复制成功")
-                                    return True
-                                except:
-                                    continue
-                    except Exception as e:
-                        print(f"[剪贴板] ❌ 系统命令复制失败: {e}")
-                    
-                    print("[剪贴板] ❌ 所有复制方法都失败")
-                    return False
                 
 
                 # ========== 全屏图片查看器 ==========
@@ -8152,12 +8049,6 @@ def main(page: ft.Page):
                         except Exception as e:
                             print(f"[保存] 失败: {e}")
                             show_bottom_message(f"保存失败: {str(e)}", is_error=True)
-                    
-                    # ========== 保存到下载目录 ==========
-                    def save_to_download(e):
-                        """保存附件到下载目录（使用 FilePicker）"""
-                        # 直接调用异步函数
-                        asyncio.create_task(save_attachment_async(file_path))
                     
                     # ========== 在系统中打开 ==========
                     def open_in_system(e):
@@ -8472,48 +8363,6 @@ def main(page: ft.Page):
                         border_radius=8,
                         height=250,
                     )
-
-                def fix_attachment_paths():
-                    """修复已有笔记的附件路径（添加文件名）"""
-                    app_data_dir = get_data_file_path("")
-                    
-                    for note in memo_notes:
-                        if not note.attachments:
-                            continue
-                        
-                        fixed_attachments = []
-                        for rel_path in note.attachments:
-                            # 检查路径是否以文件扩展名结尾
-                            ext = os.path.splitext(rel_path)[1].lower()
-                            
-                            if ext not in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', 
-                                        '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt']:
-                                # 路径没有扩展名，可能是目录
-                                print(f"[修复] 检测到问题路径: {rel_path}")
-                                
-                                # 尝试在目录中查找文件
-                                full_path = os.path.join(app_data_dir, rel_path)
-                                if os.path.exists(full_path) and os.path.isdir(full_path):
-                                    # 列出目录中的文件
-                                    files = os.listdir(full_path)
-                                    if files:
-                                        # 取第一个文件
-                                        first_file = files[0]
-                                        fixed_path = os.path.join(rel_path, first_file)
-                                        print(f"[修复] 更新为: {fixed_path}")
-                                        fixed_attachments.append(fixed_path)
-                                    else:
-                                        # 目录为空，跳过
-                                        print(f"[修复] 目录为空，跳过")
-                                else:
-                                    fixed_attachments.append(rel_path)
-                            else:
-                                fixed_attachments.append(rel_path)
-                        
-                        note.attachments = fixed_attachments
-                    
-                    save_memo_notes()
-                    print("[修复] 附件路径修复完成")
 
                 def delete_attachment_from_note(rel_path, note):
                     """从笔记中删除附件"""
