@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.267"
-APP_VERSION_CODE = 267
+APP_VERSION = "1.0.268"
+APP_VERSION_CODE = 268
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -18877,7 +18877,7 @@ def main(page: ft.Page):
         page.update()
 
     async def export_memo_async(e):
-        """导出备忘录数据到Excel（包含加密相关字段）"""
+        """导出备忘录数据到Excel（包含附件字段）"""
         global memo_notes
         
         if not memo_notes:
@@ -18893,7 +18893,7 @@ def main(page: ft.Page):
             ws.title = "备忘录"
             
             # ========== 写入汇总信息 ==========
-            ws.merge_cells('A1:H1')
+            ws.merge_cells('A1:J1')  # 增加一列
             ws['A1'] = "📝 备忘录"
             ws['A1'].font = openpyxl.styles.Font(size=16, bold=True)
             ws['A1'].alignment = openpyxl.styles.Alignment(horizontal='center')
@@ -18906,8 +18906,8 @@ def main(page: ft.Page):
             # 空行
             ws.append([])
             
-            # ========== 写入表头（新增3个加密字段） ==========
-            headers = ["标题", "内容", "分类", "创建时间", "更新时间", "置顶", "是否加密", "密码", "原始内容"]
+            # ========== 写入表头（新增 attachments 字段） ==========
+            headers = ["标题", "内容", "分类", "创建时间", "更新时间", "置顶", "是否加密", "密码", "原始内容", "附件路径"]
             ws.append(headers)
             
             # 设置表头样式
@@ -18921,6 +18921,9 @@ def main(page: ft.Page):
             
             # ========== 写入数据 ==========
             for note in memo_notes:
+                # 将附件列表转为字符串（用 | 分隔）
+                attachments_str = "|".join(note.attachments) if note.attachments else ""
+                
                 ws.append([
                     note.title,
                     note.content,
@@ -18928,9 +18931,10 @@ def main(page: ft.Page):
                     note.created_at,
                     note.updated_at,
                     "是" if note.is_pinned else "否",
-                    "是" if note.is_encrypted else "否",  # 新增：是否加密
-                    note.password if note.password else "",  # 新增：密码（实际使用中应加密存储）
-                    note.original_content if note.original_content else "",  # 新增：原始内容
+                    "是" if note.is_encrypted else "否",
+                    note.password if note.password else "",
+                    note.original_content if note.original_content else "",
+                    attachments_str,  # 新增：附件路径
                 ])
             
             # 调整列宽
@@ -18943,6 +18947,7 @@ def main(page: ft.Page):
             ws.column_dimensions['G'].width = 12  # 是否加密
             ws.column_dimensions['H'].width = 20  # 密码
             ws.column_dimensions['I'].width = 40  # 原始内容
+            ws.column_dimensions['J'].width = 50  # 附件路径
             
             # 保存临时文件
             wb.save(temp_file)
@@ -18971,7 +18976,7 @@ def main(page: ft.Page):
             os.remove(temp_file)
             
             if result:
-                show_bottom_message(f"✅ 成功导出 {len(memo_notes)} 条备忘录（含加密字段）")
+                show_bottom_message(f"✅ 成功导出 {len(memo_notes)} 条备忘录（含附件）")
             else:
                 show_bottom_message("已取消导出")
             
@@ -19044,7 +19049,7 @@ def main(page: ft.Page):
                 page.update()
         
         async def do_import_memo(file_path):
-            """执行备忘录导入（支持加密字段）"""
+            """执行备忘录导入（支持附件字段）"""
             show_bottom_message(f"正在导入: {os.path.basename(file_path)}")
             page.update()
             
@@ -19061,7 +19066,7 @@ def main(page: ft.Page):
             # 查找包含"标题"的行作为表头
             for row_idx in range(1, min(10, ws.max_row + 1)):
                 row_data = []
-                for col in range(1, 10):
+                for col in range(1, 12):  # 增加到12列
                     cell_value = ws.cell(row=row_idx, column=col).value
                     if cell_value:
                         row_data.append(str(cell_value).strip())
@@ -19076,11 +19081,10 @@ def main(page: ft.Page):
             
             if header_row_idx is None:
                 header_row_idx = 6
-                header_row = ["标题", "内容", "分类", "创建时间", "更新时间", "置顶", "是否加密", "密码", "原始内容"]
+                header_row = ["标题", "内容", "分类", "创建时间", "更新时间", "置顶", "是否加密", "密码", "原始内容", "附件路径"]
                 print(f"[导入备忘录] 未找到表头，使用默认表头")
             
-            # ========== 确定各列索引（直接按位置映射，不依赖顺序） ==========
-            # 直接根据表头内容确定列位置
+            # ========== 确定各列索引 ==========
             col_index = {}
             for idx, col_name in enumerate(header_row):
                 col_name_clean = col_name.strip()
@@ -19102,6 +19106,8 @@ def main(page: ft.Page):
                     col_index['password'] = idx
                 elif col_name_clean == "原始内容":
                     col_index['original_content'] = idx
+                elif col_name_clean in ["附件路径", "附件"]:
+                    col_index['attachments'] = idx
             
             print(f"[导入备忘录] 列索引: {col_index}")
             
@@ -19120,6 +19126,7 @@ def main(page: ft.Page):
                     is_encrypted = False
                     password = ""
                     original_content = ""
+                    attachments = []  # 新增
                     
                     for col_name, col_pos in col_index.items():
                         cell_value = ws.cell(row=row_idx, column=col_pos + 1).value
@@ -19146,6 +19153,10 @@ def main(page: ft.Page):
                                 password = value_str
                             elif col_name == 'original_content':
                                 original_content = value_str
+                            elif col_name == 'attachments':
+                                # 附件路径用 | 分隔
+                                if value_str:
+                                    attachments = [p.strip() for p in value_str.split("|") if p.strip()]
                     
                     if not title:
                         continue
@@ -19171,10 +19182,11 @@ def main(page: ft.Page):
                         is_encrypted=is_encrypted,
                         password=password,
                         original_content=original_content,
+                        attachments=attachments,  # 新增
                     )
                     new_notes.append(new_note)
                     imported_count += 1
-                    print(f"[导入备忘录] 第 {row_idx} 行: {title} (内容长度: {len(content)})")
+                    print(f"[导入备忘录] 第 {row_idx} 行: {title} (附件: {len(attachments)} 个)")
                     
                 except Exception as row_error:
                     print(f"[导入备忘录] 第 {row_idx} 行处理失败: {row_error}")
