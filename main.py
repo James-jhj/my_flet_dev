@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.265"
-APP_VERSION_CODE = 265
+APP_VERSION = "1.0.266"
+APP_VERSION_CODE = 266
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -11336,7 +11336,7 @@ def main(page: ft.Page):
                     if new_size in PAGE_SIZE_OPTIONS:
                         page_size = new_size
                         current_page = 1
-                        page_size_popup.content.controls[0].value = f"{new_size}条"
+                        page_size_popup.content.controls[0].value = f"{new_size}"
                         refresh_records_list_global()
                 except:
                     pass
@@ -11349,7 +11349,7 @@ def main(page: ft.Page):
                     ft.PopupMenuItem(
                         content=ft.Container(
                             content=ft.Row([
-                                ft.Text(f"{size}条", size=14, color=ft.Colors.BLUE_700 if is_selected else ft.Colors.BLACK),
+                                ft.Text(f"{size}", size=14, color=ft.Colors.BLUE_700 if is_selected else ft.Colors.BLACK),
                                 ft.Container(expand=True),
                                 ft.Icon(ft.Icons.CHECK, size=16, color=ft.Colors.BLUE_700, visible=is_selected),
                             ], alignment=ft.MainAxisAlignment.START),
@@ -11371,7 +11371,7 @@ def main(page: ft.Page):
             # 创建 PopupMenuButton
             page_size_popup = ft.PopupMenuButton(
                 content=ft.Row([
-                    ft.Text(f"{page_size}条", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
+                    ft.Text(f"{page_size}", size=12, weight=ft.FontWeight.BOLD, color=ft.Colors.BLACK),
                     ft.Icon(ft.Icons.ARROW_DROP_DOWN, size=18, color=ft.Colors.BLUE_700),
                 ], spacing=3, alignment=ft.MainAxisAlignment.CENTER),
                 items=page_size_items,
@@ -11430,12 +11430,25 @@ def main(page: ft.Page):
                     tooltip="最后一页",
                 ),
             ], spacing=10, alignment=ft.MainAxisAlignment.CENTER, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+
+            # 计算当前页的起始和结束条数
+            start_item = (current_page - 1) * page_size + 1 if total > 0 else 0
+            end_item = min(current_page * page_size, total)
+            total_item = end_item - start_item + 1
             
             # 第二行：每页条数 + 总数
             info_row = ft.Row([
-                ft.Text("每页", size=12, color=ft.Colors.GREY_700),
+                ft.Text("每页", size=12, color=ft.Colors.GREY_600),
                 page_size_popup,
-                ft.Text(f"共 {total} 条", size=12, color=ft.Colors.GREY_600, weight=ft.FontWeight.BOLD),
+                ft.Text(f"当前第", size=12, color=ft.Colors.GREY_600,),
+                ft.Text(f"{current_page}", size=12, color=ft.Colors.BLACK,weight=ft.FontWeight.BOLD),
+                ft.Text(f"页", size=12, color=ft.Colors.GREY_600,),
+                ft.Text("·", size=12, color=ft.Colors.GREY_600),
+                ft.Text(f"{total_item}", size=12, color=ft.Colors.BLACK,weight=ft.FontWeight.BOLD),
+                ft.Text(f"条", size=12, color=ft.Colors.GREY_600,),
+                ft.Text(f"共", size=12, color=ft.Colors.GREY_600,),
+                ft.Text(f"{total}", size=12, color=ft.Colors.BLACK, weight=ft.FontWeight.BOLD),
+                ft.Text(f"条", size=12, color=ft.Colors.GREY_600,),
             ], spacing=4, alignment=ft.MainAxisAlignment.CENTER, vertical_alignment=ft.CrossAxisAlignment.CENTER)
             
             return ft.Container(
