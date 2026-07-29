@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.266"
-APP_VERSION_CODE = 266
+APP_VERSION = "1.0.267"
+APP_VERSION_CODE = 267
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -11389,6 +11389,7 @@ def main(page: ft.Page):
                 border=ft.InputBorder.OUTLINE,
                 border_color=ft.Colors.GREY_300,
                 content_padding=5,
+                text_style=ft.TextStyle(size=13, weight=ft.FontWeight.BOLD),  # 设置字体大小和加粗
             )
             
             # ========== 两行布局 ==========
@@ -11397,7 +11398,7 @@ def main(page: ft.Page):
                 ft.IconButton(
                     icon=ft.Icons.FIRST_PAGE,
                     icon_size=20,
-                    icon_color=ft.Colors.BLUE_700 if current_page > 1 else ft.Colors.GREY_400,
+                    icon_color=ft.Colors.BLACK if current_page > 1 else ft.Colors.GREY_400,
                     on_click=change_page(-current_page + 1) if current_page > 1 else None,
                     disabled=current_page <= 1,
                     tooltip="第一页",
@@ -11405,7 +11406,7 @@ def main(page: ft.Page):
                 ft.IconButton(
                     icon=ft.Icons.KEYBOARD_ARROW_LEFT,
                     icon_size=20,
-                    icon_color=ft.Colors.BLUE_700 if current_page > 1 else ft.Colors.GREY_400,
+                    icon_color=ft.Colors.BLACK if current_page > 1 else ft.Colors.GREY_400,
                     on_click=change_page(-1),
                     disabled=current_page <= 1,
                     tooltip="上一页",
@@ -11416,7 +11417,7 @@ def main(page: ft.Page):
                 ft.IconButton(
                     icon=ft.Icons.KEYBOARD_ARROW_RIGHT,
                     icon_size=20,
-                    icon_color=ft.Colors.BLUE_700 if current_page < total_pages else ft.Colors.GREY_400,
+                    icon_color=ft.Colors.BLACK if current_page < total_pages else ft.Colors.GREY_400,
                     on_click=change_page(1),
                     disabled=current_page >= total_pages,
                     tooltip="下一页",
@@ -11424,7 +11425,7 @@ def main(page: ft.Page):
                 ft.IconButton(
                     icon=ft.Icons.LAST_PAGE,
                     icon_size=20,
-                    icon_color=ft.Colors.BLUE_700 if current_page < total_pages else ft.Colors.GREY_400,
+                    icon_color=ft.Colors.BLACK if current_page < total_pages else ft.Colors.GREY_400,
                     on_click=change_page(total_pages - current_page) if current_page < total_pages else None,
                     disabled=current_page >= total_pages,
                     tooltip="最后一页",
