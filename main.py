@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.268"
-APP_VERSION_CODE = 268
+APP_VERSION = "1.0.269"
+APP_VERSION_CODE = 269
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5701,7 +5701,7 @@ def main(page: ft.Page):
         page.update()
     
     def show_daily_events():
-        """显示每日事件列表"""
+        """显示每日事件列表（按剩余提醒时间排序）"""
         global current_view, events_list, card_duration_texts
         current_view = "daily"
 
@@ -5710,27 +5710,19 @@ def main(page: ft.Page):
 
         events_list.controls.clear()
         
-        #print(f"[DEBUG] show_daily_events 被调用, current_view={current_view}")
-        #print(f"[show_daily_events] 当前事件总数: {len(events)}")
         daily_events = []
-    
+        
         for event in events.values():
             if event.event_type == "daily":
-                # 获取最早的提醒时间用于排序
-                earliest_time = "23:59"  # 默认最大值
-                if event.reminders:
-                    times = [r.get("time", "23:59") for r in event.reminders if r.get("enabled")]
-                    if times:
-                        earliest_time = min(times)  # 取最早的时间
+                # ========== 计算剩余时间（秒） ==========
+                remaining_seconds = get_daily_event_remaining_seconds(event)
                 daily_events.append({
                     "event": event,
-                    "sort_time": earliest_time
+                    "remaining_seconds": remaining_seconds,
                 })
         
-        #print(f"[show_daily_events] 每日事件数量: {len(daily_events)}")
-
-        # 按提醒时间排序
-        daily_events.sort(key=lambda x: x["sort_time"])
+        # ========== 按剩余时间排序（即将响铃的排在前面） ==========
+        daily_events.sort(key=lambda x: x["remaining_seconds"])
         
         # ========== 提取事件对象并调用置顶排序 ==========
         event_list = [item["event"] for item in daily_events]
@@ -5751,25 +5743,19 @@ def main(page: ft.Page):
                 ft.Container(
                     content=ft.Column([
                         ft.Text("✨ 暂无每日事件", size=14, color=ft.Colors.GREEN_700),
-                    ], spacing=8, ),
+                    ], spacing=8),
                     padding=20,
                 )
             )
         else:
-            # ========== 调试：打印排序后的事件列表 ==========
-            #print(f"[显示] 排序后事件列表:")
-            #for idx, event in enumerate(event_list):
-                #is_playing = (event.id == current_playing_event_id and current_music_state in ["playing", "paused"])
-                #print(f"  {idx}: {event.name}, is_playing: {is_playing}")
-            
             for event in event_list:
                 display_event_card(event, is_filter_mode=True)
             
+            # 移除最后一个多余的分隔符
             if events_list.controls and isinstance(events_list.controls[-1], ft.Divider):
                 events_list.controls.pop()
         
         page.update()
-        #print(f"[show_daily_events] 刷新完成")
     
     def show_weekly_events():
         """显示每周事件列表"""
@@ -12574,9 +12560,53 @@ def main(page: ft.Page):
         #print(f"[置顶调试] 排序后第一个事件: {result[0].name if result else '无'}")
         
         return result
-
+    
+    def get_daily_event_remaining_seconds(event):
+        """计算每日事件的剩余提醒时间（秒），用于排序"""
+        now = datetime.now()
+        current_time = now.strftime("%H:%M")
+        
+        if not event.reminders:
+            return 86400  # 没有提醒，默认1天后
+        
+        # 获取启用的提醒时间
+        enabled_times = []
+        for reminder in event.reminders:
+            if reminder.get("enabled") and reminder.get("time"):
+                enabled_times.append(reminder.get("time"))
+        
+        if not enabled_times:
+            return 86400
+        
+        # 找到今天最近的提醒时间
+        today_reminder = None
+        tomorrow_reminder = None
+        
+        for time_str in sorted(enabled_times):
+            if time_str > current_time:
+                today_reminder = time_str
+                break
+            else:
+                tomorrow_reminder = time_str
+        
+        if today_reminder:
+            # 今天的提醒还没过
+            reminder_hour, reminder_minute = map(int, today_reminder.split(":"))
+            reminder_datetime = datetime(now.year, now.month, now.day, reminder_hour, reminder_minute)
+            remaining = (reminder_datetime - now).total_seconds()
+            return max(0, remaining)
+        elif tomorrow_reminder:
+            # 今天的所有提醒已过，取明天的第一个
+            reminder_hour, reminder_minute = map(int, tomorrow_reminder.split(":"))
+            tomorrow = now + timedelta(days=1)
+            reminder_datetime = datetime(tomorrow.year, tomorrow.month, tomorrow.day, reminder_hour, reminder_minute)
+            remaining = (reminder_datetime - now).total_seconds()
+            return remaining
+        else:
+            return 86400  # 默认1天后
+    
     def display_all_events():
-        """显示全部事件"""
+        """显示全部事件（优化排序：已过期的一次性事件排最后，其他按发生时间由近到远）"""
         global current_view, current_playing_event_id, current_music_state, card_duration_texts
         current_view = "all"
 
@@ -12605,90 +12635,73 @@ def main(page: ft.Page):
             page.update()
             return
         
-        #events_list.controls.append(ft.Text(f"✨ 全部事件有 {len(events)} 个", size=14, color=ft.Colors.GREEN_700))
-        #events_list.controls.append(ft.Divider(height=5))
-        
-        # ========== 分离播放中的事件和其他事件 ==========
-        playing_event_info = None
-        other_events_info = []
-        
         today = datetime.now().date()
+        
+        # ========== 分类收集事件 ==========
+        playing_events = []      # 正在播放的
+        upcoming_events = []     # 未过期的事件（包括今天）
+        expired_once_events = [] # 已过期的一次性事件
         
         for event in events.values():
             month, day, year, base_year, days_until = event.get_next_date_info()
             
-            # 计算年龄/年份显示
-            if event.event_type == "birthday":
-                if base_year > 0 and base_year <= today.year:
-                    age_text = f"🎉 {today.year - base_year}岁"
-                else:
-                    age_text = "🎉 生日"
-            elif event.event_type == "monthly":
-                age_text = "🔄 每月提醒"
-            elif event.event_type == "daily":
-                age_text = "⏰ 每天提醒"
-                # 每日事件：获取最早的提醒时间用于排序
-                earliest_time = "23:59"
-                if event.reminders:
-                    times = [r.get("time", "23:59") for r in event.reminders if r.get("enabled")]
-                    if times:
-                        earliest_time = min(times)
-                days_until = earliest_time  # 字符串
-            elif event.event_type == "weekly":
-                age_text = "🔁 每周提醒"
-            elif event.repeat_type == "once":
-                age_text = ""
-            else:
-                if base_year > 0 and base_year <= today.year:
-                    years_passed = today.year - base_year + 1
-                    age_text = f"💝 第{years_passed}年"
-                else:
-                    age_text = "💝 纪念日"
-            
-            event_info = {
-                "event": event,
-                "month": month,
-                "day": day,
-                "age_text": age_text,
-                "days_until": days_until,
-                "base_year": base_year,
-                "event_type": event.event_type
-            }
-            
-            # 判断是否是播放中的事件
+            # ========== 判断是否是播放中的事件 ==========
             if event.id == current_playing_event_id and current_music_state in ["playing", "paused"]:
-                playing_event_info = event_info
+                playing_events.append(event)
+                continue
+            
+            # ========== 已过期的一次性事件 ==========
+            if event.repeat_type == "once":
+                # 检查是否已完成或已过期
+                if event.completed or days_until < 0:
+                    expired_once_events.append(event)
+                    continue
+            
+            # ========== 其他事件（未过期） ==========
+            # 对于每日事件，计算剩余时间
+            if event.event_type == "daily":
+                remaining_seconds = get_daily_event_remaining_seconds(event)
+                event._sort_key = remaining_seconds
+                event._sort_type = "daily"
+            elif event.event_type == "weekly":
+                event._sort_key = days_until
+                event._sort_type = "weekly"
             else:
-                other_events_info.append(event_info)
+                event._sort_key = days_until
+                event._sort_type = "normal"
+            
+            upcoming_events.append(event)
         
-        # ========== 先显示播放中的事件 ==========
-        if playing_event_info:
-            print(f"[置顶] 播放中事件: {playing_event_info['event'].name}")
-            display_event_card(playing_event_info["event"], is_filter_mode=True)
-        
-        # ========== 对其他事件排序（按事件类型分组排序） ==========
-        # 分离每日事件和其他事件
-        daily_events = []
-        normal_events = []
-        
-        for info in other_events_info:
-            if info["event_type"] == "daily":
-                daily_events.append(info)
+        # ========== 排序未过期事件 ==========
+        def get_sort_key(event):
+            """获取排序键"""
+            sort_type = getattr(event, '_sort_type', 'normal')
+            
+            if sort_type == "daily":
+                # 每日事件按剩余秒数排序（最小的在前，即将响铃的在前）
+                return (0, getattr(event, '_sort_key', 86400))
+            elif sort_type == "weekly":
+                # 每周事件按剩余天数排序
+                days = getattr(event, '_sort_key', 999)
+                return (1, days)
             else:
-                normal_events.append(info)
+                # 普通事件按剩余天数排序（0表示今天）
+                days = getattr(event, '_sort_key', 999)
+                return (2, days)
         
-        # 每日事件按提醒时间排序
-        daily_events.sort(key=lambda x: x["days_until"])  # days_until 是字符串 "HH:MM"
+        # 按排序键排序
+        upcoming_events.sort(key=get_sort_key)
         
-        # 其他事件按剩余天数排序
-        normal_events.sort(key=lambda x: x["days_until"])  # days_until 是整数
+        # ========== 已过期的一次性事件按过期时间倒序排列 ==========
+        expired_once_events.sort(key=lambda e: e.get_next_date_info()[4], reverse=True)
         
-        # 合并：每日事件在前，其他事件在后
-        other_events_info = daily_events + normal_events
+        # ========== 合并所有事件 ==========
+        sorted_events = playing_events + upcoming_events + expired_once_events
         
-        for info in other_events_info:
-            display_event_card(info["event"], is_filter_mode=True)
-
+        # ========== 显示事件卡片 ==========
+        for event in sorted_events:
+            display_event_card(event, is_filter_mode=True)
+        
         # 移除最后一个多余的分隔符
         if events_list.controls and isinstance(events_list.controls[-1], ft.Divider):
             events_list.controls.pop()
