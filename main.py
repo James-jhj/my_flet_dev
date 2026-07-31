@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.274"
-APP_VERSION_CODE = 274
+APP_VERSION = "1.0.275"
+APP_VERSION_CODE = 275
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -3494,8 +3494,8 @@ if IS_WINDOWS:
                 threading.Timer(0.3, lambda: os._exit(0)).start()
 
             menu = pystray.Menu(
-                pystray.MenuItem("📋 打开主界面", on_tray_open),
-                pystray.MenuItem("🚪 退出", on_tray_exit)
+                pystray.MenuItem("打开主界面(O)", on_tray_open),
+                pystray.MenuItem("退出(X)", on_tray_exit)
             )
 
             #单击事件无用，待调试
@@ -13412,7 +13412,7 @@ def main(page: ft.Page):
                             ft.Text(age_text, size=11, color=ft.Colors.ORANGE_700) if age_text else ft.Container(),
                             music_info_row,
                         ], spacing=18, expand=True),
-                        padding=ft.Padding(left=12, right=0, top=4, bottom=4),
+                        padding=ft.Padding(left=14, right=0, top=4, bottom=4),
                         expand=True,
                     ),
                     ft.Container(
