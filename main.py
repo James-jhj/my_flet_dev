@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.270"
-APP_VERSION_CODE = 270
+APP_VERSION = "1.0.271"
+APP_VERSION_CODE = 271
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -301,7 +301,7 @@ refresh_summary_global = None
 
 # ========== 添加 SQLite 数据库管理类 ==========
 class AccountingDB:
-    """记账数据库管理类"""
+    """顺手记‌数据库管理类"""
     
     _instance = None
     
@@ -328,7 +328,7 @@ class AccountingDB:
             conn.close()
     
     def _create_table(self):
-        """创建记账表"""
+        """创建顺手记‌表"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
@@ -759,7 +759,7 @@ class AccountingDB:
         )
     
 class Transaction:
-    """记账记录"""
+    """顺手记‌记录"""
     def __init__(self, id: str, date: str, type: str, category: str, amount: float, note: str = "", time: str = None):
         self.id = id
         self.date = date  # 格式: YYYY-MM-DD
@@ -3877,9 +3877,9 @@ def main(page: ft.Page):
     # 当前日期时间显示
     current_datetime_text = ft.Text(value="📅 当前时间：",size=12, color=ft.Colors.BLUE_700)
 
-    # ========== 记账分类定义（放在这里） ==========
+    # ========== 顺手记‌分类定义（放在这里） ==========
 
-    # 初始化记账数据
+    # 初始化顺手记‌数据
     transactions = []
 
     # 收入分类（预设）
@@ -9384,15 +9384,15 @@ def main(page: ft.Page):
         print("[备忘录] 加载完成")
 
     
-    # ===========================  3.记账功能添加 ===================================
+    # ===========================  3.顺手记‌功能添加 ===================================
 
     def show_accounting_page(page: ft.Page):
-        """显示记账页面（使用SQLite存储 + 分页）"""
+        """显示顺手记‌页面（使用SQLite存储 + 分页）"""
         global transactions, current_page, page_size
         global current_page, floating_add_button, original_floating_add_click
         global refresh_records_list_global, refresh_summary_global  # 添加全局变量
 
-        # 切换到记账页面
+        # 切换到顺手记‌页面
         current_page = "accounting"
 
         # 创建数据库实例
@@ -9403,7 +9403,7 @@ def main(page: ft.Page):
         if not hasattr(show_accounting_page, '_migrated'):
             imported = db.migrate_from_json()
             if imported > 0:
-                print(f"[记账] 已迁移 {imported} 条记录")
+                print(f"[顺手记‌] 已迁移 {imported} 条记录")
             show_accounting_page._migrated = True
 
         # 分页相关变量
@@ -9420,7 +9420,7 @@ def main(page: ft.Page):
         search_query = ""
         is_search_mode = False
 
-        # 保存原来的点击事件，并替换为记账页面的添加菜单
+        # 保存原来的点击事件，并替换为顺手记‌页面的添加菜单
         original_floating_add_click = floating_add_button.on_click
         floating_add_button.on_click = lambda e: show_accounting_add_menu()
 
@@ -9461,7 +9461,7 @@ def main(page: ft.Page):
                 accounting_scroll_top_button.visible = False  # 使用局部变量
                 page.update()
 
-        # ========== 创建记账界面独立的回到顶部按钮（局部变量） ==========
+        # ========== 创建顺手记‌界面独立的回到顶部按钮（局部变量） ==========
         accounting_scroll_top_button = ft.Container(
             content=ft.Icon(ft.Icons.ARROW_UPWARD, size=28, color=ft.Colors.BLUE_700),
             width=50,  # 与 today_circle_button 一致
@@ -10056,7 +10056,7 @@ def main(page: ft.Page):
 
         # ========== 修改导出函数使用数据库 ==========
         async def export_filtered_accounting(e):
-            """导出当前筛选后的记账数据到Excel"""
+            """导出当前筛选后的顺手记‌数据到Excel"""
             global current_page
             
             # 获取数据
@@ -10111,7 +10111,7 @@ def main(page: ft.Page):
                 
                 wb = Workbook()
                 ws_detail = wb.active
-                ws_detail.title = "记账明细"
+                ws_detail.title = "顺手记‌明细"
                 
                 # 写入汇总信息
                 ws_detail.merge_cells('A1:F1')
@@ -10270,9 +10270,9 @@ def main(page: ft.Page):
                 page.update()
                 
                 result = await file_picker.save_file(
-                    file_name=f"记账明细_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                    file_name=f"顺手记‌明细_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                     src_bytes=file_bytes,
-                    dialog_title="保存记账明细"
+                    dialog_title="保存顺手记‌明细"
                 )
                 
                 page.services.remove(file_picker)
@@ -11552,7 +11552,7 @@ def main(page: ft.Page):
 
         # ========== 年份切换函数 ==========
         def change_year_acct(delta):
-            """切换年份（记账本）"""
+            """切换年份（顺手记‌）"""
             nonlocal current_year, current_month, selected_date, query_mode
             query_mode = "month"
             current_year += delta
@@ -12060,7 +12060,7 @@ def main(page: ft.Page):
 
         # ========== 添加菜单 ==========
         def show_accounting_add_menu():
-            """显示记账添加菜单"""
+            """显示顺手记‌添加菜单"""
             menu_container = None
 
             def close_menu():
@@ -12216,7 +12216,7 @@ def main(page: ft.Page):
                         content=back_btn,
                         width=40,
                     ),
-                    ft.Text("💰 记账单", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, expand=True, text_align=ft.TextAlign.CENTER),
+                    ft.Text("💰 顺手记‌", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, expand=True, text_align=ft.TextAlign.CENTER),
                     ft.Container(width=40),
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                 #ft.Divider(),
@@ -12226,7 +12226,7 @@ def main(page: ft.Page):
                 ft.Divider(),
                 ft.Row([
                     ft.Icon(ft.Icons.LIST, size=18, color=ft.Colors.BLUE_700),
-                    ft.Text("账单列表", size=16, weight=ft.FontWeight.BOLD),
+                    ft.Text("顺手记‌列表", size=16, weight=ft.FontWeight.BOLD),
                     ft.Container(expand=True),
                     filter_btn,  # 添加筛选按钮
                     export_btn,  # 添加导出按钮
@@ -12302,7 +12302,7 @@ def main(page: ft.Page):
         # 使用 Stack 布局，将悬浮按钮放在右下角
         accounting_stack = ft.Stack(
             [
-                accounting_page,  # 原有的记账页面内容
+                accounting_page,  # 原有的顺手记‌页面内容
                 ft.Container(
                     content=floating_buttons,
                     right=20,
@@ -17487,7 +17487,7 @@ def main(page: ft.Page):
 
     load_events()           # 加载事件列表
 
-    #load_accounting_data()  # 加载记账列表
+    #load_accounting_data()  # 加载顺手记‌列表
 
     load_memo_notes()       # 加载备忘录数据
 
@@ -18478,9 +18478,9 @@ def main(page: ft.Page):
         page.overlay.append(menu_container)
         page.update()
 
-    # ========== 记账数据导入导出 ==========
+    # ========== 顺手记‌数据导入导出 ==========
     async def export_accounting_async(e):
-        """导出记账数据到Excel（从SQLite导出）"""
+        """导出顺手记‌数据到Excel（从SQLite导出）"""
         try:
             # 创建数据库实例
             db = AccountingDB()
@@ -18489,10 +18489,10 @@ def main(page: ft.Page):
             all_records = db.get_all()
             
             if not all_records:
-                show_bottom_message("没有记账数据可导出")
+                show_bottom_message("没有顺手记‌数据可导出")
                 return
             
-            print(f"[导出记账] 从数据库获取到 {len(all_records)} 条记录")
+            print(f"[导出顺手记‌] 从数据库获取到 {len(all_records)} 条记录")
             
             # ========== 按日期+时间由近到远排序 ==========
             def get_sort_key(record):
@@ -18507,11 +18507,11 @@ def main(page: ft.Page):
             
             wb = Workbook()
             ws = wb.active
-            ws.title = "记账本"
+            ws.title = "顺手记‌"
             
             # ========== 写入汇总信息 ==========
             ws.merge_cells('A1:F1')
-            ws['A1'] = "💰 记账本"
+            ws['A1'] = "💰 顺手记‌"
             ws['A1'].font = openpyxl.styles.Font(size=16, bold=True)
             ws['A1'].alignment = openpyxl.styles.Alignment(horizontal='center')
             
@@ -18574,7 +18574,7 @@ def main(page: ft.Page):
             result = await file_picker.save_file(
                 file_name=f"accounting_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                 src_bytes=file_bytes,
-                dialog_title="保存记账Excel文件"
+                dialog_title="保存顺手记‌Excel文件"
             )
             
             page.services.remove(file_picker)
@@ -18582,7 +18582,7 @@ def main(page: ft.Page):
             os.remove(temp_file)
             
             if result:
-                show_bottom_message(f"成功导出 {len(sorted_transactions)} 条记账记录（按时间由近到远排序）")
+                show_bottom_message(f"成功导出 {len(sorted_transactions)} 条顺手记‌记录（按时间由近到远排序）")
             else:
                 show_bottom_message("已取消导出")
             
@@ -18595,7 +18595,7 @@ def main(page: ft.Page):
             traceback.print_exc()
 
     async def import_accounting_async(e):
-        """从Excel导入记账数据到SQLite（支持时间列）"""
+        """从Excel导入顺手记‌数据到SQLite（支持时间列）"""
         
         menu_container = None
         
@@ -18616,7 +18616,7 @@ def main(page: ft.Page):
                 result = await file_picker.pick_files(
                     allow_multiple=False,
                     allowed_extensions=["xlsx", "xls"],
-                    dialog_title="选择记账Excel文件"
+                    dialog_title="选择顺手记‌Excel文件"
                 )
                 
                 if file_picker and file_picker in page.overlay:
@@ -18662,8 +18662,8 @@ def main(page: ft.Page):
             show_bottom_message("已取消导入")
         
         async def do_import_accounting(file_path):
-            """执行记账数据导入到SQLite"""
-            show_bottom_message(f"正在导入记账数据: {os.path.basename(file_path)}")
+            """执行顺手记‌数据导入到SQLite"""
+            show_bottom_message(f"正在导入顺手记‌数据: {os.path.basename(file_path)}")
             page.update()
             
             try:
@@ -18827,7 +18827,7 @@ def main(page: ft.Page):
                 print(f"[导入] 导入完成: 成功 {imported_count} 条，跳过 {skipped_count} 行")
                 
                 if imported_count == 0:
-                    show_bottom_message(f"没有导入任何记账记录，跳过 {skipped_count} 行")
+                    show_bottom_message(f"没有导入任何顺手记‌记录，跳过 {skipped_count} 行")
                     return
                 
                 # 确认替换对话框
@@ -18845,7 +18845,7 @@ def main(page: ft.Page):
                     # ========== 清空数据库并导入新数据 ==========
                     db.clear_all()
                     db.insert_many(new_transactions)
-                    show_bottom_message(f"成功导入 {imported_count} 条记账记录")
+                    show_bottom_message(f"成功导入 {imported_count} 条顺手记‌记录")
                     # 使用全局函数刷新
                     if refresh_records_list_global:
                         refresh_records_list_global()
@@ -18868,7 +18868,7 @@ def main(page: ft.Page):
                         ),
                         ft.Text("确认导入", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_700, text_align=ft.TextAlign.CENTER),
                         ft.Divider(),
-                        ft.Text(f"即将导入 {imported_count} 条记账记录", size=14),
+                        ft.Text(f"即将导入 {imported_count} 条顺手记‌记录", size=14),
                         ft.Text(f"当前数据将被替换", size=12, color=ft.Colors.ORANGE_700),
                         ft.Divider(),
                         ft.Row([
@@ -18907,9 +18907,9 @@ def main(page: ft.Page):
                     bgcolor=ft.Colors.BLUE_50,
                     border_radius=50,
                 ),
-                ft.Text("导入记账本", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_700, text_align=ft.TextAlign.CENTER),
+                ft.Text("导入顺手记‌", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_700, text_align=ft.TextAlign.CENTER),
                 ft.Divider(),
-                ft.Text("请选择记账Excel文件", size=14, text_align=ft.TextAlign.CENTER),
+                ft.Text("请选择顺手记‌Excel文件", size=14, text_align=ft.TextAlign.CENTER),
                 ft.Text("支持格式: .xlsx, .xls", size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
                 ft.Text("表头: 日期 | 时间 | 类型 | 分类 | 金额 | 备注", size=11, color=ft.Colors.GREY_600, text_align=ft.TextAlign.CENTER),
                 ft.Text("注：前5行为汇总信息，从第6行开始读取", size=11, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
@@ -19443,7 +19443,7 @@ def main(page: ft.Page):
                     ),
                 ),
                 ft.Button(
-                    "💰 记账列表", 
+                    "💰 顺手记‌列表", 
                     on_click=lambda e: [close_menu(), asyncio.create_task(export_accounting_async(e))], 
                     #expand=True,
                     width=150,
@@ -19533,7 +19533,7 @@ def main(page: ft.Page):
                     ),
                 ),
                 ft.Button(
-                    "💰 记账列表", 
+                    "💰 顺手记‌列表", 
                     on_click=lambda e: [close_menu(), asyncio.create_task(import_accounting_async(e))], 
                     #expand=True,
                     width = 150,
@@ -20082,9 +20082,9 @@ def main(page: ft.Page):
                 ),
             ),
             ft.TextButton(
-                "💰 记账本", 
+                "💰 顺手记‌", 
                 on_click=lambda e: show_accounting_page(page), 
-                tooltip="记账本",
+                tooltip="顺手记‌",
                 style=ft.ButtonStyle(
                     color=ft.Colors.RED_700,
                     text_style=ft.TextStyle(weight=ft.FontWeight.BOLD),
@@ -20407,7 +20407,7 @@ def main(page: ft.Page):
             # 音乐相关区域（整个区域统一控制显示/隐藏）
             music_section_container,
 
-            # 所有按钮行（播放控制按钮 + 导入导出按钮 + 记账 + 备忘录），支持左右滑动
+            # 所有按钮行（播放控制按钮 + 导入导出按钮 + 顺手记‌ + 备忘录），支持左右滑动
             all_buttons,
 
             ft.Divider(),
@@ -20422,7 +20422,7 @@ def main(page: ft.Page):
                 content=ft.Column([
                     #ft.Divider(height=5),
                     ft.Text("💡 使用说明", size=14, weight=ft.FontWeight.BOLD),
-                    ft.Text("• 点击「+」添加事件\n• 点击 💰 账单 进入账单界面\n• 各类事件当天或提前3天预警自动弹框并播放音乐\n• 启动程序自动检查今日是否有事件发生", selectable=True),
+                    ft.Text("• 点击「+」添加事件\n• 点击 📝 备忘录 进入备忘录界面\n• 点击 💰 顺手记‌ 进入顺手记‌界面\n• 各类事件当天或提前3天预警自动弹框并播放音乐\n• 启动程序自动检查今日是否有事件发生", selectable=True),
                     # ========== 修改这里：提醒服务单独一行，count_text和版本在同一行 ==========
                     ft.Row([
                         ft.Text("🔔 提醒服务运行中", size=12, color=ft.Colors.GREEN_700),
