@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.271"
-APP_VERSION_CODE = 271
+APP_VERSION = "1.0.272"
+APP_VERSION_CODE = 272
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -6447,7 +6447,7 @@ def main(page: ft.Page):
                     border_width = 2
                     bg_color = ft.Colors.ORANGE_50  # 置顶卡片浅橙色背景
                     # 置顶时使用星号或特殊符号
-                    #divider = ft.Text("✦", size=10, color=ft.Colors.ORANGE_700)  # 使用星号
+                    #divider = ft.Text("🔝", size=10, color=ft.Colors.ORANGE_700)  # 使用星号
                     divider = ft.Icon(ft.Icons.PUSH_PIN, size=10, color=ft.Colors.ORANGE_700)
                     #divider = ft.Icon(ft.Icons.VERTICAL_ALIGN_TOP, size=10, color=ft.Colors.ORANGE_700)
                 else:
@@ -12235,7 +12235,7 @@ def main(page: ft.Page):
             ], spacing=8),
             bgcolor=ft.Colors.WHITE,
         )
-
+        
         # ========== 可滚动的内容区域（添加滚动监听） ==========
         # 使用 ListView 或 Column 并包装滚动事件
         scrollable_records = ft.Container(
@@ -13265,10 +13265,10 @@ def main(page: ft.Page):
         # ========== 如果事件有设定时间提醒，不重复显示 ==========
         if event.reminders:
             # 有提醒时间，只显示日期（不显示 reminder_time_str）
-            date_display_text = f"{date_icon} {display_date}"
+            date_display_text = f"{display_date}"
         else:
             # 没有提醒时间，正常显示
-            date_display_text = f"{date_icon} {display_date}{reminder_time_str}"
+            date_display_text = f"{display_date}{reminder_time_str}"
         
         # ========== 获取音乐名称和状态 ==========
         music_name = None
@@ -13338,7 +13338,7 @@ def main(page: ft.Page):
         
         # 🏷️
         music_info_row = ft.Row([
-            ft.Text(f"{type_icon} {type_name}", size=10, color=ft.Colors.BLUE_400),
+            ft.Text(f"{type_name}", size=10, color=ft.Colors.BLUE_400),
             ft.Container(width=8),
             ft.Text(music_status_icon, size=10),
             ft.Text(music_name if music_name else "无音乐", size=10, color=ft.Colors.GREY_600,
@@ -13405,7 +13405,7 @@ def main(page: ft.Page):
             content=ft.Column([
                 ft.Row([
                     ft.Column([
-                        ft.Text(f"{calendar_icon} {event.name}", size=16, weight=ft.FontWeight.BOLD),
+                        ft.Text(f"{event.name}", size=16, weight=ft.FontWeight.BOLD),
                         ft.Text(f"{date_display_text}", size=12, color=ft.Colors.GREY_600),
                         ft.Text(age_text, size=11, color=ft.Colors.ORANGE_700) if age_text else ft.Container(),
                         music_info_row,
@@ -13556,19 +13556,19 @@ def main(page: ft.Page):
         if event.event_type == "birthday":
             age = calculate_age_for_birthday(event, today)
             if age > 0:
-                return f"🎉 {age}岁"
+                return f"{age}岁"
             else:
-                return "🎉 生日"
+                return "生日"
         elif event.event_type == "monthly":
-            return "🔄 每月提醒"
+            return "每月提醒"
         elif event.event_type == "daily":
             # 检查是否开启了法定工作日提醒
             if getattr(event, 'workday_only', False):
-                return "⏰ 工作日提醒"
+                return "工作日提醒"
             else:
-                return "⏰ 每天提醒"
+                return "每天提醒"
         elif event.event_type == "weekly":
-            return "🔁 每周提醒"
+            return "每周提醒"
         elif event.repeat_type == "once":
             if event.completed:
                 date_parts = event.birth_date.split("-")
@@ -13577,22 +13577,22 @@ def main(page: ft.Page):
                 month, day, year, base_year, days_until = event.get_next_date_info()
                 if days_until < 0:
                     date_parts = event.birth_date.split("-")
-                    return f"⏰ 已过期 ({date_parts[0]}年{date_parts[1]}月{date_parts[2]}日)"
+                    return f"已过期 ({date_parts[0]}年{date_parts[1]}月{date_parts[2]}日)"
                 elif days_until == 0:
-                    return "🎯 今天执行"
+                    return "今天执行"
                 else:
                     date_parts = event.birth_date.split("-")
-                    return f"⏰ {date_parts[0]}年{date_parts[1]}月{date_parts[2]}日"
+                    return f"{date_parts[0]}年{date_parts[1]}月{date_parts[2]}日"
         else:
             # 纪念日/事件：计算实际年数
             years = calculate_anniversary_years(event, today)
             if years > 0:
                 if years == int(years):
-                    return f"💝 {int(years)}周年"
+                    return f"{int(years)}周年"
                 else:
-                    return f"💝 {years}年"
+                    return f"{years}年"
             else:
-                return "💝 纪念日"
+                return "纪念日"
     
     def show_monthly_events():
         """显示每月事件列表"""
