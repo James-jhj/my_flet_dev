@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.275"
-APP_VERSION_CODE = 275
+APP_VERSION = "1.0.276"
+APP_VERSION_CODE = 276
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -3452,11 +3452,33 @@ if IS_WINDOWS:
             self._exit_requested = False
             
         def create_tray_icon(self):
-            """创建系统托盘图标"""
-            image = Image.new('RGB', (64, 64), color='#2196F3')
-            draw = ImageDraw.Draw(image)
-            draw.rectangle((8, 8, 56, 56), fill='white', outline='#2196F3', width=2)
-            draw.text((16, 20), "📋", fill='#2196F3', font=None)
+            """创建系统托盘图标（使用项目中的图片）"""
+            # ========== 尝试多个可能的路径 ==========
+            icon_paths = [
+                "icon.png",                                    # 项目根目录
+                "assets/icon.png",                             # assets 目录
+                os.path.join(os.path.dirname(__file__), "icon.png"),  # 当前文件目录
+                os.path.join(os.path.dirname(__file__), "assets", "icon.png"),
+            ]
+            
+            image = None
+            for path in icon_paths:
+                if os.path.exists(path):
+                    try:
+                        image = Image.open(path)
+                        image = image.resize((64, 64))
+                        print(f"[托盘] 加载图标: {path}")
+                        break
+                    except Exception as e:
+                        print(f"[托盘] 加载失败 {path}: {e}")
+            
+            # 如果找不到自定义图标，使用默认
+            if image is None:
+                print("[托盘] 使用默认图标")
+                image = Image.new('RGB', (64, 64), color='#2196F3')
+                draw = ImageDraw.Draw(image)
+                draw.rectangle((8, 8, 56, 56), fill='white', outline='#2196F3', width=2)
+                draw.text((16, 20), "📋", fill='#2196F3', font=None)
 
             def on_tray_open(icon, item):
                 """打开主界面（菜单项）"""
@@ -13412,7 +13434,7 @@ def main(page: ft.Page):
                             ft.Text(age_text, size=11, color=ft.Colors.ORANGE_700) if age_text else ft.Container(),
                             music_info_row,
                         ], spacing=18, expand=True),
-                        padding=ft.Padding(left=14, right=0, top=4, bottom=4),
+                        padding=ft.Padding(left=16, right=0, top=4, bottom=4),
                         expand=True,
                     ),
                     ft.Container(
