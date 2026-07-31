@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.272"
-APP_VERSION_CODE = 272
+APP_VERSION = "1.0.273"
+APP_VERSION_CODE = 273
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -13403,15 +13403,25 @@ def main(page: ft.Page):
         # ========== 创建事件卡片 ==========
         event_card = ft.Container(
             content=ft.Column([
+                # ========== 第一行：名称 + 状态（左边距 12） ==========
                 ft.Row([
-                    ft.Column([
-                        ft.Text(f"{event.name}", size=16, weight=ft.FontWeight.BOLD),
-                        ft.Text(f"{date_display_text}", size=12, color=ft.Colors.GREY_600),
-                        ft.Text(age_text, size=11, color=ft.Colors.ORANGE_700) if age_text else ft.Container(),
-                        music_info_row,
-                    ], expand=True),
-                    status_container,
-                ]),
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Text(f"{event.name}", size=16, weight=ft.FontWeight.BOLD),
+                            ft.Text(f"{date_display_text}", size=12, color=ft.Colors.GREY_600),
+                            ft.Text(age_text, size=11, color=ft.Colors.ORANGE_700) if age_text else ft.Container(),
+                            music_info_row,
+                        ], spacing=10, expand=True),
+                        padding=ft.Padding(left=10, right=0, top=4, bottom=4),
+                        expand=True,
+                    ),
+                    ft.Container(
+                        content=status_container,
+                        padding=ft.Padding(left=0, right=8, top=4, bottom=4),
+                    ),
+                ], spacing=0, vertical_alignment=ft.CrossAxisAlignment.START),
+                
+                # ========== 第二行：按钮区域（左边距为 0） ==========
                 ft.Row([
                     ft.Row([loop_checkbox, play_button], spacing=5),
                     ft.Row([
@@ -13419,14 +13429,14 @@ def main(page: ft.Page):
                         ft.TextButton("🗑️ 删除", on_click=lambda e, eid=event.id: delete_event(eid)),
                     ], spacing=10),
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-            ], spacing=5),
-            padding=10, 
-            bgcolor=bg_color, 
+                
+            ], spacing=8),
+            padding=ft.Padding(left=0, right=0, top=10, bottom=10),
+            bgcolor=bg_color,
             border_radius=10,
-            # ========== 新增：点击卡片进入编辑模式 ==========
             on_click=lambda e, eid=event.id: edit_event_dialog(eid),
-            on_hover=on_card_hover,  # 添加悬停事件
-            ink=True,  # 添加墨水效果，点击时有反馈
+            on_hover=on_card_hover,
+            ink=True,
         )
 
         # 添加卡片和分隔符
