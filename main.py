@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.273"
-APP_VERSION_CODE = 273
+APP_VERSION = "1.0.274"
+APP_VERSION_CODE = 274
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -13411,8 +13411,8 @@ def main(page: ft.Page):
                             ft.Text(f"{date_display_text}", size=12, color=ft.Colors.GREY_600),
                             ft.Text(age_text, size=11, color=ft.Colors.ORANGE_700) if age_text else ft.Container(),
                             music_info_row,
-                        ], spacing=10, expand=True),
-                        padding=ft.Padding(left=10, right=0, top=4, bottom=4),
+                        ], spacing=18, expand=True),
+                        padding=ft.Padding(left=12, right=0, top=4, bottom=4),
                         expand=True,
                     ),
                     ft.Container(
