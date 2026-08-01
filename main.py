@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.277"
-APP_VERSION_CODE = 277
+APP_VERSION = "1.0.278"
+APP_VERSION_CODE = 278
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -18466,7 +18466,7 @@ def main(page: ft.Page):
                 ),
                 ft.Text("导入事件", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, text_align=ft.TextAlign.CENTER),
                 ft.Divider(height=1, color=ft.Colors.GREY_300),
-                ft.Text("请选择Excel文件", size=14, color=ft.Colors.GREY_700, text_align=ft.TextAlign.CENTER),
+                ft.Text("请选择事件Excel文件", size=14, color=ft.Colors.GREY_700, text_align=ft.TextAlign.CENTER),
                 ft.Text("支持格式: .xlsx, .xls", size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
                 ft.Divider(height=1, color=ft.Colors.GREY_300),
                 ft.Row([
@@ -18943,8 +18943,6 @@ def main(page: ft.Page):
                 ft.Divider(),
                 ft.Text("请选择顺手记‌Excel文件", size=14, text_align=ft.TextAlign.CENTER),
                 ft.Text("支持格式: .xlsx, .xls", size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
-                ft.Text("表头: 日期 | 时间 | 类型 | 分类 | 金额 | 备注", size=11, color=ft.Colors.GREY_600, text_align=ft.TextAlign.CENTER),
-                ft.Text("注：前5行为汇总信息，从第6行开始读取", size=11, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
                 ft.Divider(),
                 ft.Row([
                     ft.ElevatedButton(
@@ -19394,7 +19392,6 @@ def main(page: ft.Page):
                 ft.Divider(),
                 ft.Text("请选择备忘录Excel文件", size=14),
                 ft.Text("支持格式: .xlsx, .xls", size=12, color=ft.Colors.GREY_500),
-                ft.Text("支持加密字段: 是否加密、密码、原始内容", size=11, color=ft.Colors.GREY_600),
                 ft.Divider(),
                 ft.Row([
                     ft.ElevatedButton(
@@ -19463,49 +19460,42 @@ def main(page: ft.Page):
                 ft.Text("导出数据", size=20, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
                 ft.Text("请选择要导出的数据类型", size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
                 ft.Divider(),
-                ft.Button(
-                    "📅 事件列表", 
-                    on_click=lambda e: [close_menu(), asyncio.create_task(export_events_async(e))], 
-                    #expand=True,
-                    width=150,
-                    style=ft.ButtonStyle(
-                        bgcolor=ft.Colors.BLUE_700,
-                        color=ft.Colors.WHITE,
-                        shape=ft.RoundedRectangleBorder(radius=8),
-                    ),
-                ),
-                ft.Button(
-                    "💰 顺手记‌列表", 
-                    on_click=lambda e: [close_menu(), asyncio.create_task(export_accounting_async(e))], 
-                    #expand=True,
-                    width=150,
-                    style=ft.ButtonStyle(
-                        bgcolor=ft.Colors.GREEN_700,
-                        color=ft.Colors.WHITE,
-                        shape=ft.RoundedRectangleBorder(radius=8),
-                    ),
-                ),
+                ft.Row([
+                        ft.ElevatedButton(
+                            "📋 事件列表", 
+                            on_click=lambda e: [close_menu(), asyncio.create_task(export_events_async(e))],
+                            expand=True,
+                            style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE),
+                        ),
+                    ], alignment=ft.MainAxisAlignment.CENTER),
+                ft.Row([
+                        ft.ElevatedButton(
+                            "💰 顺手记‌列表", 
+                            on_click=lambda e: [close_menu(), asyncio.create_task(export_accounting_async(e))],
+                            expand=True,
+                            style=ft.ButtonStyle(bgcolor=ft.Colors.GREEN_700, color=ft.Colors.WHITE),
+                        ),
+                    ], alignment=ft.MainAxisAlignment.CENTER),
                 # ========== 新增：备忘录列表导出 ==========
-                ft.Button(
-                    "📝 备忘录列表", 
-                    on_click=lambda e: [close_menu(), asyncio.create_task(export_memo_async(e))], 
-                    #expand=True,
-                    width=150,
-                    style=ft.ButtonStyle(
-                        bgcolor=ft.Colors.PURPLE_700,
-                        color=ft.Colors.WHITE,
-                        shape=ft.RoundedRectangleBorder(radius=8),
-                    ),
-                ),
+                ft.Row([
+                        ft.ElevatedButton(
+                            "📝 备忘录列表", 
+                            on_click=lambda e: [close_menu(), asyncio.create_task(export_memo_async(e))],
+                            expand=True,
+                            style=ft.ButtonStyle(bgcolor=ft.Colors.PURPLE_700, color=ft.Colors.WHITE),
+                        ),
+                    ], alignment=ft.MainAxisAlignment.CENTER),
                 ft.Divider(),
-                ft.TextButton(
-                    "取消", 
-                    on_click=lambda e: close_menu(),
-                    expand=True,
-                    style=ft.ButtonStyle(color=ft.Colors.GREY_600),
-                ),
+                ft.Row([
+                        ft.ElevatedButton(
+                            "取消", 
+                            on_click=lambda e: close_menu(), 
+                            expand=True,
+                            style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.GREY_700),
+                        ),
+                    ], alignment=ft.MainAxisAlignment.CENTER),
             ], spacing=12, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-            width=280,
+            width=320,
             padding=20,
             bgcolor=ft.Colors.WHITE,
             border_radius=20,
@@ -19553,49 +19543,42 @@ def main(page: ft.Page):
                 ft.Text("导入数据", size=20, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
                 ft.Text("请选择要导入的数据类型", size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
                 ft.Divider(),
-                ft.Button(
-                    "📅 事件列表", 
-                    on_click=lambda e: [close_menu(), import_events_wrapper(e)], 
-                    #expand=True,
-                    width = 150,
-                    style=ft.ButtonStyle(
-                        bgcolor=ft.Colors.BLUE_700,
-                        color=ft.Colors.WHITE,
-                        shape=ft.RoundedRectangleBorder(radius=8),
-                    ),
-                ),
-                ft.Button(
-                    "💰 顺手记‌列表", 
-                    on_click=lambda e: [close_menu(), asyncio.create_task(import_accounting_async(e))], 
-                    #expand=True,
-                    width = 150,
-                    style=ft.ButtonStyle(
-                        bgcolor=ft.Colors.GREEN_700,
-                        color=ft.Colors.WHITE,
-                        shape=ft.RoundedRectangleBorder(radius=8),
-                    ),
-                ),
+                ft.Row([
+                        ft.ElevatedButton(
+                            "📋 事件列表", 
+                            on_click=lambda e: [close_menu(), asyncio.create_task(import_events_async(e))],
+                            expand=True,
+                            style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE),
+                        ),
+                    ], alignment=ft.MainAxisAlignment.CENTER),
+                ft.Row([
+                        ft.ElevatedButton(
+                            "💰 顺手记‌列表", 
+                            on_click=lambda e: [close_menu(), asyncio.create_task(import_accounting_async(e))],
+                            expand=True,
+                            style=ft.ButtonStyle(bgcolor=ft.Colors.GREEN_700, color=ft.Colors.WHITE),
+                        ),
+                    ], alignment=ft.MainAxisAlignment.CENTER),
                 # ========== 新增：备忘录列表导入 ==========
-                ft.Button(
-                    "📝 备忘录列表", 
-                    on_click=lambda e: [close_menu(), asyncio.create_task(import_memo_async(e))], 
-                    #expand=True,
-                    width = 150,
-                    style=ft.ButtonStyle(
-                        bgcolor=ft.Colors.PURPLE_700,
-                        color=ft.Colors.WHITE,
-                        shape=ft.RoundedRectangleBorder(radius=8),
-                    ),
-                ),
+                ft.Row([
+                        ft.ElevatedButton(
+                            "📝 备忘录列表", 
+                            on_click=lambda e: [close_menu(), asyncio.create_task(import_memo_async(e))],
+                            expand=True,
+                            style=ft.ButtonStyle(bgcolor=ft.Colors.PURPLE_700, color=ft.Colors.WHITE),
+                        ),
+                    ], alignment=ft.MainAxisAlignment.CENTER),
                 ft.Divider(),
-                ft.TextButton(
-                    "取消", 
-                    on_click=lambda e: close_menu(),
-                    expand=True,
-                    style=ft.ButtonStyle(color=ft.Colors.GREY_600),
-                ),
+                ft.Row([
+                        ft.ElevatedButton(
+                            "取消", 
+                            on_click=lambda e: close_menu(), 
+                            expand=True,
+                            style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.GREY_700),
+                        ),
+                    ], alignment=ft.MainAxisAlignment.CENTER),
             ], spacing=12, horizontal_alignment=ft.CrossAxisAlignment.CENTER),  # 添加水平居中
-            width=280,
+            width=320,
             padding=20,
             bgcolor=ft.Colors.WHITE,
             border_radius=20,
@@ -19618,14 +19601,6 @@ def main(page: ft.Page):
         
         page.overlay.append(menu_container)
         page.update()
-
-    # 包装函数
-    def import_events_wrapper(e):
-        asyncio.create_task(import_events_async(e))
-
-
-    def export_events_wrapper(e):
-        asyncio.create_task(export_events_async(e))
 
     # ========== 结束添加导入事件和导出事件按钮 ===============
 
