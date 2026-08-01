@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.278"
-APP_VERSION_CODE = 278
+APP_VERSION = "1.0.279"
+APP_VERSION_CODE = 279
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -8936,6 +8936,16 @@ def main(page: ft.Page):
             )
             
             back_btn_main = ft.IconButton(ft.Icons.ARROW_BACK, icon_size=28, on_click=lambda e: back_to_main(), tooltip="返回")
+
+            # 添加顺手记跳转按钮
+            go_to_accounting_btn = ft.TextButton(
+                "💰 顺手记",
+                on_click=lambda e: show_accounting_page(page),
+                style=ft.ButtonStyle(
+                    color=ft.Colors.GREEN_700,
+                    text_style=ft.TextStyle(weight=ft.FontWeight.BOLD),
+                ),
+            )
             
             main_content = ft.Container(
                 content=ft.Column([
@@ -8954,7 +8964,7 @@ def main(page: ft.Page):
                             expand=True, 
                             text_align=ft.TextAlign.CENTER,
                         ),
-                        ft.Container(width=48),  # 右侧占位，保持对称
+                        go_to_accounting_btn,  # 顺手记按钮
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                     
                     ft.Divider(),
@@ -12204,6 +12214,16 @@ def main(page: ft.Page):
         summary_container = ft.Column(spacing=10)
         
         back_btn = ft.IconButton(ft.Icons.ARROW_BACK, icon_size=28, on_click=lambda e: back_to_main())
+
+        # 在后面添加备忘录跳转按钮：
+        go_to_memo_btn = ft.TextButton(
+            "📝 备忘录",
+            on_click=lambda e: show_memo_page(page),
+            style=ft.ButtonStyle(
+                color=ft.Colors.BLUE_700,
+                text_style=ft.TextStyle(weight=ft.FontWeight.BOLD),
+            ),
+        )
         
         refresh_summary()
         refresh_records_list()
@@ -12239,7 +12259,7 @@ def main(page: ft.Page):
                         width=40,
                     ),
                     ft.Text("💰 顺手记‌", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700, expand=True, text_align=ft.TextAlign.CENTER),
-                    ft.Container(width=40),
+                    go_to_memo_btn,  # 备忘录按钮
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                 #ft.Divider(),
                 #month_row,
