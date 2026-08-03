@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.279"
-APP_VERSION_CODE = 279
+APP_VERSION = "1.0.280"
+APP_VERSION_CODE = 280
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -8942,7 +8942,7 @@ def main(page: ft.Page):
                 "💰 顺手记",
                 on_click=lambda e: show_accounting_page(page),
                 style=ft.ButtonStyle(
-                    color=ft.Colors.GREEN_700,
+                    color=ft.Colors.RED_700,
                     text_style=ft.TextStyle(weight=ft.FontWeight.BOLD),
                 ),
             )
