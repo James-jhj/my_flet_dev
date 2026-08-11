@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.281"
-APP_VERSION_CODE = 281
+APP_VERSION = "1.0.282"
+APP_VERSION_CODE = 282
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -1630,7 +1630,7 @@ class SearchableDropdownFl(ft.Column):
         self.text_field.update()
 
 class SearchableDropdownEvtTp(ft.Column):
-    """可搜索的下拉选择框（使用 Overlay 实现悬浮，位置自动适配）"""
+    """事件类型 可搜索的下拉选择框（使用 Overlay 实现悬浮，位置自动适配）"""
     def __init__(self, page, label, options, value=None, on_change=None, **kwargs):
         super().__init__(**kwargs)
         self._page = page
@@ -1717,7 +1717,7 @@ class SearchableDropdownEvtTp(ft.Column):
         # 使用弹性布局，让下拉框在文本框正下方
         # 根据平台设置弹出来的下拉框距离底部的高度
         if platform.system() == "Windows":
-            bottomHeight = 316
+            bottomHeight = 312
         else:
             bottomHeight = 341
         self._overlay_container = ft.Container(
@@ -1821,7 +1821,7 @@ class SearchableDropdownEvtTp(ft.Column):
         self.text_field.update()
 
 class SearchableDropdownEvtLf(ft.Column):
-    """可搜索的下拉选择框（使用 Overlay 实现悬浮，位置自动适配）"""
+    """历法 可搜索的下拉选择框（使用 Overlay 实现悬浮，位置自动适配）"""
     def __init__(self, page, label, options, value=None, on_change=None, **kwargs):
         super().__init__(**kwargs)
         self._page = page
@@ -1910,7 +1910,7 @@ class SearchableDropdownEvtLf(ft.Column):
         if platform.system() == "Windows":
             bottomHeight = 295
         else:
-            bottomHeight = 315 # 309
+            bottomHeight = 311 # 309
         self._overlay_container = ft.Container(
             content=ft.Column([
                 # 上方空白（点击关闭）
@@ -2005,7 +2005,7 @@ class SearchableDropdownEvtLf(ft.Column):
         self.text_field.update()
 
 class SearchableDropdownEvtWeek(ft.Column):
-    """可搜索的下拉选择框（使用 Overlay 实现悬浮，位置自动适配）"""
+    """星期 可搜索的下拉选择框（使用 Overlay 实现悬浮，位置自动适配）"""
     def __init__(self, page, label, options, value=None, on_change=None, **kwargs):
         super().__init__(**kwargs)
         self._page = page
@@ -2092,7 +2092,7 @@ class SearchableDropdownEvtWeek(ft.Column):
         # 使用弹性布局，让下拉框在文本框正下方
         # 根据平台设置弹出来的下拉框距离底部的高度
         if platform.system() == "Windows":
-            bottomHeight = 120
+            bottomHeight = 116
         else:
             bottomHeight = 137
         self._overlay_container = ft.Container(
