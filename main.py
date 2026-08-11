@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.284"
-APP_VERSION_CODE = 284
+APP_VERSION = "1.0.285"
+APP_VERSION_CODE = 285
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -3781,16 +3781,41 @@ def main(page: ft.Page):
     page.on_ready = lambda e: request_manage_storage_permission()
 
     # ========== 初始化通知功能 ==========
+    # 定义渠道ID常量（放在函数外部或内部）
+    CHANNEL_EVENT = "event_reminder_channel"
+    CHANNEL_MUSIC = "music_channel"
+    CHANNEL_BACKGROUND = "background_channel"
+
     # 初始化通知渠道
     if ANDROID_NOTIFY_AVAILABLE and platform.system() == "Linux":
         try:
-            init_notify = Notification()
-            init_notify.channel_name = "事件提醒助手"
-            init_notify.channel_description = "事件提醒助手通知渠道"
-            init_notify.importance = "low"
-            print("[通知] ✅ 通知渠道已初始化")
+            # 创建事件提醒渠道（高优先级）
+            Notification(
+                channel_id=CHANNEL_EVENT,
+                channel_name="事件提醒",
+                channel_description="重要事件提醒通知",
+                importance="high",
+            )
+            
+            # 创建音乐播放渠道（低优先级，不弹出）
+            Notification(
+                channel_id=CHANNEL_MUSIC,
+                channel_name="音乐播放",
+                channel_description="音乐播放状态通知",
+                importance="low",
+            )
+            
+            # 创建后台运行渠道（最低优先级）
+            Notification(
+                channel_id=CHANNEL_BACKGROUND,
+                channel_name="后台运行",
+                channel_description="应用后台运行状态",
+                importance="min",
+            )
+            
+            print("[通知] ✅ 通知渠道已创建")
         except Exception as e:
-            print(f"[通知] 渠道初始化失败: {e}")
+            print(f"[通知] ❌ 渠道创建失败: {e}")
 
     sent_notifications = set()  # 记录已发送的通知，格式: "事件ID_提醒时间_日期"
 
