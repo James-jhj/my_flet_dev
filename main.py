@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.282"
-APP_VERSION_CODE = 282
+APP_VERSION = "1.0.283"
+APP_VERSION_CODE = 283
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -1910,7 +1910,7 @@ class SearchableDropdownEvtLf(ft.Column):
         if platform.system() == "Windows":
             bottomHeight = 295
         else:
-            bottomHeight = 311 # 309
+            bottomHeight = 309 # 309
         self._overlay_container = ft.Container(
             content=ft.Column([
                 # 上方空白（点击关闭）
@@ -9608,8 +9608,8 @@ def main(page: ft.Page):
                     dialog_container = None
                     page.update()
             
-            def do_search(e):
-                """执行查询"""
+            def do_search(e=None):
+                """执行查询（可由按钮点击或回车触发）"""
                 nonlocal search_query, is_search_mode
                 keyword = search_field.value.strip()
                 search_query = keyword
@@ -9650,6 +9650,8 @@ def main(page: ft.Page):
                 autofocus=True,
                 on_blur=on_search_blur,
                 on_focus=on_search_focus,
+                # ========== 新增：回车键触发搜索 ==========
+                on_submit=do_search,  # 添加这一行
                 suffix=ft.IconButton(
                     ft.Icons.CLEAR,
                     on_click=lambda e: setattr(search_field, 'value', '') or search_field.update(),
@@ -20212,8 +20214,8 @@ def main(page: ft.Page):
                 dialog_container = None
                 page.update()
         
-        def do_search(e):
-            """执行搜索"""
+        def do_search(e=None):
+            """执行搜索（可由按钮点击或回车触发）"""
             keyword = search_field.value.strip()
             if not keyword:
                 show_bottom_message("请输入搜索关键词")
@@ -20278,6 +20280,8 @@ def main(page: ft.Page):
             autofocus=True,
             on_blur=on_search_blur,
             on_focus=on_search_focus,
+            # ========== 新增：回车键触发搜索 ==========
+            on_submit=do_search,  # 添加这一行
             suffix=ft.IconButton(
                 ft.Icons.CLEAR,
                 on_click=lambda e: setattr(search_field, 'value', '') or search_field.update(),
