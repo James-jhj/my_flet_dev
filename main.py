@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.280"
-APP_VERSION_CODE = 280
+APP_VERSION = "1.0.281"
+APP_VERSION_CODE = 281
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -1908,9 +1908,9 @@ class SearchableDropdownEvtLf(ft.Column):
         # 使用弹性布局，让下拉框在文本框正下方
         # 根据平台设置弹出来的下拉框距离底部的高度
         if platform.system() == "Windows":
-            bottomHeight = 313
+            bottomHeight = 295
         else:
-            bottomHeight = 309
+            bottomHeight = 315 # 309
         self._overlay_container = ft.Container(
             content=ft.Column([
                 # 上方空白（点击关闭）
@@ -1977,10 +1977,13 @@ class SearchableDropdownEvtLf(ft.Column):
         
         if content_height < min_height:
             self.dropdown_container.height = min_height
+            print(f'历法下拉框高度：{min_height}')
         elif content_height > max_height:
             self.dropdown_container.height = max_height
+            print(f'历法下拉框高度：{max_height}')
         else:
-            self.dropdown_container.height = content_height - 17  # 历法高度调试
+            self.dropdown_container.height = content_height - 2  # 历法高度调试 17
+            print(f'历法下拉框高度：{content_height}')
     
     def select_option(self, value):
         self.text_field.value = value
@@ -7590,7 +7593,7 @@ def main(page: ft.Page):
                         if not note.is_encrypted and note.original_content:
                             note.original_content = current_content
                         save_memo_notes()
-                        show_bottom_message(f"✅ 已保存修改")
+                        show_bottom_message(f"已保存修改")
                     
                     # ========== 根据是否有密码决定后续操作 ==========
                     if note.password:
