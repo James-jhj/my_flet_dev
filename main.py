@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.283"
-APP_VERSION_CODE = 283
+APP_VERSION = "1.0.284"
+APP_VERSION_CODE = 284
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -5534,7 +5534,7 @@ def main(page: ft.Page):
         try:
             # 只有当前有音乐播放时才执行停止逻辑
             if current_audio is None and current_music_file is None:
-                print("[停止音乐] 没有正在播放的音乐，跳过")
+                print("[停止音乐] 没有正在播放的音乐")
                 return
             
             # 保存要清除的事件ID
@@ -19520,7 +19520,7 @@ def main(page: ft.Page):
                         ),
                     ], alignment=ft.MainAxisAlignment.CENTER),
             ], spacing=12, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-            width=320,
+            width=340,
             padding=20,
             bgcolor=ft.Colors.WHITE,
             border_radius=20,
@@ -19603,7 +19603,7 @@ def main(page: ft.Page):
                         ),
                     ], alignment=ft.MainAxisAlignment.CENTER),
             ], spacing=12, horizontal_alignment=ft.CrossAxisAlignment.CENTER),  # 添加水平居中
-            width=320,
+            width=340,
             padding=20,
             bgcolor=ft.Colors.WHITE,
             border_radius=20,
