@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.285"
-APP_VERSION_CODE = 285
+APP_VERSION = "1.0.286"
+APP_VERSION_CODE = 286
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -20643,6 +20643,11 @@ def main(page: ft.Page):
     # Stack 布局
     main_stack = ft.Stack(
         [
+            # ========== 底层白色背景，防止显示黑色 ==========
+            ft.Container(
+                expand=True,
+                bgcolor=ft.Colors.WHITE,
+            ),
             main_content,
             ft.Container(
                 content=floating_buttons,
