@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.287"
-APP_VERSION_CODE = 287
+APP_VERSION = "1.0.288"
+APP_VERSION_CODE = 288
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -3710,9 +3710,21 @@ def main(page: ft.Page):
     # ========== 新增：设置透明导航条 ==========
     # 方法1：直接设置窗口属性
     try:
-        page.window.navigation_bar_color = ft.Colors.TRANSPARENT
+        page.window.system_navigation_bar_color = ft.Colors.TRANSPARENT
     except:
         pass
+
+    if platform.system() == "Linux":
+        try:
+            from android import activity
+            from android.view import WindowManager
+            
+            window = activity.getWindow()
+            window.setNavigationBarColor(0x00000000)  # 透明
+            # 或者
+            window.setNavigationBarColor(0x00FFFFFF)  # 白色透明
+        except:
+            pass
     
     # ========== 设置透明导航条（鸿蒙6.0适配） ==========
     overlay_style = ft.SystemOverlayStyle(
