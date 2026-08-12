@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.288"
-APP_VERSION_CODE = 288
+APP_VERSION = "1.0.289"
+APP_VERSION_CODE = 289
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -3638,6 +3638,7 @@ def main(page: ft.Page):
         "819374e1a2b43595a5da70474fcc7e4f",  # 开发者的手机 ID1
         "49d8a4e0bdcd63998fb17e6033727d64",  # 开发者的手机 ID2
         "141d65d75cdefee314907464911006b9",  # 开发者的手机 ID3
+        "637ebefa26a09b40185ed1d12d86f9e8",  # 开发者的手机 ID4，正在用
         #"",  # 可以添加多个
     ]
     
@@ -3706,36 +3707,6 @@ def main(page: ft.Page):
     page.window_resizable = True
     #page.scroll = ft.ScrollMode.AUTO
     page.theme_mode = ft.ThemeMode.LIGHT
-
-    # ========== 新增：设置透明导航条 ==========
-    # 方法1：直接设置窗口属性
-    try:
-        page.window.system_navigation_bar_color = ft.Colors.TRANSPARENT
-    except:
-        pass
-
-    if platform.system() == "Linux":
-        try:
-            from android import activity
-            from android.view import WindowManager
-            
-            window = activity.getWindow()
-            window.setNavigationBarColor(0x00000000)  # 透明
-            # 或者
-            window.setNavigationBarColor(0x00FFFFFF)  # 白色透明
-        except:
-            pass
-    
-    # ========== 设置透明导航条（鸿蒙6.0适配） ==========
-    overlay_style = ft.SystemOverlayStyle(
-        status_bar_color=ft.Colors.TRANSPARENT,
-        status_bar_icon_brightness=ft.Brightness.DARK,
-        system_navigation_bar_color=ft.Colors.TRANSPARENT,  # 导航条透明
-        system_navigation_bar_icon_brightness=ft.Brightness.DARK,
-    )
-    page.theme = ft.Theme(system_overlay_style=overlay_style)
-    page.dark_theme = ft.Theme(system_overlay_style=overlay_style)
-    # ========== 设置结束 ==========
     
     # ========== Windows 平台模拟手机尺寸(华为mate60 RS) ==========
     if platform.system() == "Windows":
@@ -20673,11 +20644,6 @@ def main(page: ft.Page):
     # Stack 布局
     main_stack = ft.Stack(
         [
-            # ========== 底层白色背景，防止显示黑色 ==========
-            ft.Container(
-                expand=True,
-                bgcolor=ft.Colors.WHITE,
-            ),
             main_content,
             ft.Container(
                 content=floating_buttons,
