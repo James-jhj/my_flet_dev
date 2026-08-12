@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.286"
-APP_VERSION_CODE = 286
+APP_VERSION = "1.0.287"
+APP_VERSION_CODE = 287
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -3706,6 +3706,24 @@ def main(page: ft.Page):
     page.window_resizable = True
     #page.scroll = ft.ScrollMode.AUTO
     page.theme_mode = ft.ThemeMode.LIGHT
+
+    # ========== 新增：设置透明导航条 ==========
+    # 方法1：直接设置窗口属性
+    try:
+        page.window.navigation_bar_color = ft.Colors.TRANSPARENT
+    except:
+        pass
+    
+    # ========== 设置透明导航条（鸿蒙6.0适配） ==========
+    overlay_style = ft.SystemOverlayStyle(
+        status_bar_color=ft.Colors.TRANSPARENT,
+        status_bar_icon_brightness=ft.Brightness.DARK,
+        system_navigation_bar_color=ft.Colors.TRANSPARENT,  # 导航条透明
+        system_navigation_bar_icon_brightness=ft.Brightness.DARK,
+    )
+    page.theme = ft.Theme(system_overlay_style=overlay_style)
+    page.dark_theme = ft.Theme(system_overlay_style=overlay_style)
+    # ========== 设置结束 ==========
     
     # ========== Windows 平台模拟手机尺寸(华为mate60 RS) ==========
     if platform.system() == "Windows":
