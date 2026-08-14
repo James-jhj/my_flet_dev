@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.292"
-APP_VERSION_CODE = 292
+APP_VERSION = "1.0.293"
+APP_VERSION_CODE = 293
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -263,8 +263,6 @@ else:
             def __init__(self, title="", message="", notification_id=0, ongoing=False):
                 self.title = title
                 self.message = message
-                self.notification_id = notification_id
-                self.ongoing = ongoing
             
             def send(self):
                 return False
@@ -4008,8 +4006,6 @@ def main(page: ft.Page):
             n = Notification(
                 title=title,
                 message=message,
-                notification_id=notification_id,
-                ongoing=ongoing,
             )
             n.send()
             print(f"[通知] ✅ 已发送: {title}")
