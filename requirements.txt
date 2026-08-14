@@ -7,4 +7,3 @@ zhdate
 openpyxl
 chinese-calendar
 pyjnius
-flet-android-notifications
