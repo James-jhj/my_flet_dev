@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.303"
-APP_VERSION_CODE = 303
+APP_VERSION = "1.0.304"
+APP_VERSION_CODE = 304
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -233,85 +233,48 @@ def show_unauthorized_page(page, device_id=None):
 # ==================   添加设备授权功能  ============================
 
 # ========== 平台检测（放在这里） ==========
-
 IS_WINDOWS = platform.system() == "Windows"
-ANDROID_PLATFORM = platform.system() == "Linux"
 
-# 通知常量
-CHANNEL_ID = "event_reminder_channel"
-CHANNEL_NAME = "事件提醒助手"
-CHANNEL_DESC = "事件提醒助手通知渠道"
-NOTIFICATION_IMPORTANCE_HIGH = 4
-
-ANDROID_NOTIFY_AVAILABLE = False
-AndroidApplication = None
-Context = None
-NotificationManager = None
-NotificationChannel = None
-NotificationBuilder = None
-Intent = None
-Settings = None
-
-# 初始化 pyjnius Android 绑定（仅安卓环境生效）
-if ANDROID_PLATFORM and not IS_WINDOWS:
+if IS_WINDOWS:
+    ANDROID_NOTIFY_AVAILABLE = False
+    print("✅ Windows 平台，使用假通知模块")
+    
+    class Notification:
+        def __init__(self, title="", message="", notification_id=0, ongoing=False):
+            self.title = title
+            self.message = message
+        
+        def send(self):
+            print(f"[通知] {self.title}: {self.message}")
+            return False
+        
+        def cancel(self):
+            pass
+else:
+    # ========== 导入通知模块 ==========
     try:
-        from jnius import autoclass
-        AndroidApplication = autoclass("android.app.Application")
-        Context = autoclass("android.content.Context")
-        NotificationManager = autoclass("android.app.NotificationManager")
-        NotificationChannel = autoclass("android.app.NotificationChannel")
-        NotificationBuilder = autoclass("android.app.Notification$Builder")
-        Intent = autoclass("android.content.Intent")
-        Settings = autoclass("android.provider.Settings")
+        from android_notify import Notification
         ANDROID_NOTIFY_AVAILABLE = True
-        print("[通知] Pyjnius 安卓通知API加载成功")
-    except Exception as e:
-        print(f"[通知] Pyjnius 加载失败: {e}")
+        print("android_notify 导入成功")
+    except ImportError as e:
+        ANDROID_NOTIFY_AVAILABLE = False
+        print(f"[通知] android_notify 导入失败: {e}")
 
-def get_android_context():
-    """获取安卓上下文（Flet Android环境可用）"""
-    from jnius import cast
-    activity = AndroidApplication.getInstance()
-    return cast(Context, activity)
+        class Notification:
+            def __init__(self, title="", message="", notification_id=0, ongoing=False):
+                self.title = title
+                self.message = message
+                self.channel_name = ""
+                self.channel_description = ""
+                self.importance = ""
+                self.notification_id = notification_id
+                self.ongoing = ongoing
 
-def init_notification_channel():
-    """创建通知渠道（安卓8.0+必须）"""
-    if not ANDROID_NOTIFY_AVAILABLE:
-        return
-    try:
-        ctx = get_android_context()
-        notification_manager = ctx.getSystemService(Context.NOTIFICATION_SERVICE)
-        channel = NotificationChannel(
-            CHANNEL_ID,
-            CHANNEL_NAME,
-            NOTIFICATION_IMPORTANCE_HIGH
-        )
-        channel.setDescription(CHANNEL_DESC)
-        notification_manager.createNotificationChannel(channel)
-        print("[通知] ✅ 通知渠道初始化完成")
-    except Exception as e:
-        print(f"[通知] 渠道初始化异常: {e}")
+            def send(self):
+                return False
 
-async def request_notify_permission(page) -> bool:
-    """请求通知权限（Android13+）
-    返回 True=授权成功
-    """
-    if not ANDROID_NOTIFY_AVAILABLE:
-        return False
-    try:
-        ctx = get_android_context()
-        notification_manager = ctx.getSystemService(Context.NOTIFICATION_SERVICE)
-        if notification_manager.areNotificationsEnabled():
-            return True
-
-        # 打开系统通知权限页（仅用户主动点击才调用！）
-        intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-        intent.putExtra(Settings.EXTRA_APP_PACKAGE, ctx.getPackageName())
-        ctx.startActivity(intent)
-        return False
-    except Exception as e:
-        print(f"[通知] 权限请求异常: {e}")
-        return False
+            def cancel(self):
+                pass
 
 # 根据平台决定是否启用网易云模块
 if not IS_WINDOWS:
@@ -3720,9 +3683,6 @@ def main(page: ft.Page):
     global search_results_cache
 
     # ANDROID_NOTIFY_AVAILABLE = False  # 强制禁用通知
-
-    # 应用启动后初始化通知渠道
-    init_notification_channel()
     
     # ========== 仅 Windows 平台启动托盘 ==========
     if IS_WINDOWS:
@@ -4028,46 +3988,42 @@ def main(page: ft.Page):
 
     # ========== 通知功能开始 ==========
     def show_notification(page, title: str, message: str, notification_id: int = None, ongoing: bool = False):
-        """发送通知"""
+        """发送系统通知
+        """
         print(f"[通知] 准备发送: {title} - {message}")
+
         if IS_WINDOWS:
-            print("[通知] Windows 跳过通知")
+            print("[通知] Windows平台，跳过通知")
             return False
+
         if not ANDROID_NOTIFY_AVAILABLE:
+            print("[通知] 通知模块不可用")
             return False
 
         try:
-            ctx = get_android_context()
-            notification_manager = ctx.getSystemService(Context.NOTIFICATION_SERVICE)
-            # 检查全局通知开关
-            if not notification_manager.areNotificationsEnabled():
-                print("[通知] 系统通知总开关关闭，放弃推送")
-                return False
-
-            builder = NotificationBuilder(ctx, CHANNEL_ID)
-            builder.setContentTitle(title)
-            builder.setContentText(message)
-            builder.setOngoing(ongoing)
-            builder.setSmallIcon(ctx.getApplicationInfo().icon)
-
-            notification = builder.build()
-            nid = notification_id if notification_id is not None else 0
-            notification_manager.notify(nid, notification)
-            print(f"[通知] ✅ 通知发送成功 id={nid}")
+            n = Notification(title=title, message=message, notification_id=notification_id or 0)
+            n.channel_name = "事件提醒助手"
+            n.channel_description = "事件提醒助手通知渠道"
+            n.importance = "high"
+            n.ongoing = ongoing
+            n.send()
+            print("[通知] ✅ 通知发送成功")
             return True
         except Exception as e:
-            print(f"[通知] ❌ 发送失败: {e}")
+            print(f"[通知] ❌ 通知发送失败: {e}")
             return False
 
 
     def cancel_notification(notification_id: int):
-        """取消指定通知"""
-        if IS_WINDOWS or not ANDROID_NOTIFY_AVAILABLE:
+        """取消通知"""
+        if IS_WINDOWS:
+            return
+        if not ANDROID_NOTIFY_AVAILABLE:
+            print("[通知] android_notify 不可用，跳过取消")
             return
         try:
-            ctx = get_android_context()
-            notification_manager = ctx.getSystemService(Context.NOTIFICATION_SERVICE)
-            notification_manager.cancel(notification_id)
+            n = Notification(notification_id=notification_id)
+            n.cancel()
             print(f"[通知] ✅ 已取消通知 ID: {notification_id}")
         except Exception as e:
             print(f"[通知] ❌ 取消通知失败: {e}")
