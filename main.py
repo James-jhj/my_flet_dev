@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.291"
-APP_VERSION_CODE = 291
+APP_VERSION = "1.0.292"
+APP_VERSION_CODE = 292
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -263,6 +263,8 @@ else:
             def __init__(self, title="", message="", notification_id=0, ongoing=False):
                 self.title = title
                 self.message = message
+                self.notification_id = notification_id
+                self.ongoing = ongoing
             
             def send(self):
                 return False
@@ -3981,48 +3983,36 @@ def main(page: ft.Page):
 
     # ========== 通知功能开始 ==========
     def show_notification(page, title: str, message: str, notification_id: int = None, ongoing: bool = False):
-        """发送系统通知
-        Args:
-            page: Flet Page 对象
-            title: 通知标题
-            message: 通知内容
-            notification_id: 通知ID（保留参数，暂未使用）
-            ongoing: 是否持续通知（保留参数，暂未使用）
-        """
-        print(f"[通知] 发送: {title} - {message}")
-
-        # ========== Windows 平台直接返回 ==========
+        """发送系统通知（Android 13+ 适配）"""
+        
+        # Windows 直接返回
         if IS_WINDOWS:
-            print(f"[通知] Windows 平台，通知已跳过: {title}")
             return False
         
+        # 如果通知库不可用，直接返回
         if not ANDROID_NOTIFY_AVAILABLE:
-            print("[通知] ❌ android_notify 不可用")
+            print("[通知] android_notify 不可用")
             return False
-
-        """发送系统通知 - 懒加载模式"""
-        # 只在真正需要发送通知时才创建渠道
-        if not hasattr(show_notification, '_channel_created'):
-            try:
-                from android_notify import Notification
-                Notification(
-                    channel_id="event_reminder_channel",
-                    channel_name="事件提醒",
-                    channel_description="事件提醒通知",
-                    importance="high",
-                )
-                show_notification._channel_created = True
-                print("[通知] 渠道创建成功")
-            except Exception as e:
-                print(f"[通知] 渠道创建失败: {e}")
-                show_notification._channel_created = True
-                return False
         
-        # 然后发送通知
+        # ========== 判断是否应该发送通知 ==========
+        # 只有事件提醒才发送，音乐/后台通知跳过
+        skip_keywords = ["播放", "音乐", "后台", "保活", "运行"]
+        for keyword in skip_keywords:
+            if keyword in title:
+                print(f"[通知] 已跳过: {title}")
+                return True
+        
         try:
-            n = Notification(title=title, message=message)
+            # ========== 直接尝试发送通知（不提前创建渠道） ==========
+            # 如果通知权限未授权，系统会自动处理
+            n = Notification(
+                title=title,
+                message=message,
+                notification_id=notification_id,
+                ongoing=ongoing,
+            )
             n.send()
-            print("[通知] ✅ 发送成功")
+            print(f"[通知] ✅ 已发送: {title}")
             return True
         except Exception as e:
             print(f"[通知] ❌ 发送失败: {e}")
