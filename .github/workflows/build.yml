@@ -101,6 +101,21 @@ jobs:
           request_legacy_external_storage = true
           preserve_legacy_external_storage = true
 
+          # ========== 新增：Gradle 额外配置 ==========
+          gradle_extra = """
+          android {
+              compileOptions {
+                  coreLibraryDesugaringEnabled true
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+
+          dependencies {
+              coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+          }
+          """
+
           # ========== 合并 Flutter 配置 ==========
           [tool.flet.flutter]
           dependencies = ["flet_audio", "local_auth", "flet_android_notifications"]
