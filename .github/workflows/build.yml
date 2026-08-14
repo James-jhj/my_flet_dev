@@ -127,24 +127,6 @@ jobs:
           ls -la android-key.jks
           keytool -list -v -keystore android-key.jks -storepass ${{ secrets.KEYSTORE_PASSWORD }} | head -20
           echo "签名密钥已恢复"
-      
-      - name: 启用 Android Core Desugaring（解决 flutter_local_notifications 报错）
-        run: |
-          # 创建安卓工程模板目录，flet会复用
-          mkdir -p android/app
-          cat > android/app/build.gradle << 'GRADLE_EOF'
-          android {
-              compileOptions {
-                  coreLibraryDesugaringEnabled true
-                  sourceCompatibility JavaVersion.VERSION_1_8
-                  targetCompatibility JavaVersion.VERSION_1_8
-              }
-          }
-          dependencies {
-              coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
-          }
-          GRADLE_EOF
-          echo "已写入build.gradle开启desugaring"
           
       # ========== 关键：先构建 APK ==========
       - name: 执行 APK 构建
