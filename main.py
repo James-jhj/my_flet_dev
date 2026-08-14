@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.294"
-APP_VERSION_CODE = 294
+APP_VERSION = "1.0.295"
+APP_VERSION_CODE = 295
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -3788,6 +3788,7 @@ def main(page: ft.Page):
     if ANDROID_NOTIFY_AVAILABLE and platform.system() == "Linux":
         try:
             init_notify = Notification()
+            init_notify.channel_id = "event_reminder"
             init_notify.channel_name = "事件提醒助手"
             init_notify.channel_description = "事件提醒助手通知渠道"
             init_notify.importance = "high"
@@ -3803,7 +3804,7 @@ def main(page: ft.Page):
     local_auth = LocalAuth(page)
 
     # 创建键盘管理器
-    keyboard_mgr = KeyboardManager(page)
+    #keyboard_mgr = KeyboardManager(page)
 
     # 需要关闭下拉框的控件列表
     keyboard_controls = []
