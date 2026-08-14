@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.293"
-APP_VERSION_CODE = 293
+APP_VERSION = "1.0.294"
+APP_VERSION_CODE = 294
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -3785,7 +3785,6 @@ def main(page: ft.Page):
 
     # ========== 初始化通知功能 ==========
     # 初始化通知渠道
-    ''' 
     if ANDROID_NOTIFY_AVAILABLE and platform.system() == "Linux":
         try:
             init_notify = Notification()
@@ -3795,7 +3794,6 @@ def main(page: ft.Page):
             print("[通知] ✅ 通知渠道已初始化")
         except Exception as e:
             print(f"[通知] 渠道初始化失败: {e}")
-    '''
 
     sent_notifications = set()  # 记录已发送的通知，格式: "事件ID_提醒时间_日期"
 
@@ -3981,34 +3979,29 @@ def main(page: ft.Page):
 
     # ========== 通知功能开始 ==========
     def show_notification(page, title: str, message: str, notification_id: int = None, ongoing: bool = False):
-        """发送系统通知（Android 13+ 适配）"""
-        
-        # Windows 直接返回
+        """发送系统通知
+        Args:
+            page: Flet Page 对象
+            title: 通知标题
+            message: 通知内容
+            notification_id: 通知ID（保留参数，暂未使用）
+            ongoing: 是否持续通知（保留参数，暂未使用）
+        """
+        print(f"[通知] 发送: {title} - {message}")
+
+        # ========== Windows 平台直接返回 ==========
         if IS_WINDOWS:
+            print(f"[通知] Windows 平台，通知已跳过: {title}")
             return False
         
-        # 如果通知库不可用，直接返回
         if not ANDROID_NOTIFY_AVAILABLE:
-            print("[通知] android_notify 不可用")
+            print("[通知] ❌ android_notify 不可用")
             return False
-        
-        # ========== 判断是否应该发送通知 ==========
-        # 只有事件提醒才发送，音乐/后台通知跳过
-        skip_keywords = ["播放", "音乐", "后台", "保活", "运行"]
-        for keyword in skip_keywords:
-            if keyword in title:
-                print(f"[通知] 已跳过: {title}")
-                return True
-        
+
         try:
-            # ========== 直接尝试发送通知（不提前创建渠道） ==========
-            # 如果通知权限未授权，系统会自动处理
-            n = Notification(
-                title=title,
-                message=message,
-            )
+            n = Notification(title=title, message=message)
             n.send()
-            print(f"[通知] ✅ 已发送: {title}")
+            print("[通知] ✅ 发送成功")
             return True
         except Exception as e:
             print(f"[通知] ❌ 发送失败: {e}")
