@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.301"
-APP_VERSION_CODE = 301
+APP_VERSION = "1.0.302"
+APP_VERSION_CODE = 302
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
