@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.290"
-APP_VERSION_CODE = 290
+APP_VERSION = "1.0.291"
+APP_VERSION_CODE = 291
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -3676,7 +3676,7 @@ def main(page: ft.Page):
     global previous_view  # 添加这一行
     global search_results_cache
 
-    ANDROID_NOTIFY_AVAILABLE = False  # 强制禁用通知
+    # ANDROID_NOTIFY_AVAILABLE = False  # 强制禁用通知
     
     # ========== 仅 Windows 平台启动托盘 ==========
     if IS_WINDOWS:
@@ -3785,15 +3785,17 @@ def main(page: ft.Page):
 
     # ========== 初始化通知功能 ==========
     # 初始化通知渠道
+    ''' 
     if ANDROID_NOTIFY_AVAILABLE and platform.system() == "Linux":
         try:
             init_notify = Notification()
             init_notify.channel_name = "事件提醒助手"
             init_notify.channel_description = "事件提醒助手通知渠道"
-            init_notify.importance = "low"
+            init_notify.importance = "high"
             print("[通知] ✅ 通知渠道已初始化")
         except Exception as e:
             print(f"[通知] 渠道初始化失败: {e}")
+    '''
 
     sent_notifications = set()  # 记录已发送的通知，格式: "事件ID_提醒时间_日期"
 
@@ -3998,6 +4000,25 @@ def main(page: ft.Page):
             print("[通知] ❌ android_notify 不可用")
             return False
 
+        """发送系统通知 - 懒加载模式"""
+        # 只在真正需要发送通知时才创建渠道
+        if not hasattr(show_notification, '_channel_created'):
+            try:
+                from android_notify import Notification
+                Notification(
+                    channel_id="event_reminder_channel",
+                    channel_name="事件提醒",
+                    channel_description="事件提醒通知",
+                    importance="high",
+                )
+                show_notification._channel_created = True
+                print("[通知] 渠道创建成功")
+            except Exception as e:
+                print(f"[通知] 渠道创建失败: {e}")
+                show_notification._channel_created = True
+                return False
+        
+        # 然后发送通知
         try:
             n = Notification(title=title, message=message)
             n.send()
