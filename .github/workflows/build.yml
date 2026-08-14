@@ -59,7 +59,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           pip install --upgrade pip
-          pip install flet flet-audio lunardate requests mutagen zhdate openpyxl chinese-calendar pyjnius android-notify
+          pip install flet flet-audio lunardate requests mutagen zhdate openpyxl chinese-calendar pyjnius flet-android-notifications
 
       - name: 读取版本号
         id: version
@@ -88,7 +88,7 @@ jobs:
               "openpyxl",
               "chinese-calendar",
               "pyjnius",
-              "android-notify",
+              "flet-android-notifications",
           ]
 
           [tool.flet]
@@ -103,7 +103,7 @@ jobs:
 
           # ========== 合并 Flutter 配置 ==========
           [tool.flet.flutter]
-          dependencies = ["flet_audio", "local_auth"]
+          dependencies = ["flet_audio", "local_auth", "flet_android_notifications"]
 
           [tool.flet.android.permission]
           # ========== 生物识别权限 ==========
