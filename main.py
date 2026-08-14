@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.295"
-APP_VERSION_CODE = 295
+APP_VERSION = "1.0.296"
+APP_VERSION_CODE = 296
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -263,6 +263,9 @@ else:
             def __init__(self, title="", message="", notification_id=0, ongoing=False):
                 self.title = title
                 self.message = message
+                self.channel_name = ""
+                self.channel_description = ""
+                self.importance = ""
             
             def send(self):
                 return False
@@ -3785,6 +3788,7 @@ def main(page: ft.Page):
 
     # ========== 初始化通知功能 ==========
     # 初始化通知渠道
+    '''
     if ANDROID_NOTIFY_AVAILABLE and platform.system() == "Linux":
         try:
             init_notify = Notification()
@@ -3795,6 +3799,7 @@ def main(page: ft.Page):
             print("[通知] ✅ 通知渠道已初始化")
         except Exception as e:
             print(f"[通知] 渠道初始化失败: {e}")
+    '''
 
     sent_notifications = set()  # 记录已发送的通知，格式: "事件ID_提醒时间_日期"
 
@@ -4000,7 +4005,19 @@ def main(page: ft.Page):
             return False
 
         try:
+            # ✅ 只在发送通知时创建实例，在这里配置渠道信息
             n = Notification(title=title, message=message)
+            # 设置通知渠道（每次发送通知自动保证渠道存在）
+            n.channel_name = "事件提醒助手"
+            n.channel_description = "事件提醒助手通知渠道"
+            n.importance = "high"
+
+            # 持续通知参数（如果你后续需要前台服务通知）
+            if ongoing:
+                n.ongoing = True
+            if notification_id is not None:
+                n.notification_id = notification_id
+
             n.send()
             print("[通知] ✅ 发送成功")
             return True
