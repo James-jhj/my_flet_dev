@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.306"
-APP_VERSION_CODE = 306
+APP_VERSION = "1.0.307"
+APP_VERSION_CODE = 307
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -254,19 +254,23 @@ else:
     try:
         from android_notify import Notification
         ANDROID_NOTIFY_AVAILABLE = True
-        print("✅ android_notify 导入成功")
+        print("android_notify 导入成功")
     except ImportError as e:
         ANDROID_NOTIFY_AVAILABLE = False
-        print(f"❌ android_notify 导入失败: {e}")
-        
+        print(f"[通知] android_notify 导入失败: {e}")
+
+        # 模拟占位类，非安卓环境兼容
         class Notification:
             def __init__(self, title="", message="", notification_id=0, ongoing=False):
                 self.title = title
                 self.message = message
-            
+                self.channel_name = ""
+                self.channel_description = ""
+                self.importance = ""
+
             def send(self):
                 return False
-            
+
             def cancel(self):
                 pass
 
@@ -3785,6 +3789,7 @@ def main(page: ft.Page):
 
     # ========== 初始化通知功能 ==========
     # 初始化通知渠道
+    """
     if ANDROID_NOTIFY_AVAILABLE and platform.system() == "Linux":
         try:
             init_notify = Notification()
@@ -3794,6 +3799,7 @@ def main(page: ft.Page):
             print("[通知] ✅ 通知渠道已初始化")
         except Exception as e:
             print(f"[通知] 渠道初始化失败: {e}")
+    """
 
     sent_notifications = set()  # 记录已发送的通知，格式: "事件ID_提醒时间_日期"
 
@@ -3803,7 +3809,7 @@ def main(page: ft.Page):
     local_auth = LocalAuth(page)
 
     # 创建键盘管理器
-    keyboard_mgr = KeyboardManager(page)
+    #keyboard_mgr = KeyboardManager(page)
 
     # 需要关闭下拉框的控件列表
     keyboard_controls = []
@@ -3984,22 +3990,34 @@ def main(page: ft.Page):
             page: Flet Page 对象
             title: 通知标题
             message: 通知内容
-            notification_id: 通知ID（保留参数，暂未使用）
-            ongoing: 是否持续通知（保留参数，暂未使用）
+            notification_id: 通知ID
+            ongoing: 是否持续通知
         """
-        print(f"[通知] 发送: {title} - {message}")
+        print(f"[通知] 准备发送: {title} - {message}")
 
-        # ========== Windows 平台直接返回 ==========
+        # Windows平台直接跳过
         if IS_WINDOWS:
-            print(f"[通知] Windows 平台，通知已跳过: {title}")
+            print(f"[通知] Windows平台，跳过通知: {title}")
             return False
-        
+
         if not ANDROID_NOTIFY_AVAILABLE:
-            print("[通知] ❌ android_notify 不可用")
+            print("[通知] android_notify 不可用")
             return False
 
         try:
+            # ✅ 只在发送通知时创建实例，在这里配置渠道信息
             n = Notification(title=title, message=message)
+            # 设置通知渠道（每次发送通知自动保证渠道存在）
+            n.channel_name = "事件提醒助手"
+            n.channel_description = "事件提醒助手通知渠道"
+            n.importance = "high"
+
+            # 持续通知参数（如果你后续需要前台服务通知）
+            if ongoing:
+                n.ongoing = True
+            if notification_id is not None:
+                n.notification_id = notification_id
+
             n.send()
             print("[通知] ✅ 发送成功")
             return True
