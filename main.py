@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.307"
-APP_VERSION_CODE = 307
+APP_VERSION = "1.0.308"
+APP_VERSION_CODE = 308
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -3680,7 +3680,7 @@ def main(page: ft.Page):
     global previous_view  # 添加这一行
     global search_results_cache
 
-    # ANDROID_NOTIFY_AVAILABLE = False  # 强制禁用通知
+    ANDROID_NOTIFY_AVAILABLE = False  # 强制禁用通知
     
     # ========== 仅 Windows 平台启动托盘 ==========
     if IS_WINDOWS:
@@ -7055,6 +7055,8 @@ def main(page: ft.Page):
                     can_reveal_password=True,
                     expand=True,
                     autofocus=True,
+                    # ========== 新增：敲回车触发解密 ==========
+                    on_submit=confirm_decrypt,  # 添加这一行
                 )
 
                 # 显示生物识别按钮（在 Android 上总是显示）
@@ -12997,7 +12999,7 @@ def main(page: ft.Page):
                     return today.year - lunar_year - 1
 
     def display_event_card(event, is_filter_mode=False, custom_days_until=None):
-        """显示单个事件卡片"""
+        """显示单个事件卡片 - 采用备忘录卡片风格"""
         global current_playing_event_id, current_music_state, current_position_sec, events_list,card_duration_texts  # 添加 events_list
         
         today = datetime.now().date()
@@ -13453,20 +13455,6 @@ def main(page: ft.Page):
                 show_snack_bar("未设置音乐文件")
         
         play_button = ft.TextButton("🔊 播放", on_click=create_play_handler)
-
-        def on_card_hover(e):
-            """鼠标悬停时改变卡片背景色"""
-            if e.data == "true":  # 鼠标进入
-                e.control.bgcolor = ft.Colors.BLUE_50
-            else:  # 鼠标离开
-                # 恢复原来的背景色
-                if all_disabled:
-                    e.control.bgcolor = ft.Colors.GREY_200
-                elif is_playing_event:
-                    e.control.bgcolor = ft.Colors.BLUE_50
-                else:
-                    e.control.bgcolor = ft.Colors.WHITE
-            e.control.update()
         
         # ========== 创建事件卡片 ==========
         event_card = ft.Container(
@@ -13501,15 +13489,27 @@ def main(page: ft.Page):
             ], spacing=8),
             padding=ft.Padding(left=0, right=0, top=10, bottom=10),
             bgcolor=bg_color,
-            border_radius=10,
-            on_click=lambda e, eid=event.id: edit_event_dialog(eid),
-            on_hover=on_card_hover,
+            border_radius=12,
+            border=ft.border.Border(
+                left=ft.border.BorderSide(1, ft.Colors.GREY_300),
+                top=ft.border.BorderSide(1, ft.Colors.GREY_300),
+                right=ft.border.BorderSide(1, ft.Colors.GREY_300),
+                bottom=ft.border.BorderSide(1, ft.Colors.GREY_300),
+            ),
+            shadow=ft.BoxShadow(
+                spread_radius=1,
+                blur_radius=8,
+                color=ft.Colors.BLACK12,
+                offset=ft.Offset(0, 2),
+            ),
             ink=True,
+            on_click=lambda e, eid=event.id: edit_event_dialog(eid),
+            margin=ft.Padding(left=5, right=5, top=5, bottom=5),  # 卡片之间的间距
         )
 
         # 添加卡片和分隔符
         events_list.controls.append(event_card)
-        events_list.controls.append(ft.Divider(height=1, color=ft.Colors.GREY_200))
+        #events_list.controls.append(ft.Divider(height=1, color=ft.Colors.GREY_200))
 
     def get_event_icon(event):
         """获取事件图标"""
