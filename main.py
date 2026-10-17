@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.308"
-APP_VERSION_CODE = 308
+APP_VERSION = "1.0.309"
+APP_VERSION_CODE = 309
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -6241,6 +6241,68 @@ def main(page: ft.Page):
         # 清理孤立附件
         clean_orphan_attachments()
 
+        def _on_memo_window_resize(e):
+            print(f"[备忘录 resize] new_w={page.window_width}, old_w={getattr(show_memo_page, '_last_memo_width', 403)}")
+            if not IS_WINDOWS:
+                return
+
+            # ========== 关键守卫：不在备忘录页面就直接返回 ==========
+            if current_page != "memo":
+                return
+            # =========================================================
+
+            try:
+                new_w = page.window_width
+                if not new_w:
+                    return
+                old_w = getattr(show_memo_page, '_last_memo_width', 403)
+                old_large = old_w > 420
+                new_large = new_w > 420
+                if (old_large != new_large) or (old_large and new_large and abs(new_w - old_w) > 20):
+                    show_memo_page._last_memo_width = new_w
+                    if memo_page_mode == "normal":
+                        build_normal_mode()
+                    else:
+                        build_select_mode()
+            except Exception as ex:
+                print(f"[备忘录] resize 重绘失败: {ex}")
+
+        page.on_resize = _on_memo_window_resize
+
+        def get_actual_window_width():
+            if not IS_WINDOWS:
+                return None
+            try:
+                import ctypes
+                from ctypes import wintypes
+                hwnd = find_window_by_title("事件提醒助手")
+                if not hwnd:
+                    return None
+                rect = wintypes.RECT()
+                ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rect))
+                w = rect.right - rect.left
+                return w if w > 0 else None
+            except:
+                return None
+
+        # 在 show_memo_page 里启动轮询
+        async def _poll_window_size():
+            last_w = get_actual_window_width()
+            while True:
+                await asyncio.sleep(1)
+                cur_w = get_actual_window_width()
+                if cur_w and last_w and abs(cur_w - last_w) > 50:
+                    last_w = cur_w
+                    # 触发重绘
+                    if memo_page_mode == "normal":
+                        build_normal_mode()
+                    else:
+                        build_select_mode()
+                elif cur_w:
+                    last_w = cur_w
+
+        asyncio.create_task(_poll_window_size())
+
         # ========== 构建普通模式界面 ==========
         def build_normal_mode():
             """构建普通模式界面"""
@@ -6679,9 +6741,20 @@ def main(page: ft.Page):
                     ),
                 )
                 
+                # ========== 根据平台动态计算卡片宽度 ==========
+                CARD_WIDTH = 378
+                if IS_WINDOWS:
+                    actual_w = get_actual_window_width()
+                    if actual_w and actual_w > 420:
+                        CARD_WIDTH = int(actual_w - 26)
+                    else:
+                        CARD_WIDTH = 378
+                else:
+                    CARD_WIDTH = 378
+
+                print(f"[创建卡片] window_w={page.window_width}, CARD_WIDTH={CARD_WIDTH}")
                 BUTTON_WIDTH = 200
                 CARD_HEIGHT = 94
-                CARD_WIDTH = 378
                 
                 # ========== 底层操作按钮（放在右侧，左滑时露出） ==========
                 action_row = ft.Row(
@@ -8912,6 +8985,11 @@ def main(page: ft.Page):
             
             def back_to_main():
                 """返回主界面"""
+                # ========== 先清除 resize 监听 ==========
+                if IS_WINDOWS:
+                    page.on_resize = None
+                # ======================================
+
                 # 清理 Overlay
                 for overlay in page.overlay[:]:
                     if overlay in page.overlay:
@@ -9452,6 +9530,11 @@ def main(page: ft.Page):
 
         # 切换到顺手记‌页面
         current_page = "accounting"
+
+        # ========== 进入顺手记页面时清除备忘录的 resize 监听 ==========
+        if IS_WINDOWS:
+            page.on_resize = None
+        # ===========================================================
 
         # 创建数据库实例
         db = AccountingDB()
@@ -12195,6 +12278,11 @@ def main(page: ft.Page):
         def back_to_main():
             global current_page
             current_page = "main"
+
+            # ========== 清除 resize 监听 ==========
+            if IS_WINDOWS:
+                page.on_resize = None
+            # ====================================
 
             # 恢复原来的点击事件
             floating_add_button.on_click = original_floating_add_click
@@ -20148,7 +20236,9 @@ def main(page: ft.Page):
         ],
         spacing=19,
         scroll=ft.ScrollMode.HIDDEN,  # 允许水平滚动
-        width=410,
+        #width=410,
+        width=float("inf"),   # ← 用 inf 代替固定值
+        alignment=ft.MainAxisAlignment.CENTER,   # ← 关键：水平居中
     )
 
 
