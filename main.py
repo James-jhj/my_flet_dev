@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.310"
-APP_VERSION_CODE = 310
+APP_VERSION = "1.0.311"
+APP_VERSION_CODE = 311
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -235,44 +235,24 @@ def show_unauthorized_page(page, device_id=None):
 # ========== 平台检测（放在这里） ==========
 IS_WINDOWS = platform.system() == "Windows"
 
-if IS_WINDOWS:
-    ANDROID_NOTIFY_AVAILABLE = False
-    print("✅ Windows 平台，使用假通知模块")
-    
-    class Notification:
-        def __init__(self, title="", message="", notification_id=0, ongoing=False):
-            self.title = title
-            self.message = message
-        
-        def send(self):
-            print(f"[通知] {self.title}: {self.message}")
-            return False
-        
-        def cancel(self):
-            pass
-else:
-    try:
-        from android_notify import Notification
-        ANDROID_NOTIFY_AVAILABLE = True
-        print("android_notify 导入成功")
-    except ImportError as e:
-        ANDROID_NOTIFY_AVAILABLE = False
-        print(f"[通知] android_notify 导入失败: {e}")
+# ========== 通知功能已禁用 ==========
+ANDROID_NOTIFY_AVAILABLE = False
+print("✅ 通知功能已禁用（android_notify 不再导入）")
 
-        # 模拟占位类，非安卓环境兼容
-        class Notification:
-            def __init__(self, title="", message="", notification_id=0, ongoing=False):
-                self.title = title
-                self.message = message
-                self.channel_name = ""
-                self.channel_description = ""
-                self.importance = ""
-
-            def send(self):
-                return False
-
-            def cancel(self):
-                pass
+# 定义假通知类，防止后续代码因找不到 Notification 而报错
+class Notification:
+    def __init__(self, title="", message="", notification_id=0, ongoing=False):
+        self.title = title
+        self.message = message
+        self.channel_name = ""
+        self.channel_description = ""
+        self.importance = ""
+        self.notification_id = notification_id
+        self.ongoing = ongoing
+    def send(self):
+        return False
+    def cancel(self):
+        pass
 
 # 根据平台决定是否启用网易云模块
 if not IS_WINDOWS:
@@ -3993,7 +3973,9 @@ def main(page: ft.Page):
             notification_id: 通知ID
             ongoing: 是否持续通知
         """
-        print(f"[通知] 准备发送: {title} - {message}")
+        """发送系统通知（已禁用）"""
+        print(f"[通知已禁用] 跳过: {title} - {message}")
+        return False
 
         # Windows平台直接跳过
         if IS_WINDOWS:
@@ -4029,6 +4011,9 @@ def main(page: ft.Page):
     def cancel_notification(notification_id: int):
         """取消通知（使用 android-notify）"""
         #print(f"[通知] 尝试取消通知 ID: {notification_id}")
+        """取消通知（已禁用）"""
+        print(f"[通知已禁用] 跳过取消: ID={notification_id}")
+        return
 
         # ========== Windows 平台静默返回 ==========
         if IS_WINDOWS:
@@ -17606,11 +17591,8 @@ def main(page: ft.Page):
             while True:
                 try:
                     # ========== 只在非 Windows 平台发送保活通知 ==========
-                    if not IS_WINDOWS:
-                        show_notification(page, "🔔 保活通知", f"当前时间: {datetime.now().strftime('%H:%M:%S')}")      # 每半小时发个通知
-                    else:
-                        # Windows 平台只在控制台打印
-                        print(f"[保活] 当前时间: {datetime.now().strftime('%H:%M:%S')}")
+                    # Windows 平台只在控制台打印
+                    print(f"[保活] 当前时间: {datetime.now().strftime('%H:%M:%S')}")
                     time.sleep(1800)           # 每半小时检查一次
                 except Exception as e:
                     print(f"时间提醒循环出错: {e}")
@@ -20741,10 +20723,6 @@ def main(page: ft.Page):
 
     # 添加到页面
     page.add(main_stack)
-
-    if platform.system() == "Linux":
-        # 延迟2秒显示后台通知（避免与启动检查冲突）
-        threading.Timer(2.0, show_background_notification).start()
 
     page.update()
 

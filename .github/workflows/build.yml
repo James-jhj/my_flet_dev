@@ -59,7 +59,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           pip install --upgrade pip
-          pip install flet flet-audio lunardate requests mutagen zhdate openpyxl chinese-calendar pyjnius android-notify
+          pip install flet flet-audio lunardate requests mutagen zhdate openpyxl chinese-calendar pyjnius
 
       - name: 读取版本号
         id: version
@@ -99,10 +99,6 @@ jobs:
           [tool.flet.android]
           request_legacy_external_storage = true
           preserve_legacy_external_storage = true
-          dependencies = [
-            "pyjnius", 
-            "android-notify"
-          ]
 
           # ========== 合并 Flutter 配置 ==========
           [tool.flet.flutter]
