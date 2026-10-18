@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.311"
-APP_VERSION_CODE = 311
+APP_VERSION = "1.0.312"
+APP_VERSION_CODE = 312
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -21185,7 +21185,7 @@ def main(page: ft.Page):
 if __name__ == "__main__":
     # ========== 仅 Windows 平台检查 --show 参数 ==========
     if IS_WINDOWS and "--show" in sys.argv:
-        ft.app(target=main)
+        ft.run(main)
     else:
         print(f"🚀 启动平台: {'Windows' if IS_WINDOWS else 'Android'}")
         
@@ -21209,7 +21209,7 @@ if __name__ == "__main__":
         
         # ========== 运行主窗口 ==========
         try:
-            ft.app(target=main)
+            ft.run(main)
         except KeyboardInterrupt:
             print("用户中断")
         except Exception as e:
