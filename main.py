@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.313"
-APP_VERSION_CODE = 313
+APP_VERSION = "1.0.314"
+APP_VERSION_CODE = 314
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -1030,7 +1030,7 @@ class SearchableDropdownNtFl(ft.Column):
             bgcolor=ft.Colors.WHITE,
             border=border,
             border_radius=4,
-            shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.BLACK12),
+            shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.BLACK_12),
         )
         
         self.controls = [self.text_field]
@@ -1222,7 +1222,7 @@ class SearchableDropdown(ft.Column):
             bgcolor=ft.Colors.WHITE,
             border=border,
             border_radius=4,
-            shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.BLACK12),
+            shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.BLACK_12),
         )
         
         self.controls = [self.text_field]
@@ -1428,7 +1428,7 @@ class SearchableDropdownFl(ft.Column):
             border=border,
             border_radius=4,
             visible=False,
-            shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.BLACK12),
+            shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.BLACK_12),
         )
         
         self.controls = [
@@ -1654,7 +1654,7 @@ class SearchableDropdownEvtTp(ft.Column):
             bgcolor=ft.Colors.WHITE,
             border=border,
             border_radius=4,
-            shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.BLACK12),
+            shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.BLACK_12),
         )
         
         self.controls = [self.text_field]
@@ -1845,7 +1845,7 @@ class SearchableDropdownEvtLf(ft.Column):
             bgcolor=ft.Colors.WHITE,
             border=border,
             border_radius=4,
-            shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.BLACK12),
+            shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.BLACK_12),
         )
         
         self.controls = [self.text_field]
@@ -2029,7 +2029,7 @@ class SearchableDropdownEvtWeek(ft.Column):
             bgcolor=ft.Colors.WHITE,
             border=border,
             border_radius=4,
-            shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.BLACK12),
+            shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.BLACK_12),
         )
         
         self.controls = [self.text_field]
@@ -4278,13 +4278,13 @@ def main(page: ft.Page):
                 ft.Divider(height=1, color=ft.Colors.GREY_300),
                 # 按钮区域 - 简化版
                 ft.Row([
-                    ft.ElevatedButton(
+                    ft.Button(
                         "取消", 
                         on_click=cancel_delete, 
                         expand=True,
                         style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.GREY_700),
                     ),
-                    ft.ElevatedButton(
+                    ft.Button(
                         "确认删除", 
                         on_click=confirm_delete, 
                         expand=True,
@@ -4309,7 +4309,7 @@ def main(page: ft.Page):
                 ft.Container(expand=True),  # 下方弹性空间
             ]),
             expand=True,
-            bgcolor=ft.Colors.BLACK26,
+            bgcolor=ft.Colors.BLACK_26,
             on_click=close_dialog,
         )
         
@@ -6088,7 +6088,15 @@ def main(page: ft.Page):
     def show_memo_page(page: ft.Page):
         """显示备忘录主界面"""
         global memo_notes, memo_selected_ids, memo_page_mode
+        global current_page
         
+        current_page = "memo"
+
+        # 取消上一次的轮询任务
+        old_task = getattr(show_memo_page, '_poll_task', None)
+        if old_task and not old_task.done():
+            old_task.cancel()
+
         load_memo_notes()
         memo_selected_ids = set()
         memo_page_mode = "normal"  # "normal" 或 "select"
@@ -6275,6 +6283,10 @@ def main(page: ft.Page):
             last_w = get_actual_window_width()
             while True:
                 await asyncio.sleep(1)
+                # 不在备忘录页面就退出
+                if current_page != "memo":
+                    break
+
                 cur_w = get_actual_window_width()
                 if cur_w and last_w and abs(cur_w - last_w) > 50:
                     last_w = cur_w
@@ -6477,7 +6489,7 @@ def main(page: ft.Page):
                 shadow=ft.BoxShadow(
                     spread_radius=1,
                     blur_radius=8,
-                    color=ft.Colors.BLACK12,
+                    color=ft.Colors.BLACK_12,
                     offset=ft.Offset(0, 2),
                 ),
                 border_radius=20,
@@ -6652,7 +6664,7 @@ def main(page: ft.Page):
                     shadow=ft.BoxShadow(
                         spread_radius=1,
                         blur_radius=8,
-                        color=ft.Colors.BLACK12,
+                        color=ft.Colors.BLACK_12,
                         offset=ft.Offset(0, 2),
                     ),
                     ink=True,
@@ -6673,7 +6685,7 @@ def main(page: ft.Page):
                     shadow=ft.BoxShadow(
                         spread_radius=1,
                         blur_radius=4,
-                        color=ft.Colors.BLACK26,
+                        color=ft.Colors.BLACK_26,
                         offset=ft.Offset(0, 2),
                     ),
                 )
@@ -6703,7 +6715,7 @@ def main(page: ft.Page):
                     shadow=ft.BoxShadow(
                         spread_radius=1,
                         blur_radius=4,
-                        color=ft.Colors.BLACK26,
+                        color=ft.Colors.BLACK_26,
                         offset=ft.Offset(0, 2),
                     ),
                     tooltip=encrypt_tooltip,
@@ -6721,7 +6733,7 @@ def main(page: ft.Page):
                     shadow=ft.BoxShadow(
                         spread_radius=1,
                         blur_radius=4,
-                        color=ft.Colors.BLACK26,
+                        color=ft.Colors.BLACK_26,
                         offset=ft.Offset(0, 2),
                     ),
                 )
@@ -6949,13 +6961,13 @@ def main(page: ft.Page):
                         re_encrypt_hint if re_encrypt_hint else ft.Container(),
                         ft.Divider(height=1, color=ft.Colors.GREY_300),
                         ft.Row([
-                            ft.ElevatedButton(
+                            ft.Button(
                                 "取消",
                                 on_click=cancel_encrypt,
                                 expand=True,
                                 style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.GREY_700),
                             ),
-                            ft.ElevatedButton(
+                            ft.Button(
                                 "加密",
                                 on_click=confirm_encrypt,
                                 expand=True,
@@ -6970,7 +6982,7 @@ def main(page: ft.Page):
                     shadow=ft.BoxShadow(
                         spread_radius=1,
                         blur_radius=15,
-                        color=ft.Colors.BLACK12,
+                        color=ft.Colors.BLACK_12,
                         offset=ft.Offset(0, 4),
                     ),
                 )
@@ -6986,7 +6998,7 @@ def main(page: ft.Page):
                         ft.Container(expand=True),
                     ]),
                     expand=True,
-                    bgcolor=ft.Colors.BLACK26,
+                    bgcolor=ft.Colors.BLACK_26,
                     on_click=lambda e: close_dialog(),
                 )
                 
@@ -7121,7 +7133,7 @@ def main(page: ft.Page):
                 bio_type = "指纹/面容"
 
                 # ========== 生物识别按钮 ==========
-                biometric_button = ft.ElevatedButton(
+                biometric_button = ft.Button(
                     f"🔐 {bio_type}解锁",
                     on_click=on_biometric_click,
                     expand=True,
@@ -7152,13 +7164,13 @@ def main(page: ft.Page):
                         password_field,
                         ft.Divider(height=1, color=ft.Colors.GREY_300),
                         ft.Row([
-                            ft.ElevatedButton(
+                            ft.Button(
                                 "取消",
                                 on_click=cancel_decrypt,
                                 expand=True,
                                 style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.GREY_700),
                             ),
-                            ft.ElevatedButton(
+                            ft.Button(
                                 "解密",
                                 on_click=confirm_decrypt,
                                 expand=True,
@@ -7173,7 +7185,7 @@ def main(page: ft.Page):
                     shadow=ft.BoxShadow(
                         spread_radius=1,
                         blur_radius=15,
-                        color=ft.Colors.BLACK12,
+                        color=ft.Colors.BLACK_12,
                         offset=ft.Offset(0, 4),
                     ),
                 )
@@ -7189,7 +7201,7 @@ def main(page: ft.Page):
                         ft.Container(expand=True),
                     ]),
                     expand=True,
-                    bgcolor=ft.Colors.BLACK26,
+                    bgcolor=ft.Colors.BLACK_26,
                     on_click=lambda e: close_dialog(),
                 )
                 
@@ -7596,13 +7608,13 @@ def main(page: ft.Page):
                             ft.Text(change_detail, size=13, color=ft.Colors.GREY_600, selectable=True),
                             ft.Divider(height=1, color=ft.Colors.GREY_300),
                             ft.Row([
-                                ft.ElevatedButton(
+                                ft.Button(
                                     "放弃", 
                                     on_click=on_discard, 
                                     expand=True,
                                     style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.RED_700),
                                 ),
-                                ft.ElevatedButton(
+                                ft.Button(
                                     "保存", 
                                     on_click=on_save_and_close, 
                                     expand=True,
@@ -7623,7 +7635,7 @@ def main(page: ft.Page):
                             ft.Container(expand=True),
                         ]),
                         expand=True,
-                        bgcolor=ft.Colors.BLACK26,
+                        bgcolor=ft.Colors.BLACK_26,
                     )
                     
                     page.overlay.append(dialog_container)
@@ -8300,13 +8312,13 @@ def main(page: ft.Page):
                             
                             # ========== 操作按钮（3个按钮） ==========
                             ft.Row([
-                                ft.ElevatedButton(
+                                ft.Button(
                                     "📁 保存到手机",
                                     on_click=lambda e: save_to_root_silent(file_path),
                                     expand=True,
                                     style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE),
                                 ),
-                                ft.ElevatedButton(
+                                ft.Button(
                                     "💾 保存到...",
                                     on_click=lambda e: asyncio.create_task(save_attachment_async(file_path)),
                                     expand=True,
@@ -8314,7 +8326,7 @@ def main(page: ft.Page):
                                 ),
                             ], spacing=10),
                             ft.Row([
-                                ft.ElevatedButton(
+                                ft.Button(
                                     "📂 在系统中打开",
                                     on_click=open_in_system,
                                     expand=True,
@@ -8329,7 +8341,7 @@ def main(page: ft.Page):
                         shadow=ft.BoxShadow(
                             spread_radius=1,
                             blur_radius=20,
-                            color=ft.Colors.BLACK12,
+                            color=ft.Colors.BLACK_12,
                             offset=ft.Offset(0, 4),
                         ),
                     )
@@ -8345,7 +8357,7 @@ def main(page: ft.Page):
                             ft.Container(expand=True),
                         ]),
                         expand=True,
-                        bgcolor=ft.Colors.BLACK26,
+                        bgcolor=ft.Colors.BLACK_26,
                         on_click=lambda e: close_dialog(),
                     )
                     
@@ -8868,7 +8880,7 @@ def main(page: ft.Page):
                         shadow=ft.BoxShadow(
                             spread_radius=1,
                             blur_radius=15,
-                            color=ft.Colors.BLACK12,
+                            color=ft.Colors.BLACK_12,
                         ),
                         expand=True,
                     ),
@@ -8930,13 +8942,13 @@ def main(page: ft.Page):
                         ft.Text("此操作不可撤销！", size=12, color=ft.Colors.RED_500, text_align=ft.TextAlign.CENTER),
                         ft.Divider(height=1, color=ft.Colors.GREY_300),
                         ft.Row([
-                            ft.ElevatedButton(
+                            ft.Button(
                                 "取消", 
                                 on_click=cancel, 
                                 expand=True,
                                 style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.GREY_700),
                             ),
-                            ft.ElevatedButton(
+                            ft.Button(
                                 "确认删除", 
                                 on_click=confirm, 
                                 expand=True,
@@ -8961,7 +8973,7 @@ def main(page: ft.Page):
                         ft.Container(expand=True),
                     ]),
                     expand=True,
-                    bgcolor=ft.Colors.BLACK26,
+                    bgcolor=ft.Colors.BLACK_26,
                     on_click=lambda e: close_dialog(),
                 )
                 
@@ -8970,6 +8982,9 @@ def main(page: ft.Page):
             
             def back_to_main():
                 """返回主界面"""
+                global current_page
+                current_page = "main"
+
                 # ========== 先清除 resize 监听 ==========
                 if IS_WINDOWS:
                     page.on_resize = None
@@ -9020,7 +9035,7 @@ def main(page: ft.Page):
                 border_radius=30,
                 padding=14,
                 ink=True,
-                shadow=ft.BoxShadow(spread_radius=1, blur_radius=10, color=ft.Colors.BLACK26, offset=ft.Offset(0, 2)),
+                shadow=ft.BoxShadow(spread_radius=1, blur_radius=10, color=ft.Colors.BLACK_26, offset=ft.Offset(0, 2)),
                 on_click=lambda e: open_memo_edit_dialog(None),
             )
             
@@ -9220,7 +9235,7 @@ def main(page: ft.Page):
                         right=ft.border.BorderSide(border_width, border_color),
                         bottom=ft.border.BorderSide(border_width, border_color),
                     ),
-                    #shadow=ft.BoxShadow(spread_radius=1,blur_radius=8,color=ft.Colors.BLACK12,offset=ft.Offset(0, 2),), 阴影效果
+                    #shadow=ft.BoxShadow(spread_radius=1,blur_radius=8,color=ft.Colors.BLACK_12,offset=ft.Offset(0, 2),), 阴影效果
                     ink=True,
                     on_click=on_click,
                     margin=ft.Padding(left=0, right=0, top=5, bottom=5),  # 卡片间距
@@ -9345,7 +9360,7 @@ def main(page: ft.Page):
                             ft.Container(expand=True),
                         ]),
                         expand=True,
-                        bgcolor=ft.Colors.BLACK26,
+                        bgcolor=ft.Colors.BLACK_26,
                         on_click=lambda e: close_dialog(),
                     )
                     
@@ -9411,7 +9426,7 @@ def main(page: ft.Page):
                 bgcolor=ft.Colors.WHITE,
                 border=ft.border.Border(top=ft.border.BorderSide(1, ft.Colors.GREY_200)),
                 border_radius=0,
-                #shadow=ft.BoxShadow(spread_radius=1, blur_radius=12, color=ft.Colors.BLACK12, offset=ft.Offset(0, -3)), 阴影效果
+                #shadow=ft.BoxShadow(spread_radius=1, blur_radius=12, color=ft.Colors.BLACK_12, offset=ft.Offset(0, -3)), 阴影效果
                 height=56,  # 固定高度，与内容匹配
             )
 
@@ -9600,7 +9615,7 @@ def main(page: ft.Page):
             shadow=ft.BoxShadow(
                 spread_radius=1,
                 blur_radius=8,
-                color=ft.Colors.BLACK12,
+                color=ft.Colors.BLACK_12,
                 offset=ft.Offset(0, 2),
             ),
             visible=False,
@@ -9766,7 +9781,7 @@ def main(page: ft.Page):
                 shadow=ft.BoxShadow(
                     spread_radius=1,
                     blur_radius=8,
-                    color=ft.Colors.BLACK12,
+                    color=ft.Colors.BLACK_12,
                     offset=ft.Offset(0, 2),
                 ),
                 border_radius=20,
@@ -9790,13 +9805,13 @@ def main(page: ft.Page):
                     search_text_field,
                     ft.Divider(height=1, color=ft.Colors.GREY_300),
                     ft.Row([
-                        ft.ElevatedButton(
+                        ft.Button(
                             "取消",
                             on_click=cancel_search,
                             expand=True,
                             style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.GREY_700),
                         ),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "搜索",
                             on_click=do_search,
                             expand=True,
@@ -9811,7 +9826,7 @@ def main(page: ft.Page):
                 shadow=ft.BoxShadow(
                     spread_radius=1,
                     blur_radius=15,
-                    color=ft.Colors.BLACK12,
+                    color=ft.Colors.BLACK_12,
                     offset=ft.Offset(0, 4),
                 ),
             )
@@ -9827,7 +9842,7 @@ def main(page: ft.Page):
                     ft.Container(expand=True),
                 ]),
                 expand=True,
-                bgcolor=ft.Colors.BLACK26,
+                bgcolor=ft.Colors.BLACK_26,
                 on_click=lambda e: close_dialog(),
             )
             
@@ -10088,7 +10103,7 @@ def main(page: ft.Page):
                         ft.Container(expand=True),
                     ]),
                     expand=True,
-                    bgcolor=ft.Colors.BLACK26,
+                    bgcolor=ft.Colors.BLACK_26,
                     on_click=lambda e: close_dialog(),
                 )
                 
@@ -10167,7 +10182,7 @@ def main(page: ft.Page):
                     shadow=ft.BoxShadow(
                         spread_radius=1,
                         blur_radius=15,
-                        color=ft.Colors.BLACK12,
+                        color=ft.Colors.BLACK_12,
                     ),
                     expand=True,
                 ),
@@ -10552,7 +10567,7 @@ def main(page: ft.Page):
                     ),
                     # 确定按钮（在底部）
                     ft.Container(
-                        content=ft.ElevatedButton(
+                        content=ft.Button(
                             "确定",
                             on_click=lambda e: select_month(selected_year, selected_month),
                             expand=True,
@@ -10694,7 +10709,7 @@ def main(page: ft.Page):
                     ),
                     # 确定按钮（在底部）
                     ft.Container(
-                        content=ft.ElevatedButton(
+                        content=ft.Button(
                             "确定",
                             on_click=apply_custom_range,
                             expand=True,
@@ -10854,7 +10869,7 @@ def main(page: ft.Page):
                 shadow=ft.BoxShadow(
                     spread_radius=1,
                     blur_radius=20,
-                    color=ft.Colors.BLACK26,
+                    color=ft.Colors.BLACK_26,
                     offset=ft.Offset(0, -4),
                 ),
             )
@@ -10864,7 +10879,7 @@ def main(page: ft.Page):
                 content=ft.Stack([
                     ft.Container(
                         expand=True,
-                        bgcolor=ft.Colors.BLACK26,
+                        bgcolor=ft.Colors.BLACK_26,
                         on_click=lambda e: close_bottom_sheet(),
                     ),
                     sheet_container,
@@ -11251,7 +11266,7 @@ def main(page: ft.Page):
                     shadow=ft.BoxShadow(
                         spread_radius=1,
                         blur_radius=20,
-                        color=ft.Colors.BLACK12,
+                        color=ft.Colors.BLACK_12,
                         offset=ft.Offset(0, 4),
                     ),
                     expand=True,
@@ -12171,7 +12186,7 @@ def main(page: ft.Page):
                     shadow=ft.BoxShadow(
                         spread_radius=1,
                         blur_radius=15,
-                        color=ft.Colors.BLACK12,
+                        color=ft.Colors.BLACK_12,
                     ),
                     expand=True,
                 ),
@@ -12210,7 +12225,7 @@ def main(page: ft.Page):
                     ft.Text("添加记录", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_800),
                     ft.Text("请选择记录类型", size=12, color=ft.Colors.GREY_500),
                     ft.Divider(height=1, color=ft.Colors.GREY_200),
-                    ft.ElevatedButton(
+                    ft.Button(
                         "💰 收入", 
                         on_click=lambda e: [close_menu(), show_add_transaction_dialog("income")], 
                         icon=ft.Icons.ARROW_UPWARD,
@@ -12221,7 +12236,7 @@ def main(page: ft.Page):
                         ),
                         expand=True,
                     ),
-                    ft.ElevatedButton(
+                    ft.Button(
                         "💸 支出", 
                         on_click=lambda e: [close_menu(), show_add_transaction_dialog("expense")], 
                         icon=ft.Icons.ARROW_DOWNWARD,
@@ -12249,13 +12264,13 @@ def main(page: ft.Page):
                 shadow=ft.BoxShadow(
                     spread_radius=1,
                     blur_radius=15,
-                    color=ft.Colors.BLACK12,
+                    color=ft.Colors.BLACK_12,
                     offset=ft.Offset(0, 4),
                 ),
             )
             menu_container = ft.Container(
                 content=ft.Column([ft.Container(expand=True), ft.Row([ft.Container(expand=True), menu_content, ft.Container(expand=True)]), ft.Container(expand=True)]),
-                expand=True, bgcolor=ft.Colors.BLACK26, on_click=lambda e: close_menu(),
+                expand=True, bgcolor=ft.Colors.BLACK_26, on_click=lambda e: close_menu(),
             )
             page.overlay.append(menu_container)
             page.update()
@@ -12415,7 +12430,7 @@ def main(page: ft.Page):
             shadow=ft.BoxShadow(
                 spread_radius=1,
                 blur_radius=8,
-                color=ft.Colors.BLACK12,
+                color=ft.Colors.BLACK_12,
                 offset=ft.Offset(0, 2),
             ),
             visible=False,  # 初始隐藏
@@ -12536,7 +12551,7 @@ def main(page: ft.Page):
         # 今日事件按钮
         if today_count > 0:
             menu_items_content.append(
-                ft.ElevatedButton(
+                ft.Button(
                     f"📌 今日事件 ({today_count})",
                     on_click=create_callback("today"),
                     expand=True,
@@ -12547,7 +12562,7 @@ def main(page: ft.Page):
         # 预警事件按钮
         if three_days_count > 0:
             menu_items_content.append(
-                ft.ElevatedButton(
+                ft.Button(
                     f"🔔 预警事件 ({three_days_count})",
                     on_click=create_callback("three_days"),
                     expand=True,
@@ -12558,7 +12573,7 @@ def main(page: ft.Page):
         # 每日事件按钮
         if daily_count > 0:
             menu_items_content.append(
-                ft.ElevatedButton(
+                ft.Button(
                     f"⏰ 每日事件 ({daily_count})",
                     on_click=create_callback("daily"),
                     expand=True,
@@ -12569,7 +12584,7 @@ def main(page: ft.Page):
         # 每周事件按钮
         if weekly_count > 0:
             menu_items_content.append(
-                ft.ElevatedButton(
+                ft.Button(
                     f"🔁 每周事件 ({weekly_count})",
                     on_click=create_callback("weekly"),
                     expand=True,
@@ -12617,7 +12632,7 @@ def main(page: ft.Page):
             shadow=ft.BoxShadow(
                 spread_radius=1,
                 blur_radius=20,
-                color=ft.Colors.BLACK12,
+                color=ft.Colors.BLACK_12,
                 offset=ft.Offset(0, 4),
             ),
         )
@@ -12633,7 +12648,7 @@ def main(page: ft.Page):
                 ft.Container(expand=True),
             ]),
             expand=True,
-            bgcolor=ft.Colors.BLACK26,
+            bgcolor=ft.Colors.BLACK_26,
             on_click=lambda e: close_menu(),
         )
         
@@ -13572,7 +13587,7 @@ def main(page: ft.Page):
             shadow=ft.BoxShadow(
                 spread_radius=1,
                 blur_radius=8,
-                color=ft.Colors.BLACK12,
+                color=ft.Colors.BLACK_12,
                 offset=ft.Offset(0, 2),
             ),
             ink=True,
@@ -15316,9 +15331,9 @@ def main(page: ft.Page):
                     ft.Text("如果选择「否」，后续可在线搜索歌词", size=12, color=ft.Colors.GREY_600),
                     ft.Divider(height=10),
                     ft.Row([
-                        ft.ElevatedButton("是", on_click=on_yes, expand=True),
+                        ft.Button("是", on_click=on_yes, expand=True),
                         #ft.Button("是", on_click=on_yes, expand=True, style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE_700, color=ft.Colors.WHITE)),
-                        ft.ElevatedButton("否", on_click=on_no, expand=True),
+                        ft.Button("否", on_click=on_no, expand=True),
                         ft.TextButton("取消", on_click=on_cancel),
                     ], alignment=ft.MainAxisAlignment.CENTER, spacing=10),
                 ], spacing=10, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
@@ -15339,7 +15354,7 @@ def main(page: ft.Page):
                     ft.Container(expand=True),
                 ]),
                 expand=True,
-                bgcolor=ft.Colors.BLACK26,
+                bgcolor=ft.Colors.BLACK_26,
                 on_click=on_cancel,
             )
             
@@ -15716,7 +15731,7 @@ def main(page: ft.Page):
                     ft.Text("支持格式: MP3, WAV, FLAC, M4A", size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
                     ft.Divider(height=1, color=ft.Colors.GREY_300),
                     ft.Row([
-                        ft.ElevatedButton(
+                        ft.Button(
                             "选择音乐", 
                             on_click=lambda e: on_select_music(), 
                             expand=True,
@@ -15724,7 +15739,7 @@ def main(page: ft.Page):
                         ),
                     ], alignment=ft.MainAxisAlignment.CENTER),
                     ft.Row([
-                        ft.ElevatedButton(
+                        ft.Button(
                             "取消", 
                             on_click=lambda e: on_cancel(), 
                             expand=True,
@@ -15749,7 +15764,7 @@ def main(page: ft.Page):
                     ft.Container(expand=True),
                 ]),
                 expand=True,
-                bgcolor=ft.Colors.BLACK26,
+                bgcolor=ft.Colors.BLACK_26,
                 on_click=lambda e: close_menu(),
             )
             
@@ -16562,7 +16577,7 @@ def main(page: ft.Page):
                 workday_only_checkbox,  # 添加工作日选项
                 ft.Divider(height=5),
                 ft.Row(
-                    [ft.ElevatedButton(
+                    [ft.Button(
                         "添加提醒时间",
                         on_click=lambda e: add_reminder_time(),
                         icon=ft.Icons.ADD_ALARM,
@@ -16653,7 +16668,7 @@ def main(page: ft.Page):
                 shadow=ft.BoxShadow(
                     spread_radius=1,
                     blur_radius=15,
-                    color=ft.Colors.BLACK12,
+                    color=ft.Colors.BLACK_12,
                 ),
                 expand=True,
             ),
@@ -16821,7 +16836,7 @@ def main(page: ft.Page):
                 ft.Divider(height=1, color=ft.Colors.GREY_300),
                 # ========== 修改：关闭按钮宽度最大化 ==========
                 ft.Container(
-                    content=ft.ElevatedButton(
+                    content=ft.Button(
                         "我知道了", 
                         on_click=lambda e: close_combined_reminder(),
                         style=ft.ButtonStyle(
@@ -16924,7 +16939,7 @@ def main(page: ft.Page):
                 ft.Divider(height=1, color=ft.Colors.GREY_300),
                 # ========== 修改：关闭按钮宽度最大化 ==========
                 ft.Container(
-                    content=ft.ElevatedButton(
+                    content=ft.Button(
                         "我知道了", 
                         on_click=lambda e: close_combined_reminder(),
                         style=ft.ButtonStyle(
@@ -16966,7 +16981,7 @@ def main(page: ft.Page):
                         shadow=ft.BoxShadow(
                             spread_radius=1,
                             blur_radius=15,
-                            color=ft.Colors.BLACK12,
+                            color=ft.Colors.BLACK_12,
                         ),
                     ),
                     ft.Container(expand=True),  # 右侧弹性空间
@@ -16974,7 +16989,7 @@ def main(page: ft.Page):
                 ft.Container(expand=True),  # 下方弹性空间
             ]),
             expand=True,
-            bgcolor=ft.Colors.BLACK26,  # 半透明背景遮罩
+            bgcolor=ft.Colors.BLACK_26,  # 半透明背景遮罩
             on_click=lambda e: close_combined_reminder(),  # 点击背景关闭
         )
         
@@ -17284,7 +17299,7 @@ def main(page: ft.Page):
                 ft.Text(message, size=16, color=ft.Colors.GREY_700, text_align=ft.TextAlign.CENTER),
                 ft.Divider(height=1, color=ft.Colors.GREY_300),
                 ft.Row([
-                    ft.ElevatedButton(
+                    ft.Button(
                         "知道了",
                         on_click=lambda e: close_popup(),
                         expand=True,
@@ -17299,7 +17314,7 @@ def main(page: ft.Page):
             shadow=ft.BoxShadow(
                 spread_radius=1,
                 blur_radius=15,
-                color=ft.Colors.BLACK12,
+                color=ft.Colors.BLACK_12,
                 offset=ft.Offset(0, 4),
             ),
         )
@@ -17315,7 +17330,7 @@ def main(page: ft.Page):
                 ft.Container(expand=True),
             ]),
             expand=True,
-            bgcolor=ft.Colors.BLACK26,
+            bgcolor=ft.Colors.BLACK_26,
             on_click=lambda e: close_popup(),
         )
         
@@ -18533,13 +18548,13 @@ def main(page: ft.Page):
                     ft.Text(f"当前有 {len(events)} 条事件将被替换", size=12, color=ft.Colors.ORANGE_700, text_align=ft.TextAlign.CENTER),
                     ft.Divider(height=1, color=ft.Colors.GREY_300),
                     ft.Row([
-                        ft.ElevatedButton(
+                        ft.Button(
                             "取消", 
                             on_click=lambda e: cancel_replace(), 
                             expand=True,
                             style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.GREY_700),
                         ),
-                        ft.ElevatedButton(
+                        ft.Button(
                             "确认导入", 
                             on_click=lambda e: confirm_replace(), 
                             expand=True,
@@ -18564,7 +18579,7 @@ def main(page: ft.Page):
                     ft.Container(expand=True),
                 ]),
                 expand=True,
-                bgcolor=ft.Colors.BLACK26,
+                bgcolor=ft.Colors.BLACK_26,
                 on_click=lambda e: close_confirm_dialog(),
             )
             
@@ -18586,7 +18601,7 @@ def main(page: ft.Page):
                 ft.Text("支持格式: .xlsx, .xls", size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
                 ft.Divider(height=1, color=ft.Colors.GREY_300),
                 ft.Row([
-                    ft.ElevatedButton(
+                    ft.Button(
                         "选择Excel文件", 
                         on_click=lambda e: on_select_file(),  # 使用包装函数
                         expand=True,
@@ -18594,7 +18609,7 @@ def main(page: ft.Page):
                     ),
                 ], alignment=ft.MainAxisAlignment.CENTER),
                 ft.Row([
-                    ft.ElevatedButton(
+                    ft.Button(
                         "取消", 
                         on_click=lambda e: on_cancel(), 
                         expand=True,
@@ -18619,7 +18634,7 @@ def main(page: ft.Page):
                 ft.Container(expand=True),
             ]),
             expand=True,
-            bgcolor=ft.Colors.BLACK26,
+            bgcolor=ft.Colors.BLACK_26,
             on_click=lambda e: close_menu(),
         )
         
@@ -19034,7 +19049,7 @@ def main(page: ft.Page):
                         ft.Row([ft.Container(expand=True), confirm_content, ft.Container(expand=True)]),
                         ft.Container(expand=True),
                     ]),
-                    expand=True, bgcolor=ft.Colors.BLACK26, on_click=lambda e: close_confirm_dialog(),
+                    expand=True, bgcolor=ft.Colors.BLACK_26, on_click=lambda e: close_confirm_dialog(),
                 )
                 
                 page.overlay.append(confirm_dialog_container)
@@ -19061,7 +19076,7 @@ def main(page: ft.Page):
                 ft.Text("支持格式: .xlsx, .xls", size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
                 ft.Divider(),
                 ft.Row([
-                    ft.ElevatedButton(
+                    ft.Button(
                         "选择Excel文件", 
                         on_click=lambda e: on_select_file(),
                         expand=True,
@@ -19069,7 +19084,7 @@ def main(page: ft.Page):
                     ),
                 ], alignment=ft.MainAxisAlignment.CENTER),
                 ft.Row([
-                    ft.ElevatedButton(
+                    ft.Button(
                         "取消", 
                         on_click=lambda e: on_cancel(), 
                         expand=True,
@@ -19084,7 +19099,7 @@ def main(page: ft.Page):
             shadow=ft.BoxShadow(
                 spread_radius=1,
                 blur_radius=15,
-                color=ft.Colors.BLACK12,
+                color=ft.Colors.BLACK_12,
                 offset=ft.Offset(0, 4),
             ),
         )
@@ -19095,7 +19110,7 @@ def main(page: ft.Page):
                 ft.Row([ft.Container(expand=True), menu_content, ft.Container(expand=True)]),
                 ft.Container(expand=True),
             ]),
-            expand=True, bgcolor=ft.Colors.BLACK26, on_click=lambda e: close_menu(),
+            expand=True, bgcolor=ft.Colors.BLACK_26, on_click=lambda e: close_menu(),
         )
         
         page.overlay.append(menu_container)
@@ -19459,13 +19474,13 @@ def main(page: ft.Page):
                         ft.Text(f"当前有 {len(memo_notes)} 条备忘录将被替换", size=12, color=ft.Colors.ORANGE_700),
                         ft.Divider(),
                         ft.Row([
-                            ft.ElevatedButton(
+                            ft.Button(
                                 "取消", 
                                 on_click=lambda e: cancel_replace(), 
                                 expand=True,
                                 style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.GREY_700),
                             ),
-                            ft.ElevatedButton(
+                            ft.Button(
                                 "确认导入", 
                                 on_click=lambda e: confirm_replace(), 
                                 expand=True,
@@ -19486,7 +19501,7 @@ def main(page: ft.Page):
                         ft.Container(expand=True),
                     ]),
                     expand=True,
-                    bgcolor=ft.Colors.BLACK26,
+                    bgcolor=ft.Colors.BLACK_26,
                     on_click=lambda e: close_confirm_dialog(),
                 )
                 
@@ -19510,7 +19525,7 @@ def main(page: ft.Page):
                 ft.Text("支持格式: .xlsx, .xls", size=12, color=ft.Colors.GREY_500),
                 ft.Divider(),
                 ft.Row([
-                    ft.ElevatedButton(
+                    ft.Button(
                         "选择Excel文件", 
                         on_click=lambda e: [close_menu(), asyncio.create_task(select_file_and_import())], 
                         expand=True,
@@ -19518,7 +19533,7 @@ def main(page: ft.Page):
                     ),
                 ], alignment=ft.MainAxisAlignment.CENTER),
                 ft.Row([
-                    ft.ElevatedButton(
+                    ft.Button(
                         "取消", 
                         on_click=lambda e: close_menu(), 
                         expand=True,
@@ -19533,7 +19548,7 @@ def main(page: ft.Page):
             shadow=ft.BoxShadow(
                 spread_radius=1,
                 blur_radius=15,
-                color=ft.Colors.BLACK12,
+                color=ft.Colors.BLACK_12,
                 offset=ft.Offset(0, 4),
             ),
         )
@@ -19545,7 +19560,7 @@ def main(page: ft.Page):
                 ft.Container(expand=True),
             ]),
             expand=True,
-            bgcolor=ft.Colors.BLACK26,
+            bgcolor=ft.Colors.BLACK_26,
             on_click=lambda e: close_menu(),
         )
         
@@ -19577,7 +19592,7 @@ def main(page: ft.Page):
                 ft.Text("请选择要导出的数据类型", size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
                 ft.Divider(),
                 ft.Row([
-                        ft.ElevatedButton(
+                        ft.Button(
                             "📋 事件列表", 
                             on_click=lambda e: [close_menu(), asyncio.create_task(export_events_async(e))],
                             expand=True,
@@ -19585,7 +19600,7 @@ def main(page: ft.Page):
                         ),
                     ], alignment=ft.MainAxisAlignment.CENTER),
                 ft.Row([
-                        ft.ElevatedButton(
+                        ft.Button(
                             "💰 顺手记‌列表", 
                             on_click=lambda e: [close_menu(), asyncio.create_task(export_accounting_async(e))],
                             expand=True,
@@ -19594,7 +19609,7 @@ def main(page: ft.Page):
                     ], alignment=ft.MainAxisAlignment.CENTER),
                 # ========== 新增：备忘录列表导出 ==========
                 ft.Row([
-                        ft.ElevatedButton(
+                        ft.Button(
                             "📝 备忘录列表", 
                             on_click=lambda e: [close_menu(), asyncio.create_task(export_memo_async(e))],
                             expand=True,
@@ -19603,7 +19618,7 @@ def main(page: ft.Page):
                     ], alignment=ft.MainAxisAlignment.CENTER),
                 ft.Divider(),
                 ft.Row([
-                        ft.ElevatedButton(
+                        ft.Button(
                             "取消", 
                             on_click=lambda e: close_menu(), 
                             expand=True,
@@ -19618,7 +19633,7 @@ def main(page: ft.Page):
             shadow=ft.BoxShadow(
                 spread_radius=1,
                 blur_radius=15,
-                color=ft.Colors.BLACK12,
+                color=ft.Colors.BLACK_12,
                 offset=ft.Offset(0, 4),
             ),
         )
@@ -19629,7 +19644,7 @@ def main(page: ft.Page):
                 ft.Row([ft.Container(expand=True), menu_content, ft.Container(expand=True)]),
                 ft.Container(expand=True),
             ]),
-            expand=True, bgcolor=ft.Colors.BLACK26, on_click=lambda e: close_menu(),
+            expand=True, bgcolor=ft.Colors.BLACK_26, on_click=lambda e: close_menu(),
         )
         
         page.overlay.append(menu_container)
@@ -19660,7 +19675,7 @@ def main(page: ft.Page):
                 ft.Text("请选择要导入的数据类型", size=12, color=ft.Colors.GREY_500, text_align=ft.TextAlign.CENTER),
                 ft.Divider(),
                 ft.Row([
-                        ft.ElevatedButton(
+                        ft.Button(
                             "📋 事件列表", 
                             on_click=lambda e: [close_menu(), asyncio.create_task(import_events_async(e))],
                             expand=True,
@@ -19668,7 +19683,7 @@ def main(page: ft.Page):
                         ),
                     ], alignment=ft.MainAxisAlignment.CENTER),
                 ft.Row([
-                        ft.ElevatedButton(
+                        ft.Button(
                             "💰 顺手记‌列表", 
                             on_click=lambda e: [close_menu(), asyncio.create_task(import_accounting_async(e))],
                             expand=True,
@@ -19677,7 +19692,7 @@ def main(page: ft.Page):
                     ], alignment=ft.MainAxisAlignment.CENTER),
                 # ========== 新增：备忘录列表导入 ==========
                 ft.Row([
-                        ft.ElevatedButton(
+                        ft.Button(
                             "📝 备忘录列表", 
                             on_click=lambda e: [close_menu(), asyncio.create_task(import_memo_async(e))],
                             expand=True,
@@ -19686,7 +19701,7 @@ def main(page: ft.Page):
                     ], alignment=ft.MainAxisAlignment.CENTER),
                 ft.Divider(),
                 ft.Row([
-                        ft.ElevatedButton(
+                        ft.Button(
                             "取消", 
                             on_click=lambda e: close_menu(), 
                             expand=True,
@@ -19701,7 +19716,7 @@ def main(page: ft.Page):
             shadow=ft.BoxShadow(
                 spread_radius=1,
                 blur_radius=15,
-                color=ft.Colors.BLACK12,
+                color=ft.Colors.BLACK_12,
                 offset=ft.Offset(0, 4),
             ),
         )
@@ -19712,7 +19727,7 @@ def main(page: ft.Page):
                 ft.Row([ft.Container(expand=True), menu_content, ft.Container(expand=True)]),
                 ft.Container(expand=True),
             ]),
-            expand=True, bgcolor=ft.Colors.BLACK26, on_click=lambda e: close_menu(),
+            expand=True, bgcolor=ft.Colors.BLACK_26, on_click=lambda e: close_menu(),
         )
         
         page.overlay.append(menu_container)
@@ -19846,7 +19861,7 @@ def main(page: ft.Page):
         shadow=ft.BoxShadow(
             spread_radius=1,
             blur_radius=6,
-            color=ft.Colors.BLACK26,
+            color=ft.Colors.BLACK_26,
             offset=ft.Offset(0, 2),
         ),
     )
@@ -20398,7 +20413,7 @@ def main(page: ft.Page):
             shadow=ft.BoxShadow(
                 spread_radius=1,
                 blur_radius=8,
-                color=ft.Colors.BLACK12,
+                color=ft.Colors.BLACK_12,
                 offset=ft.Offset(0, 2),
             ),
             border_radius=20,
@@ -20422,13 +20437,13 @@ def main(page: ft.Page):
                 search_text_field,
                 ft.Divider(height=1, color=ft.Colors.GREY_300),
                 ft.Row([
-                    ft.ElevatedButton(
+                    ft.Button(
                         "取消",
                         on_click=cancel_search,
                         expand=True,
                         style=ft.ButtonStyle(bgcolor=ft.Colors.GREY_100, color=ft.Colors.GREY_700),
                     ),
-                    ft.ElevatedButton(
+                    ft.Button(
                         "搜索",
                         on_click=do_search,
                         expand=True,
@@ -20443,7 +20458,7 @@ def main(page: ft.Page):
             shadow=ft.BoxShadow(
                 spread_radius=1,
                 blur_radius=15,
-                color=ft.Colors.BLACK12,
+                color=ft.Colors.BLACK_12,
                 offset=ft.Offset(0, 4),
             ),
         )
@@ -20459,7 +20474,7 @@ def main(page: ft.Page):
                 ft.Container(expand=True),
             ]),
             expand=True,
-            bgcolor=ft.Colors.BLACK26,
+            bgcolor=ft.Colors.BLACK_26,
             on_click=lambda e: close_dialog(),
         )
         
@@ -20611,7 +20626,7 @@ def main(page: ft.Page):
         shadow=ft.BoxShadow(
             spread_radius=1,
             blur_radius=8,
-            color=ft.Colors.BLACK12,
+            color=ft.Colors.BLACK_12,
             offset=ft.Offset(0, 2),
         ),
         visible=False,
@@ -20666,7 +20681,7 @@ def main(page: ft.Page):
         shadow=ft.BoxShadow(
             spread_radius=1,
             blur_radius=8,
-            color=ft.Colors.BLACK12,
+            color=ft.Colors.BLACK_12,
             offset=ft.Offset(0, 2),
         ),
     )
@@ -20681,7 +20696,7 @@ def main(page: ft.Page):
         shadow=ft.BoxShadow(
             spread_radius=1,
             blur_radius=10,
-            color=ft.Colors.BLACK26,
+            color=ft.Colors.BLACK_26,
             offset=ft.Offset(0, 2),
         ),
     )
