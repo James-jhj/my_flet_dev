@@ -90,8 +90,8 @@ else:
 tray_manager = None
 
 # ========== 2. 版本信息 ==========
-APP_VERSION = "1.0.312"
-APP_VERSION_CODE = 312
+APP_VERSION = "1.0.313"
+APP_VERSION_CODE = 313
 # =============================
 
 # ========== 3. 设备绑定功能 ==========
@@ -21183,12 +21183,11 @@ def main(page: ft.Page):
     # ================= windows 托盘功能结束 ======================
 
 if __name__ == "__main__":
-    # ========== 仅 Windows 平台检查 --show 参数 ==========
     if IS_WINDOWS and "--show" in sys.argv:
         ft.run(main)
     else:
         print(f"🚀 启动平台: {'Windows' if IS_WINDOWS else 'Android'}")
-        
+
         if IS_WINDOWS:
             tray_needed = True
             try:
@@ -21200,24 +21199,19 @@ if __name__ == "__main__":
                             print("主窗口已在运行，不启动托盘")
             except:
                 pass
-            
             if tray_needed:
                 print("启动托盘...")
         else:
-            ft.app(target=main, assets_dir="assets")
             print("📱 Android 平台，系统托盘已禁用")
-        
-        # ========== 运行主窗口 ==========
+
         try:
-            ft.run(main)
+            ft.run(main)          # ← 统一用 ft.run，不要 ft.app
         except KeyboardInterrupt:
             print("用户中断")
         except Exception as e:
             print(f"错误: {e}")
         finally:
             print("主窗口已关闭")
-            
-            # 如果托盘还在运行，强制停止
             if IS_WINDOWS and tray_manager:
                 try:
                     if tray_manager.running:
@@ -21230,7 +21224,5 @@ if __name__ == "__main__":
                                 pass
                 except:
                     pass
-            
             print("程序已退出")
-            # 强制退出
             os._exit(0)
